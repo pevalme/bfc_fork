@@ -1,6 +1,6 @@
 -----------------------------------------------
 Compilation instructions for g++
---------------------------------
+-----------------------------------------------
 1. Required:
 * g++ >= 4.6.1 only (available, e.g., in Ubuntu 11.10)
 * boost libraries (tested with version 1.46 and 1.47)

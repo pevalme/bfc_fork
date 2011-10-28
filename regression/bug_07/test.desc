@@ -1,0 +1,11 @@
+CORE
+main.tts
+-k3 --print-cover
+^EXIT=0$
+^SIGNAL=0$
+^3-COVER SUCCESSFULLY COMPUTED$
+^coverable elements (all)        : 47$
+--
+^warning: ignoring
+--
+no comments

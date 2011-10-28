@@ -1,0 +1,9 @@
+CORE
+main.tts
+--target "2|2,2" --mode B
+^EXIT=0$
+^SIGNAL=0$
+^VERIFICATION SUCCESSFUL$
+--
+--
+no comments

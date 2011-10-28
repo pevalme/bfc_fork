@@ -1,0 +1,34 @@
+-----------------------------------------------
+Compilation instructions for g++
+--------------------------------
+1. Required:
+* g++ >= 4.6.1 only (available, e.g., in Ubuntu 11.10)
+* boost libraries (tested with version 1.46 and 1.47)
+  * boost_filesystem
+  * boost_system
+  * boost_thread
+  * boost_program_options
+
+2. Create the target directory: 
+mkdir ./bin/bfc/release
+
+3. Compile with
+g++ -O3 -I./src/core ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc -o./bin/bfc/release/bfc -lboost_filesystem -lboost_system -std=gnu++0x -pthread -lboost_thread -lboost_program_options --static
+-----------------------------------------------
+Compilation instructions for Visual Studio 2010
+-----------------------------------------------
+1. Required:
+* boost libraries (tested with version 1.46 and 1.47)
+  * boost_filesystem
+  * boost_system
+  * boost_thread
+  * boost_program_options
+Pre-compiled 32-bit library binaries are also available here: http://www.boostpro.com/download/.
+
+2. Open bfc.sln and adjust the project properties:
+* Path "C:\Program Files (x86)\boost\boost_1_47" in the "Additional Include Directories" field under "C/C++".
+* Path "C:\Program Files (x86)\boost\boost_1_47\lib" in the "Additional Library Directories" field under "Linker/General".
+
+3. Build the solution.
+-----------------------------------------------
+For furhter questions contact Alexander Kaiser (alexander.kaiser@cs.ox.ac.uk).

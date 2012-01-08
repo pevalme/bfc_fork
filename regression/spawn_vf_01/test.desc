@@ -1,0 +1,10 @@
+CORE
+main.tts
+--target main.prop
+^EXIT=10$
+^SIGNAL=0$
+^VERIFICATION FAILED$
+--
+^warning: ignoring
+--
+no comments

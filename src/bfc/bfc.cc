@@ -1,3 +1,11 @@
+/*
+
+known bugs: 
+	- regression/hor_por_vs_03 failed sometimes (seg. fault)
+	- sometimes hangs at "Forward trace to target covering state found..."
+
+*/
+
 /******************************************************************************
   Synopsis		[Bfc - Greedy Analysis of Multi-Threaded Programs with 
 				Non-Blocking Communication.]
@@ -39,7 +47,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
-#define PUBLIC_RELEASE
+//#define PUBLIC_RELEASE
 
 #define EXIT_VERIFICATION_SUCCESSFUL 0
 #define EXIT_VERIFICATION_FAILED 10
@@ -248,7 +256,7 @@ int main(int argc, char* argv[])
 		shared_t init_shared;
 		local_t init_local;
 		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), print_sgraph(0), stats_info(0), print_preinf(0), print_bwinf(0), print_fwinf(0);
+		bool h(0), v(0), print_sgraph(0), stats_info(0), print_preinf(0), print_bwinf(0), print_fwinf(0), single_initial(0), debug_info(1);
 #ifndef WIN32
 		unsigned to,mo;
 #endif
@@ -291,7 +299,9 @@ int main(int argc, char* argv[])
 		options_description istate("Initial state");
 		istate.add_options()
 			(OPT_STR_INI_SHARED,	value<shared_t>(&init_shared)->default_value(OPT_STR_INI_SHARED_DEFVAL), "initial shared state")
-			(OPT_STR_INI_LOCAL,		value<local_t>(&init_local)->default_value(OPT_STR_INI_LOCAL_DEFVAL), "parametrized initial local state");
+			(OPT_STR_INI_LOCAL,		value<local_t>(&init_local)->default_value(OPT_STR_INI_LOCAL_DEFVAL), "initial local state")
+			(OPT_STR_SINGLE_INITIAL,bool_switch(&single_initial), "do not parametrize the local initial state")
+			;
 
 		//Exploration mode
 		options_description exploration_mode("Exploration mode");
@@ -422,7 +432,15 @@ int main(int argc, char* argv[])
 			net.check_target = true;
 		}
 
-		net.init = OState(init_shared), net.init.unbounded_locals.insert(init_local); //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
+		net.init = OState(init_shared), net.local_init = init_local; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
+		if(single_initial) 
+			net.init.bounded_locals.insert(init_local);
+		else
+			net.init.unbounded_locals.insert(init_local);
+
+#ifndef NOSPAWN_REWRITE
+		net.init.unbounded_locals.insert(net.local_thread_pool);
+#endif
 
 		if      (mode_str == FW_OPTION_STR)		mode = FW, forward_projections = 0; //OPT_STR_MODE
 		else if (mode_str == BW_OPTION_STR)		mode = BW;
@@ -451,6 +469,9 @@ int main(int argc, char* argv[])
 
 		if(!print_preinf){ preinf.rdbuf(0); } //OPT_STR_PRE_INFO
 		if(!print_bwinf){ bout.rdbuf(0); } //OPT_STR_BW_INFO
+		if(!debug_info){ dout.rdbuf(0); } //
+
+		
 
 		if	   (graph_style == OPT_STR_BW_GRAPH_OPT_none) graph_type = GTYPE_NONE;
 		else if(graph_style == OPT_STR_BW_GRAPH_OPT_TIKZ) graph_type = GTYPE_TIKZ;
@@ -474,6 +495,36 @@ int main(int argc, char* argv[])
 			w << BState::S << " " << BState::L << " " << k << endl;
 			w.close();
 		}
+
+		Net::net_stats_t sts = net.get_net_stats();
+		statsout << "---------------------------------" << endl;
+		statsout << "Statistics for " << net.filename << endl;
+		statsout << "---------------------------------" << endl;
+		statsout << "local states                    : " << sts.L << endl;
+		statsout << "shared states                   : " << sts.S << endl;
+		statsout << "transitions                     : " << sts.T << endl;
+		statsout << "thread transitions              : " << sts.trans_type_counters[thread_transition] << endl;
+		//statsout << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << endl;
+		statsout << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << endl;
+		//statsout << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << endl;
+		statsout << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << endl;
+		//statsout << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << endl;
+		statsout << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << endl;
+		//statsout << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << endl;
+		statsout << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << endl;
+		//statsout << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << endl;
+		statsout << "disconnected thread states      : " << sts.discond << endl;
+		//statsout << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << endl;
+#ifdef DETAILED_TTS_STATS
+		statsout << "strongly connected components   : " << sts.SCC_num << endl;
+		statsout << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << endl;
+#endif
+		statsout << "maximum indegree                : " << sts.max_indegree << endl;
+		statsout << "maximum outdegree               : " << sts.max_outdegree << endl;
+		statsout << "maximum degree                  : " << sts.max_degree << endl;
+		statsout << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << endl;
+		statsout << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << endl;
+		statsout << "---------------------------------" << endl;
 
 	}
 	catch(std::exception& e)			{ cout << "INPUT ERROR: " << e.what() << "\n"; cout << "type " << argv[0] << " -h for instructions" << endl; return EXIT_FAILURE; }
@@ -569,10 +620,10 @@ int main(int argc, char* argv[])
 				bw_mem(print_bw_stats, mon_interval, o)
 				;
 			
-			fw.join(), 
-				bw.join(), 
-				bw_mem.interrupt(), 
-				bw_mem.join();
+			dout << "waiting for fw..." << endl, fw.join(), dout << "fw joined" << endl;
+			dout << "waiting for bw..." << endl, bw.join(), dout << "bw joined" << endl;
+			bw_mem.interrupt();
+			bw_mem.join();
 			
 			cout << "total time (conc): " << time_diff_str(finish_time,start_time) << endl;
 			

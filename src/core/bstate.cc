@@ -118,10 +118,10 @@ BState::BState(string str, bool alloc)
 			return;
 		}
 
-		debug_assert(i != tok.end());
+		(i != tok.end()) || (throw,1);
 		shared = boost::lexical_cast<shared_t>(*(i++));
 
-		debug_assert(i != tok.end());
+		(i != tok.end()) || (throw,1);
 		boost::tokenizer<boost::char_separator<char> > tok_locs(*i, boost::char_separator<char>(","));
 		boost::tokenizer<boost::char_separator<char> >::iterator li = tok_locs.begin();
 		while(li != tok_locs.end())

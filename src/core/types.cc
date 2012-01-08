@@ -21,6 +21,7 @@ ostream inf(cout.rdbuf());
 ostream fwinfo(cout.rdbuf());
 ostream preinf(cout.rdbuf());
 ostream bout(cout.rdbuf());
+ostream dout(cout.rdbuf());
 ostream statsout(cout.rdbuf());
 
 boost::mutex shared_cout_mutex;

@@ -20,8 +20,10 @@ typedef const unsigned short cushort;
 typedef const unsigned int   cuint;
 typedef const unsigned long  culong;
 
-typedef unsigned short	shared_t;
-typedef unsigned short	local_t;
+//typedef unsigned short	shared_t;
+//typedef unsigned short	local_t;
+typedef unsigned shared_t;
+typedef unsigned local_t;
 
 const shared_t invalid_shared = (shared_t)-1;
 const local_t invalid_local = (local_t)-2;
@@ -53,6 +55,7 @@ extern std::ostream inf;
 extern std::ostream fwinfo;
 extern std::ostream preinf;
 extern std::ostream bout;
+extern std::ostream dout;
 extern std::ostream statsout;
 
 #include <boost/thread.hpp>

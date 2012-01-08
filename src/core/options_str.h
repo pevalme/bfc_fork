@@ -23,6 +23,9 @@
 #define OPT_STR_INI_SHARED_DEFVAL	0
 #define OPT_STR_INI_LOCAL			"i-local,l"
 #define OPT_STR_INI_LOCAL_DEFVAL	0
+#define OPT_STR_SINGLE_INITIAL		"i-single,i"
+
+
 #define OPT_STR_NO_POR				"prj-all"
 #define OPT_STR_MODE				"mode,d"
 #define FW_CON_OPTION_STR			"FC"
@@ -84,5 +87,7 @@
 #define OPT_STR_FORMAT_MIST			"MIST"
 #define OPT_STR_FORMAT_TIKZ			"TIKZ"
 #define OPT_STR_FORMAT_TTS			"TTS"
+#define OPT_STR_FORMAT_LOLA			"LOLA"
+#define OPT_STR_FORMAT_TINA			"TINA"
 #define OPT_STR_FORMAT_CLASSIFY		"CLASSIFY"
 #endif

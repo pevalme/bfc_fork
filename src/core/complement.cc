@@ -294,8 +294,9 @@ unsigned complement_vec::project_and_insert(const OState& g)
 	for(unsigned i = prj.size() + 1; i <= this->K; ++i) //for a give k, this loop is executed only once
 		prj.push_back(cmb_node(i)); 
 
-	for(unsigned r = 1; r <= this->K; ++r){
+	for(unsigned r = 1; r <= this->K && r <= gg2.size(); ++r){
 		do {
+			debug_assert(r <= gg2.size());
 			debug_assert(is_sorted(gg2.begin(), gg2.begin() + r));
 			copy(gg2.begin(), gg2.begin() + r, prj[r-1].c.begin());
 			if(this->luv[g.shared].insert(prj[r-1])) ++new_projections;

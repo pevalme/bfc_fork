@@ -21,8 +21,8 @@ Global
 		{28450AE9-D106-4B33-A8A2-AF487B77A665}.debug|Win32.Build.0 = debug|Win32
 		{28450AE9-D106-4B33-A8A2-AF487B77A665}.release|Win32.ActiveCfg = release|Win32
 		{28450AE9-D106-4B33-A8A2-AF487B77A665}.release|Win32.Build.0 = release|Win32
-		{7B7FA3EA-60BC-46AD-B45D-3FF704F78D55}.debug|Win32.ActiveCfg = release|Win32
-		{7B7FA3EA-60BC-46AD-B45D-3FF704F78D55}.debug|Win32.Build.0 = release|Win32
+		{7B7FA3EA-60BC-46AD-B45D-3FF704F78D55}.debug|Win32.ActiveCfg = debug|Win32
+		{7B7FA3EA-60BC-46AD-B45D-3FF704F78D55}.debug|Win32.Build.0 = debug|Win32
 		{7B7FA3EA-60BC-46AD-B45D-3FF704F78D55}.release|Win32.ActiveCfg = release|Win32
 		{7B7FA3EA-60BC-46AD-B45D-3FF704F78D55}.release|Win32.Build.0 = release|Win32
 	EndGlobalSection

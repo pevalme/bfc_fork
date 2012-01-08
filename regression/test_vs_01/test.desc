@@ -1,6 +1,6 @@
 CORE
 main.tts
---target "2|2,2" --mode B
+--target "2|2,2"
 ^EXIT=0$
 ^SIGNAL=0$
 ^VERIFICATION SUCCESSFUL$

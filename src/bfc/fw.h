@@ -87,7 +87,7 @@ void print_dot_search_graph(const Oreached_t& Q)
 
 typedef vector<pair<Net::adj_t::const_iterator, trans_type> > tt_list_t;
 
-Oreached_t Post(ostate_t ag, const Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque, bool forward_projections)
+Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque, bool forward_projections)
 { 
 	Oreached_t succs;
 
@@ -107,11 +107,19 @@ Oreached_t Post(ostate_t ag, const Net& n, lowerset_vec& D, shared_cmb_deque_t& 
 		
 		Net::adj_t::const_iterator tc;
 		for(auto l = g->bounded_locals.begin(), le = g->bounded_locals.end(); l != le; ++l)
+		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
 				tt_list.push_back(make_pair(tc, thread_transition));
+			if((tc = n.spawn_adjacency_list.find(Thread_State(g->shared, *l))) != n.spawn_adjacency_list.end()) 
+				tt_list.push_back(make_pair(tc, spawn_transition));
+		}
 		for(auto l = g->unbounded_locals.begin(), le = g->unbounded_locals.end(); l != le; ++l)
+		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
 				tt_list.push_back(make_pair(tc, thread_transition));
+			if((tc = n.spawn_adjacency_list.find(Thread_State(g->shared, *l))) != n.spawn_adjacency_list.end()) 
+				tt_list.push_back(make_pair(tc, spawn_transition));
+		}
 		auto t_transfers = n.transfer_adjacency_list_froms.find(g->shared);
 		if(t_transfers != n.transfer_adjacency_list_froms.end())
 			for(auto tc = t_transfers->second.begin(), te = t_transfers->second.end(); tc!=te; ++tc)
@@ -143,7 +151,8 @@ Oreached_t Post(ostate_t ag, const Net& n, lowerset_vec& D, shared_cmb_deque_t& 
 				const bool horiz_trans = (u.shared == v.shared);
 				const bool diff_locals = (u.local != v.local);
 
-				if((!thread_in_u && (ty == thread_transition || horiz_trans)))
+				//if((!thread_in_u && (ty == thread_transition || horiz_trans)))
+				if((!thread_in_u && (ty == thread_transition || ty == spawn_transition || horiz_trans)))
 				{
 					//fwinfo << "Ignore: No/no incomparable successors" << endl;
 					continue;
@@ -163,12 +172,13 @@ Oreached_t Post(ostate_t ag, const Net& n, lowerset_vec& D, shared_cmb_deque_t& 
 				if(!horiz_trans) 
 					succ->shared = v.shared;
 
-				if(diff_locals && thread_in_u && !(ty == thread_transition && unbounded_in_u && unbounded_in_v))
+				//if(diff_locals && thread_in_u && !(ty == thread_transition && unbounded_in_u && unbounded_in_v))
+				if(diff_locals && thread_in_u && !((ty == spawn_transition || ty == thread_transition) && unbounded_in_u && unbounded_in_v))
 				{
-					if(ty == thread_transition)
+					if(ty == thread_transition || ty == spawn_transition)
 					{
 						//replace one bounded occurence of u.local by v.local resp. add one bounded occurence of v.local
-						if(bounded_in_u) succ->bounded_locals.erase(succ->bounded_locals.find(u.local)); 
+						if(ty == thread_transition && bounded_in_u) succ->bounded_locals.erase(succ->bounded_locals.find(u.local)); 
 						if(!unbounded_in_v) succ->bounded_locals.insert(v.local);
 					}
 					else
@@ -190,6 +200,7 @@ Oreached_t Post(ostate_t ag, const Net& n, lowerset_vec& D, shared_cmb_deque_t& 
 				}
 				debug_assert(succ->consistent());
 				unsigned c = 0;
+				//if(n.core_shared(succ->shared) && n.core_local(v.local))
 				if(n.core_shared(succ->shared))
 				{
 					succs.insert(succ); //add to return set
@@ -293,7 +304,7 @@ unordered_priority_set<ostate_t>::keyprio_type keyprio_pair(ostate_t s)
 	}
 }
 
-void do_fw_bfs(const Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_cmb_deque, bool forward_projections, unordered_priority_set<ostate_t>::order_t forder)
+void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_cmb_deque, bool forward_projections, unordered_priority_set<ostate_t>::order_t forder)
 {
 	const bool plain_km = false;
 	fw_start_time = boost::posix_time::microsec_clock::local_time();
@@ -330,7 +341,18 @@ void do_fw_bfs(const Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* s
 				if(n->check_target && n->Otarget <= *p)
 				{
 					fw_safe = false;
-					cerr << "Forward trace to target covering state found; target " << *n->target << " is coverable" << endl;
+					cerr << "Forward trace to target covering state found" << endl;
+
+					//print trace
+					cout << "FW TACE" << endl;
+					cout << "-------" << endl;
+					ostate_t walker = cur;
+					
+					cout << *p << endl;
+					cout << *walker << endl;
+					while(walker->prede != nullptr)
+						cout << *walker->prede << endl, walker = walker->prede;
+					cout << "-------" << endl;
 
 					break;
 				}
@@ -373,6 +395,8 @@ void do_fw_bfs(const Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* s
 #endif
 	}
 
+	fwinfo << "fw while exit" << endl;
+
 	shared_fw_done = true;
 	
 	shared_cout_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), shared_cout_mutex.unlock();
@@ -411,8 +435,11 @@ void do_fw_bfs(const Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* s
 		shared_cout_mutex.unlock();
 	}
 
+	fwinfo << "cleaning up forward data structures..." << endl;
 	foreach(ostate_t p, Q) //contains init_p
 		delete p;
+
+	fwinfo << "cleaning up forward data structures DONE" << endl;
 
 	return;
 }

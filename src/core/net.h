@@ -69,7 +69,7 @@ Net
 struct Net{
 
 	/* ---- Types ---- */	
-	enum net_format_t {MIST,TIKZ,TTS,CLASSIFY}; //CLASSIFY is no net type
+	enum net_format_t {MIST,TIKZ,TTS,LOLA,TINA,CLASSIFY}; //CLASSIFY is no net type
 
 	typedef map<Thread_State, set<Thread_State> > adj_t;
 	typedef map<ushort, adj_t> s_adj_t;
@@ -77,6 +77,7 @@ struct Net{
 	typedef map<ushort, adjs_t> s_adjs_t;
 	typedef map<shared_t, unsigned> shared_counter_map_t;
 	typedef list<Transition> trans_list_t;
+	typedef vector<unsigned> locals_boolvec_t;
 
 	/* ---- Transition relation ---- */	
 	trans_list_t 
@@ -86,7 +87,9 @@ struct Net{
 		adjacency_list, 
 		inv_adjacency_list, 
 		transfer_adjacency_list, 
-		inv_transfer_adjacency_list;
+		inv_transfer_adjacency_list,
+		spawn_adjacency_list,
+		inv_spawn_adjacency_list;
 
 	s_adj_t 
 		adjacency_list_tos, 
@@ -101,12 +104,21 @@ struct Net{
 		to_shared_counter,
 		from_to_shared_counter;
 
+	locals_boolvec_t
+		diag_trans_from_local,
+		diag_trans_to_local;
+
 	/* ---- Misc members ---- */	
 	string filename;
 
 	OState 
 		init, 
 		Otarget;
+
+	local_t 
+		local_init,
+		local_thread_pool;
+
 
 	BState const * target;
 
@@ -117,6 +129,7 @@ struct Net{
 	/* ---- Constructors/input ---- */
 	void read_net_from_file(string fn)
 	{
+		string line;
 		try
 		{
 			filename = fn;
@@ -136,28 +149,45 @@ struct Net{
 			orig.close();
 
 			in >> BState::S >> BState::L;
-			OState::S = BState::S, OState::L = BState::L;
-			ushort s1, l1, s2, l2;
+			shared_t smax = BState::S;
+
+#ifndef NOSPAWN_REWRITE
+			local_thread_pool = BState::L;
+			BState::L++;
+			bool local_thread_pool_inuse = false;
+#endif
+
+			shared_t s1, s2;
+			local_t l1, l2;
 			trans_type ty;
 
+			diag_trans_from_local.resize(BState::L), diag_trans_to_local.resize(BState::L);
 
 			set<Transition> trans_set;;
 			map<ushort, unsigned int> in_out_counter;
 			unsigned int id = 0;
-			string line;
+
+			Thread_State 
+				source,
+				target;
+
 			while (in)
 			{
+				//try{
 				getline (in,line);
+
 				boost::tokenizer<boost::char_separator<char> > tok(line, boost::char_separator<char>(" "));
 				boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
 
 				//decode transition
 				if(i == tok.end()) continue;
 				s1 = boost::lexical_cast<shared_t>(*(i++));
-				if(i == tok.end()) throw logic_error("invalid input line: " + line);
+				if(i == tok.end()) 
+					throw logic_error("source local state missing");
 				l1 = boost::lexical_cast<local_t>(*(i++));
-				if(i == tok.end()) throw logic_error("invalid input line: " + line);
-			
+				if(i == tok.end()) 
+					throw logic_error("transition separator missing");
+
 				string sep = *(i++);
 				if(sep == "->") 
 					ty = thread_transition;
@@ -165,16 +195,23 @@ struct Net{
 					ty = transfer_transition;
 				else if(sep == "+>") 
 					ty = spawn_transition;
-				else throw logic_error("invalid transition separator");
-			
-				if(i == tok.end()) throw logic_error("invalid input line: " + line);
+				else 
+					throw logic_error("invalid transition separator");
+
+				if(i == tok.end()) 
+					throw logic_error("target shared state missing");
 				s2 = boost::lexical_cast<shared_t>(*(i++));
-				if(i == tok.end()) throw logic_error("invalid input line: " + line);
+				if(i == tok.end()) 
+					throw logic_error("target local state missing");
 				l2 = boost::lexical_cast<local_t>(*(i++));
 
 				Thread_State 
 					source(s1, l1), 
 					target(s2, l2);
+
+				if(source.local >= BState::L || source.shared >= smax || target.local >= BState::L || target.shared >= smax){
+					throw logic_error("invalid source or target thread state");
+				}
 
 				if(!trans_set.insert(Transition(source,target,ty)).second)
 				{
@@ -182,18 +219,22 @@ struct Net{
 					continue;
 				}
 
-				//store transition
-				if(s1 == s2)
-					from_to_shared_counter[source.shared]++, 
-					trans_list.push_back(Transition(source,target,ty,id,hor));
-				else
-					from_shared_counter[source.shared]++, 
-					to_shared_counter[target.shared]++, 
-					trans_list.push_back(Transition(source,target,ty,id,nonhor));
-
 				switch(ty)
 				{
 				case thread_transition:
+					diag_trans_from_local[source.local] |= s1 != s2;
+					diag_trans_to_local[target.local] |= s1 != s2;
+
+					//store transition
+					if(s1 == s2)
+						from_to_shared_counter[source.shared]++, 
+						trans_list.push_back(Transition(source,target,ty,id,hor));
+					else
+						from_shared_counter[source.shared]++, 
+						to_shared_counter[target.shared]++,
+						trans_list.push_back(Transition(source,target,ty,id,nonhor))
+						;
+
 					adjacency_list[source].insert(target);
 					inv_adjacency_list[target].insert(source);
 
@@ -201,6 +242,19 @@ struct Net{
 					adjacency_list_tos2[target.shared].insert(Transition(source,target,thread_transition,id));
 					break;
 				case transfer_transition:
+					diag_trans_from_local[source.local] |= s1 != s2;
+					diag_trans_to_local[target.local] |= s1 != s2;
+
+					//store transition
+					if(s1 == s2)
+						from_to_shared_counter[source.shared]++, 
+						trans_list.push_back(Transition(source,target,ty,id,hor));
+					else
+						from_shared_counter[source.shared]++, 
+						to_shared_counter[target.shared]++,
+						trans_list.push_back(Transition(source,target,ty,id,nonhor))
+						;
+
 					transfer_adjacency_list[source].insert(target); 
 					transfer_adjacency_list_tos[target.shared][source].insert(target);
 					transfer_adjacency_list_froms[source.shared][source].insert(target);
@@ -209,29 +263,163 @@ struct Net{
 					adjacency_list_tos2[target.shared].insert(Transition(source,target,transfer_transition,id));
 					break;
 				case spawn_transition: 
-					throw logic_error("spawn transition not supported (encode via thread transitions)");
-				}
+#ifndef NOSPAWN_REWRITE
 
+					local_thread_pool_inuse = true;
+
+					/*
+					s1   l1 +> s2  l2
+					==
+					s1   l1 -> is  l1
+					is   p  -> s2  l2
+					*/
+
+					shared_t is = BState::S++;
+
+					Thread_State 
+						source1(s1, l1), 
+						target1(is, l1),
+						source2(is, local_thread_pool), 
+						target2(s2, l2);
+
+					diag_trans_from_local[source1.local] |= source1.shared != target1.shared;
+					diag_trans_to_local[target1.local] |= source1.shared != target1.shared;
+
+					//store transition
+					if(source1.shared == target1.shared)
+						from_to_shared_counter[source1.shared]++, 
+						trans_list.push_back(Transition(source1,target1,thread_transition,id,hor));
+					else
+						from_shared_counter[source1.shared]++, 
+						to_shared_counter[target1.shared]++,
+						trans_list.push_back(Transition(source1,target1,thread_transition,id,nonhor))
+						;
+
+					adjacency_list[source1].insert(target1);
+					inv_adjacency_list[target1].insert(source1);
+					adjacency_list_tos[target1.shared][source1].insert(target1);
+					adjacency_list_tos2[target1.shared].insert(Transition(source1,target1,thread_transition,id));
+
+
+
+					++id;
+					diag_trans_from_local[source2.local] |= source2.shared != target2.shared;
+					diag_trans_to_local[target2.local] |= source2.shared != target2.shared;
+
+					//store transition
+					if(source2.shared == target2.shared)
+						from_to_shared_counter[source2.shared]++, 
+						trans_list.push_back(Transition(source2,target2,thread_transition,id,hor));
+					else
+						from_shared_counter[source2.shared]++, 
+						to_shared_counter[target2.shared]++,
+						trans_list.push_back(Transition(source2,target2,thread_transition,id,nonhor))
+						;
+
+					adjacency_list[source2].insert(target2);
+					inv_adjacency_list[target2].insert(source2);
+					adjacency_list_tos[target2.shared][source2].insert(target2);
+					adjacency_list_tos2[target2.shared].insert(Transition(source2,target2,thread_transition,id));
+#else
+					diag_trans_from_local[source.local] |= s1 != s2;
+					diag_trans_to_local[target.local] |= s1 != s2;
+
+					//store transition
+					if(s1 == s2)
+						from_to_shared_counter[source.shared]++, 
+						trans_list.push_back(Transition(source,target,ty,id,hor));
+					else
+						from_shared_counter[source.shared]++, 
+						to_shared_counter[target.shared]++,
+						trans_list.push_back(Transition(source,target,ty,id,nonhor))
+						;
+
+					spawn_adjacency_list[source].insert(target); //used by fw
+					inv_adjacency_list[target].insert(source);
+					adjacency_list_tos2[target.shared].insert(Transition(source,target,spawn_transition,id)); //used by bw
+#endif
+					break;
+				}
+				//}
+				//catch(...)
+				//{
+				//	cout << "ignore line: " << line << endl;
+				//}
 				++id;
 			}
+			if(!local_thread_pool_inuse)
+				--BState::L; //only use if additional local state if neccessary
+			OState::S = BState::S;
+			OState::L = BState::L;
+
 		}
-		catch(exception&)
+		catch(bad_cast& e)
 		{
-			throw logic_error("could not parse input file (are the line endings correct?)");
+			throw logic_error((string)"error while parsing line " + '"' + line + '"' + "(bad lexical cast)");
+		}
+		catch(logic_error& e)
+		{
+			throw logic_error((string)"error while parsing input file: " + string(e.what()));
+		}
+		catch(exception& e)
+		{
+			throw logic_error((string)"could not parse input file (are the line endings correct?): " + e.what());
 		}
 	}
 	
-	bool core_shared(const shared_t& s) const
+	unordered_map<shared_t,bool> core_shared_cache;
+	bool core_shared(const shared_t& s)
 	{
-		if(prj_all || s == init.shared) return true; //otherwise e.g. 0 0 -> 1 1, 1 0 -> 0 1 would have no core state
+		bool ret;
+		
+		auto ch_f = core_shared_cache.find(s);
+		Net::shared_counter_map_t::const_iterator q;
 
-		Net::shared_counter_map_t::const_iterator q = from_to_shared_counter.find(s);
-		if(q != from_to_shared_counter.end() && q->second != 0) //for horizonal transitions, e.g. 2,2 -> 2,5
-			return true;
-
-		Net::shared_counter_map_t::const_iterator f = from_shared_counter.find(s), t =  to_shared_counter.find(s);
-		return !(f != from_shared_counter.end() && t != to_shared_counter.end() && f->second == 1 && t->second == 1);
+		if(ch_f != core_shared_cache.end())
+			return ch_f->second;
+		else if(prj_all || s == init.shared) 
+			ret = true; //otherwise e.g. 0 0 -> 1 1, 1 0 -> 0 1 would have no core state
+		else if(target != nullptr && s == target->shared)
+			ret = true;
+		else if((q = from_to_shared_counter.find(s)) != from_to_shared_counter.end() && q->second != 0)
+			ret = true; //for horizonal transitions, e.g. 2,2 -> 2,5
+		else
+		{
+			auto f = from_shared_counter.find(s), t = to_shared_counter.find(s);
+			ret = !(f != from_shared_counter.end() && t != to_shared_counter.end() && f->second == 1 && t->second == 1);
+		}
+		
+		core_shared_cache[s] = ret;
+		return ret;
 	}
+
+	/*
+	unordered_map<local_t,bool> core_local_cache;
+	bool core_local(const local_t& l)
+	{
+
+		return true; //TODO: Das führt bei einigen Bsp. noch zur Nicht-Terminierung!!!
+
+		bool ret;
+
+		auto ch_f = core_local_cache.find(l);
+
+		if(ch_f != core_local_cache.end())
+			return ch_f->second;
+		else if(prj_all || l == local_init)
+			ret = true;
+		else if(target != nullptr && target->bounded_locals.find(l) != target->bounded_locals.end())
+			ret = true;
+		else if(!diag_trans_from_local[l] && !diag_trans_to_local[l])
+			ret = false;
+		else
+			ret = true;
+
+		core_local_cache[l] = ret;
+		return ret;
+
+	}
+	*/
 
 	/* ---- Statistics ---- */
 	struct net_stats_t
@@ -239,7 +427,9 @@ struct Net{
 		unsigned S,L,T;
 		map<trans_type,unsigned> trans_type_counters;
 		map<trans_dir_t,unsigned> trans_dir_counters;
+#ifdef DETAILED_TTS_STATS
 		unsigned SCC_num; //total number of strongly connected components
+#endif
 		unsigned discond; //number of thread states that have no incoming or outgoing edge
 		unsigned max_indegree;
 		unsigned max_outdegree;
@@ -278,6 +468,7 @@ struct Net{
 
 		ret.discond = (OState::S * OState::L) - seen.size();
 
+#ifdef DETAILED_TTS_STATS
 		//build Graph
 		using namespace boost;
 		typedef boost::adjacency_list<vecS, vecS, bidirectionalS> Graph;
@@ -291,6 +482,7 @@ struct Net{
 		std::vector<default_color_type> color(num_vertices(g));
 		std::vector<unsigned> root(num_vertices(g));
 		ret.SCC_num = strong_components(g, &component[0], root_map(&root[0]).color_map(&color[0]).discover_time_map(&discover_time[0]));
+#endif
 
 		return ret;
 	}

@@ -98,7 +98,7 @@ void copy_deref_range(Ty first, Ty last, ostream& out = cout, char dbeg = '{', c
 /********************************************************
 Pre image
 ********************************************************/
-Breached_p_t Pre(const BState& s, const Net& n)
+Breached_p_t Pre(const BState& s, Net& n)
 {
 	Breached_p_t pres; //set of successors discovered for s so far (a set is used to avoid reprocessing)
 
@@ -109,7 +109,17 @@ Breached_p_t Pre(const BState& s, const Net& n)
 		
 		const BState* cur = work.top(); work.pop();
 
-		if(cur != &s && n.core_shared(cur->shared))
+		//bool porable = false;
+		//foreach(local_t l,cur->bounded_locals)
+		//{
+		//	if(!n.core_local(l))
+		//	{
+		//		porable = true;
+		//		break;
+		//	}
+		//}
+
+		if(cur != &s && n.core_shared(cur->shared)/* && !porable*/)
 		{
 			if(!pres.insert(cur).second)
 				delete cur;
@@ -131,9 +141,14 @@ Breached_p_t Pre(const BState& s, const Net& n)
 		
 		for(auto t = predecs_it->second.begin(), te = predecs_it->second.end(); t != te; ++t)
 		{
+
 			const Thread_State& u = t->source;
 			const Thread_State& v = t->target; 
 			assert(cur->shared == v.shared);
+
+			//debug_assert(implies(cur != &s && n.core_shared(cur->shared),porable));
+			//if(cur != &s && n.core_shared(cur->shared) && n.core_local(v.local))
+			//	continue; //only execute por-related transitions
 
 			const bool thread_in_u = (cur->bounded_locals.find(u.local) != cur->bounded_locals.end());
 			const bool thread_in_v = (cur->bounded_locals.find(v.local) != cur->bounded_locals.end());
@@ -143,7 +158,12 @@ Breached_p_t Pre(const BState& s, const Net& n)
 
 			preinf << *t << endl;
 
-			if((horiz_trans && !thread_in_v) || (thread_in_u && diff_locals && ty == transfer_transition))
+			debug_assert(!(ty == spawn_transition && !thread_in_u && thread_in_v && !horiz_trans && !diff_locals));
+			debug_assert(!(ty == spawn_transition && thread_in_u && !thread_in_v && !horiz_trans && !diff_locals));
+			debug_assert(!(ty == spawn_transition && !thread_in_u && thread_in_v && horiz_trans && !diff_locals));
+			debug_assert(!(ty == spawn_transition && thread_in_u && !thread_in_v && horiz_trans && !diff_locals));
+
+			if((horiz_trans && !thread_in_v) || (thread_in_u && diff_locals && ty == transfer_transition) || (horiz_trans && !diff_locals && thread_in_u)) //last condition encodes self-loops
 			{
 				preinf << "Ignore: not smaller/incomparable predecessor resp. no predecessor" << endl;
 				continue;
@@ -153,10 +173,11 @@ Breached_p_t Pre(const BState& s, const Net& n)
 
 			if(thread_in_v && diff_locals)
 			{
-				if(ty == thread_transition)
+				if(ty == thread_transition || ty == spawn_transition)
 				{ //replace one
 					pre->bounded_locals.erase(pre->bounded_locals.find(v.local));
-					pre->bounded_locals.insert(u.local);
+					if(ty == thread_transition || !thread_in_u)
+						pre->bounded_locals.insert(u.local);
 				}
 				else
 				{ //replace all
@@ -169,6 +190,10 @@ Breached_p_t Pre(const BState& s, const Net& n)
 						pre->bounded_locals.insert(u.local);
 					}
 				}
+			}
+			else if(!thread_in_u && ty == spawn_transition)
+			{
+				pre->bounded_locals.insert(u.local);
 			}
 			else if(!thread_in_v && ty == thread_transition)
 			{ //add u.l
@@ -363,7 +388,8 @@ unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_
 		}
 		else
 		{
-			if(p->nb->ini) //in case a source with width <k is removed, new source states need to be added
+			//without C.K != 0 regression\spawn_vf_02 fails with option -k0 --mode B
+			if(C.K != 0 && p->nb->ini) //in case a source with width <k is removed, new source states need to be added
 			{
 				foreach(const cmb_node_p n, C.diff_insert(p->shared,cmb_node(p->bounded_locals.begin(),p->bounded_locals.end(),0,nullptr)).second) //traverse all new minimal elements
 				{
@@ -440,13 +466,17 @@ unsigned local_detach(bstate_t& expl_src, const set<bstate_t>& S, vec_antichain_
 		for(;pb != pe;){
 			bstate_t p = *pb++;
 			if(expl_src == p->nb->src)
-				s->nb->pre.erase(p), p->nb->suc.erase(s);
+				s->nb->pre.erase(p), p->nb->suc.erase(s); //detach s from its local search tree
 		}
 	}
 
 	foreach(const bstate_t& s, S)
+	{
+		//debug_assert(expl_src != s->nb->src); //local subtree consolidation not supported
+		
 		if(expl_src == s->nb->src)
 			pruned_ctr += prune(s,M,N,O,W,C,D,t);
+	}
 
 	return pruned_ctr;
 
@@ -532,12 +562,13 @@ void try_prune(list<std::pair<shared_t, cmb_node_p> >& prunes, vec_antichain_t& 
 
 bool try_prune(bstate_t& w, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C, vec_antichain_t& D, bstate_t t, unsigned& piteration, unsigned& ctr_prune_dequeues)
 {
+	bool found_target = false;
 	invariant(intersection_free(D,M));
 	foreach(bstate_t p, sources(w, D))
 	{
 
 		if(p == t)
-			return false;
+			found_target = true;
 
 		//if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,p,work_pq(),true,witeration,piteration,"_interm");
 
@@ -548,7 +579,7 @@ bool try_prune(bstate_t& w, vec_antichain_t& M, non_minimals_t& N, vec_antichain
 		invariant(consistent(M,N,O,W,C)); //consistency check
 	}
 
-	return true;
+	return !found_target;
 }
 
 /********************************************************
@@ -595,17 +626,18 @@ unsigned
 	;
 
 unsigned
-	osz = 0,
-	nsz = 0,
-	msz = 0,
-	dsz = 0,
-	wsz = 0
+	update_counter = 0, 
+	osz = 0, osz_max = 0,
+	nsz = 0, nsz_max = 0,
+	msz = 0, msz_max = 0,
+	dsz = 0, dsz_max = 0,
+	wsz = 0, wsz_max = 0
 	;
 
 /********************************************************
 Greedy backward search
 ********************************************************/
-void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C, const vector<BState>& work_seq, bool print_cover)
+void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C, const vector<BState>& work_seq, bool print_cover)
 {
 
 	//statistics
@@ -635,11 +667,11 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 		fpcycles = 0,
 		bpcycles = 0; //count the number of workset/pruneset elements that were processed
 
-	osz = 0,
-		nsz = 0,
-		msz = 0,
-		dsz = 0,
-		wsz = 0;
+	osz = 0, osz_max = 0, 
+		nsz = 0, nsz_max = 0,
+		msz = 0, msz_max = 0,
+		dsz = 0, dsz_max = 0,
+		wsz = 0, wsz_max = 0;
 
 	ctr_locally_pruned = 0;
 
@@ -657,24 +689,35 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 		bstate_nc_t				t;
 
 		//create inital nodes
+		bout << "Initializing backward data structures..." << endl;
 		C->project_and_insert(net.init); //add the k-projections of state net.init to the lower set stored in C (e.g. 0|0 and 0|0,0 for initial state 0|0w and k=2)
-		for(shared_t s = 0; s < BState::S; ++s)
+		bout << "project_and_insert done" << endl;
+		for(shared_t s = 0; s < BState::S && (print_cover || !shared_fw_done) && execution_state == RUNNING; ++s)
 		{
 
 			if(!net.core_shared(s))
 				continue;
 
+			bout << "shared state " << s << " about to be initialized... " << endl;
+
 			foreach(const cmb_node_p n, C->luv[s].u_nodes) //traverse all minimal uncovered elements (e.g. 0|1, 1|0 and 1|1 for initial state 0|0w, S=L=2; independant of k)
 			{
+
+				if(!(print_cover || !shared_fw_done) && execution_state == RUNNING)
+					break;
+
 				BState* add = new BState(s,n->c.begin(),n->c.end(),true); //allocation of the inital state resp. node of the backward state
 				add->nb->src = add, add->nb->ini = true; //the source field of a source state points to itself and its ini flag is set to true
 				add->us = new BState::vec_upperset_t, add->us->insert(add); //every source state has an associated upperset (called "local") that initially only contains this state
 				add->nb->status = BState::pending, net.check_target?add->nb->sleeping = true:W.push(keyprio_pair(add));
-				M.insert(add); //every source state is a minimal element of the "global" upperset
+				//M.insert(add); //every source state is a minimal element of the "global" upperset
+				M.insert_incomparable(add);
 			}
+
+			bout << "shared state " << s << " initialized" << endl;
 		}
 
-		if(net.check_target)
+		if(net.check_target && (print_cover || !shared_fw_done) && execution_state == RUNNING)
 		{
 
 			if(!M.manages(net.target))
@@ -716,7 +759,9 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 		{
 			t = nullptr;
 		}
+		bout << "Initializing backward data structures... done" << endl;
 
+		bout << "Starting backward main loop..." << endl;
 		while((print_cover || !shared_fw_done) && execution_state == RUNNING)
 		{
 			std::list<std::pair<shared_t, cmb_node_p> >* m;
@@ -748,7 +793,15 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 			swap(msz_tmp,msz);
 
 #else
-			osz = O.size(), nsz = N.size(), msz = M.size(), dsz = D.size(), wsz = W.size();
+			//if(++update_counter == 30)
+			{
+				osz = O.size(), nsz = N.size(), msz = M.size(), dsz = D.size(), wsz = W.size();
+				osz_max = max(osz,osz_max), nsz_max = max(nsz,nsz_max), msz_max = max(msz,msz_max), dsz_max = max(dsz,dsz_max), wsz_max = max(wsz,wsz_max);
+			}
+			//else
+			//{
+				//update_counter = 0;
+			//}
 #endif
 
 			if(witeration >= work_seq.size())
@@ -814,9 +867,8 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 					
 					if (!try_prune(w,M,N,O,W,*C,D,t,piteration, ctr_prune_dequeues))
 					{
-						cerr << "Backward trace to coverable state found; target " << *t << " is coverable" << endl;
+						cerr << "Backward trace to coverable state found; target " << *net.target << " is coverable" << endl;
 						bw_safe = false;
-						break;
 					}
 
 					while(cpre_i != cpre_e)
@@ -963,7 +1015,7 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 	shared_bw_done = true;
 	
 	shared_cout_mutex.lock(), (shared_fw_done) || (shared_bw_finised_first = 1), shared_cout_mutex.unlock();
-	debug_assert(implies(shared_bw_finised_first,W.empty()));
+	debug_assert(implies(shared_bw_finised_first && bw_safe,W.empty()));
 
 	if(shared_bw_finised_first) 
 		finish_time = boost::posix_time::microsec_clock::local_time(), bout << "bw first" << endl;
@@ -1014,6 +1066,12 @@ void Pre2(const Net* n, const unsigned k, work_pq::order_t worder, complement_ve
 		statsout << "---------------------------------" << endl;
 		statsout << "max. backward depth checked     : " << ctr_bw_maxdepth << endl;
 		statsout << "max. backward width checked     : " << ctr_bw_maxwidth << endl;
+		statsout << "---------------------------------" << endl;
+		statsout << "osz_max                         : " << osz_max << endl;
+		statsout << "nsz_max                         : " << nsz_max << endl;
+		statsout << "msz_max                         : " << msz_max << endl;
+		statsout << "dsz_max                         : " << dsz_max << endl;
+		statsout << "wsz_max                         : " << wsz_max << endl;
 		statsout << "---------------------------------" << endl;
 
 		shared_cout_mutex.unlock();

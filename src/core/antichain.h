@@ -113,6 +113,7 @@ struct antichain_t
 	/* ---- Direct access ---- */
 	po_rel_t relation(BState const * s);
 	void insert_incomparable(BState const * s);
+	s_scpc_t insert_neq_le(BState const * s);
 	std::pair<bstate_t, bool> insert(BState const * s);
 	std::pair<bstate_t, bool> max_insert(BState const * s);
 	const Breached_p_t& M_cref() const;
@@ -142,6 +143,7 @@ struct vec_antichain_t
 
 	/* ---- Misc ---- */
 	size_t size() const;
+	size_t graph_size() const;
 
 	/* ---- Access ---- */
 	antichain_t::insert_t case_insert(bstate_t s);
@@ -151,6 +153,7 @@ struct vec_antichain_t
 	std::set<bstate_t> LGE(BState const * s, antichain_t::order_t order);
 
 	void insert_incomparable(BState const * s);
+	antichain_t::s_scpc_t insert_neq_le(BState const * s);
 	void erase(BState const * s);
 	bool manages(BState const * s);
 	const Breached_p_t& M_cref(shared_t shared) const;

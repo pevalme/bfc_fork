@@ -124,8 +124,9 @@ struct Net{
 
 	bool 
 		check_target, 
-		prj_all;
-	
+		prj_all,
+		has_spawns;
+
 	/* ---- Constructors/input ---- */
 	void read_net_from_file(string fn)
 	{
@@ -133,6 +134,7 @@ struct Net{
 		try
 		{
 			filename = fn;
+			has_spawns = false;
 
 			ifstream orig;
 			orig.open(filename.c_str(), ifstream::in);
@@ -262,7 +264,8 @@ struct Net{
 
 					adjacency_list_tos2[target.shared].insert(Transition(source,target,transfer_transition,id));
 					break;
-				case spawn_transition: 
+				case spawn_transition:
+					has_spawns = true; 
 #ifndef NOSPAWN_REWRITE
 
 					local_thread_pool_inuse = true;
@@ -485,6 +488,13 @@ struct Net{
 #endif
 
 		return ret;
+	}
+
+	~Net()
+	{
+		//this can cause a segmentation fault
+		//BState* r = const_cast<BState*>(target);
+		//delete r;
 	}
 
 };

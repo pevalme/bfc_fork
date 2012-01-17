@@ -2,8 +2,14 @@
 Consistency
 ********************************************************/
 
+#define USE_INVARIANTS
+
 bool intersection_free(const vec_antichain_t& D, const vec_antichain_t& M)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	set<bstate_t> BBs1;
 	for(shared_t s = 0; s < BState::S; ++s)
 		foreach(bstate_t b,M.uv[s].M) BBs1.insert(b);
@@ -18,6 +24,9 @@ bool intersection_free(const vec_antichain_t& D, const vec_antichain_t& M)
 
 bool is_consistent(const work_pq& W)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
 
 	foreach(const work_pq::unordered_key_types& u, W.v_us)
 		foreach(const work_pq::key_type& k, u)
@@ -29,6 +38,10 @@ bool is_consistent(const work_pq& W)
 
 bool source_U_minimality(vec_antichain_t& M, non_minimals_t& N)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	foreach(const antichain_t& se, M.uv){
 		foreach(const bstate_t& n, se.M_cref()){
 			if(n->nb->src == n){
@@ -59,6 +72,10 @@ bool source_U_minimality(vec_antichain_t& M, non_minimals_t& N)
 
 bool U_consistent(vec_antichain_t& M)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	foreach(const antichain_t& se, M.uv){
 		foreach(const bstate_t& n, se.M_cref()){
 			if(n->nb->status != BState::pending && n->nb->status != BState::processed)
@@ -106,6 +123,10 @@ bool U_consistent(vec_antichain_t& M)
 
 bool small_U_consistent(vec_antichain_t& M)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	foreach(const antichain_t& se, M.uv){
 		foreach(const bstate_t& n, se.M_cref()){
 #ifdef EAGER_ALLOC
@@ -127,6 +148,10 @@ bool small_U_consistent(vec_antichain_t& M)
 }
 
 bool not_local_U_referenced(bstate_t p, vec_antichain_t& M){
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	foreach(const antichain_t& se, M.uv){
 		foreach(const bstate_t& n, se.M_cref()){
 #ifdef EAGER_ALLOC
@@ -147,6 +172,10 @@ bool not_local_U_referenced(bstate_t p, vec_antichain_t& M){
 
 bool no_unconnected_local_U_references(vec_antichain_t& M)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	foreach(const antichain_t& se, M.uv){
 		foreach(const bstate_t& n, se.M_cref()){
 #ifdef EAGER_ALLOC
@@ -179,6 +208,10 @@ bool no_unconnected_local_U_references(vec_antichain_t& M)
 
 bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_pq& W, complement_vec_t& C)
 {
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
 	//Check invariants
 	foreach(bstate_t n, N){
 		if(n->nb->status != BState::blocked_pending && n->nb->status != BState::blocked_processed)
@@ -316,9 +349,17 @@ bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_
 
 bool before_prune(bstate_t p, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C)
 {
-	if(!consistent(M,N,O,W,C)) return false;
-	if((!p->nb->ini && p->nb->src == p)) return false;
-	if(!(p->nb->status == BState::pending || p->nb->status == BState::processed)) return false;
-	if(!(M.manages(p) && N.find(p) == N.end())) return false; //the pruned state is globally minimal
+#ifndef USE_INVARIANTS
+	return true;
+#endif
+
+	if(!consistent(M,N,O,W,C)) 
+		return false;
+	if((!p->nb->ini && p->nb->src == p)) 
+		return false;
+	if(!(p->nb->status == BState::pending || p->nb->status == BState::processed)) 
+		return false;
+	if(!(M.manages(p) && N.find(p) == N.end())) 
+		return false; //the pruned state is globally minimal
 	return true;
 }

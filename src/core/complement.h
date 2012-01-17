@@ -125,7 +125,7 @@ struct lowerset_vec
 	void swap(lowerset_vec&);
 	
 	/* ---- Projection ---- */
-	unsigned project_and_insert(const OState&, shared_cmb_deque_t&, bool);
+	unsigned project_and_insert(const OState&, shared_cmb_deque_t&, bool, int = -1);
 	size_t size() const;
 
 };

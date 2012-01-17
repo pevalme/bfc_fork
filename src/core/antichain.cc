@@ -202,6 +202,54 @@ void antichain_t::insert_incomparable(BState const * s)
 	integrate(s);
 }
 
+antichain_t::s_scpc_t antichain_t::insert_neq_le(BState const * s)
+{
+	debug_assert(M.find(s) == M.end()); //the element does not yet exist
+	debug_assert(LGE(s,less_equal).empty()); //no smaller elements exists
+	debug_assert(!LGE(s,greater_equal).empty()); //there exists at least one larger element
+	
+	//clean look-up table and M set (non-minimal elements are removed)
+	s_scpc_t lg = LGE(s,greater_equal);
+	foreach(bstate_t const& x, lg) erase(x);
+
+	//update look-up table and M set
+	integrate(s);
+
+	return lg;
+}
+/*
+antichain_t::insert_t antichain_t::case_insert(bstate_t s)
+{
+	//note: s must be globally accessible, as it is only referenced in M
+	debug_assert(s->consistent());
+	debug_assert(s->bounded_locals.size() != 0);
+
+	Breached_p_t::iterator f = M.find(s);
+	if(f != M.end()) 
+		//case: eq -- s is exactly contained in M ("match")
+		return insert_t(eq,nullptr,*f); //note: return f, not s here!
+
+	s_scpc_t le = LGE(s,less_equal);
+	if(!le.empty())
+		//case: neq_ge -- s is already contained in us(M), though not exactly ("overcut")
+		return insert_t(neq_ge,nullptr,le);
+
+	s_scpc_t lg = LGE(s,greater_equal);
+	//clean look-up table and M set (non-minimal elements are removed)
+	debug_assert(M.find(s) == M.end());
+	foreach(bstate_t const& x, lg) erase(x);
+
+	//update look-up table and M set
+	integrate(s);
+
+	//cases: neq_le, neq_nge_nle
+	return insert_t((lg.empty()?(neq_nge_nle):(neq_le)), s, lg);
+}
+*/
+
+
+
+
 pair<bstate_t, bool> antichain_t::insert(BState const * s)
 {
 	insert_t r(case_insert(s));
@@ -426,6 +474,15 @@ size_t vec_antichain_t::size() const
 	return sz;
 }
 
+size_t vec_antichain_t::graph_size() const
+{
+	size_t sz = 0;
+	foreach(const antichain_t& s, uv)
+		sz += s.G.nodes.size();
+
+	return sz;
+}
+
 antichain_t::insert_t vec_antichain_t::case_insert(bstate_t s)
 { 
 	return uv[s->shared].case_insert(s); 
@@ -453,6 +510,11 @@ set<bstate_t> vec_antichain_t::LGE(BState const * s, antichain_t::order_t order)
 void vec_antichain_t::insert_incomparable(BState const * s)
 { 
 	uv[s->shared].insert_incomparable(s); 
+}
+
+antichain_t::s_scpc_t vec_antichain_t::insert_neq_le(BState const * s)
+{ 
+	return uv[s->shared].insert_neq_le(s); 
 }
 
 void vec_antichain_t::erase(BState const * s)

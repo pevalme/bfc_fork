@@ -79,17 +79,23 @@ bool priority_iterator_comparison::operator() (Bpriority_iterator& lhs, Bpriorit
 	return (lhs.second < rhs.second);
 }
 
-BState::neighborhood_t::neighborhood_t(bstate_t source, unordered_set<bstate_t> predecessor, unordered_set<bstate_t> successors, status_t m, bool sleeps)
+BState::neighborhood_t::neighborhood_t(bstate_t source, neighborhood_t::pre_set_t predecessor, neighborhood_t::suc_set_t successors, status_t m, bool sleeps)
 	: ini(false), src(source), pre(predecessor), suc(successors), status(m), sleeping(sleeps), depth(0)
 {
 }
 
-BState::blocking_t::blocking_t(): blocked_by(), blocks(unordered_set<bstate_t>())
+
+#ifdef USE_SETS
+BState::blocking_t::blocking_t(): blocked_by(), blocks()
+#else
+BState::blocking_t::blocking_t(): blocked_by(INIT_BUCKETS), blocks(INIT_BUCKETS)
+#endif
 {
 }
 
 BState::~BState()
 {
+	invariant(fl == 0);
 	if(us != nullptr && nb != nullptr && nb->ini)
 		delete us; //note: "us" is usually shared between multiple BState objects
 	if(nb != nullptr)
@@ -100,12 +106,12 @@ BState::~BState()
 
 /* ---- Constructors ---- */
 BState::BState(shared_t s, bool alloc, type_t t)
-	: type(t), shared(s), nb(alloc?new neighborhood_t():nullptr), bl(alloc?new blocking_t():nullptr), us(nullptr)
+	: type(t), shared(s), nb(alloc?new neighborhood_t():nullptr), bl(alloc?new blocking_t():nullptr), us(nullptr), fl(0)
 {
 }
 
 BState::BState(string str, bool alloc)
-	: nb(alloc?new neighborhood_t():nullptr), bl(alloc?new blocking_t():nullptr), us(nullptr)
+	: nb(nullptr), bl(nullptr), us(nullptr), fl(0)
 {
 
 	try
@@ -133,6 +139,10 @@ BState::BState(string str, bool alloc)
 	{
 		throw runtime_error((string("invalid state string: ") + str).c_str()); 
 	}
+
+	if(alloc)
+		nb = new neighborhood_t(), bl = new blocking_t();
+
 }
 
 void BState::allocate()
@@ -142,6 +152,14 @@ void BState::allocate()
 
 	nb = new neighborhood_t;
 	bl = new blocking_t;
+}
+
+void BState::deallocate()
+{
+	if(nb != nullptr)
+		delete nb;
+	if(bl != nullptr)
+		delete bl;
 }
 
 /* ---- Order operators ---- */

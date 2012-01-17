@@ -18,7 +18,6 @@
 #endif
 #define OPT_STR_INPUT_FILE			"input-file"
 #define OPT_STR_TARGET				"target,a"
-#define OPT_STR_SATBOUND			"sat-bound,k"
 #define OPT_STR_INI_SHARED			"i-shared,s"
 #define OPT_STR_INI_SHARED_DEFVAL	0
 #define OPT_STR_INI_LOCAL			"i-local,l"
@@ -42,7 +41,16 @@
 #define ORDER_LARGEFIRST_OPTION_STR	"L"
 #define ORDER_RANDOM_OPTION_STR		"R"
 #define OPT_STR_FW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
+
+#define OPT_STR_SATBOUND_FW			"fw-sat-bound"
+#define OPT_STR_SATBOUND_BW			"sat-bound,k"
+
 #define OPT_STR_FW_WEIGHT			"fw-weight"
+#define OPT_STR_FW_WIDTH			"max_fw_width"
+#define OPT_STR_FW_WIDTH_DEFVAL		0
+#define OPT_STR_FW_ITS_THRESHOLD	"fw-weight"
+#define OPT_STR_FW_THRESHOLD		"fw-threshold"
+#define OPT_STR_FW_THRESHOLD_DEFVAL	0
 
 #define OPT_STR_BW_GRAPH			"write-graph"
 #define OPT_STR_BW_GRAPH_OPT_none	"none"

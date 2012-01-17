@@ -204,12 +204,12 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				if(n.core_shared(succ->shared))
 				{
 					succs.insert(succ); //add to return set
-					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project
+					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections, kfw); //project
 					//cout << c << " ";
 				}
 				else
 				{
-					if(net.prj_all) c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project if requested
+					if(net.prj_all) c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections, kfw); //project if requested
 					work.push(succ); //add to work list
 				}
 
@@ -286,7 +286,8 @@ unsigned
 	ctr_fw_maxwidth = 0
 	;
 
-unsigned fw_qsz = 0
+unsigned fw_qsz = 0,
+	fw_wsz = 0
 	;
 
 unordered_priority_set<ostate_t>::keyprio_type keyprio_pair(ostate_t s)
@@ -312,6 +313,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	Oreached_t				Q;
 	OState_priority_queue_t W(forder);
 	
+	fw_state_blocked = false;
 	try
 	{
 
@@ -321,6 +323,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		
 		ostate_t cur, walker;
 		unsigned depth;
+		bool threshold_reached = false;
 		
 		while(execution_state == RUNNING && fw_safe && !shared_bw_done && W.try_get(cur)) //retrieve the next working element
 		{
@@ -331,9 +334,30 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			ctr_fw_maxdepth = max(ctr_fw_maxdepth,cur->depth), ctr_fw_maxwidth = max(ctr_fw_maxwidth,(unsigned)cur->size());
 
 			fw_qsz = Q.size();
+			fw_wsz = W.size();
+
+			if(fw_threshold != 0 && f_its%1000==0) //just do this from time to time
+			{
+				auto diff = (boost::posix_time::microsec_clock::local_time() - last_new_prj_found);
+				if((diff.hours() * 3600 + 60 * diff.minutes() + diff.seconds()) > fw_threshold)
+					threshold_reached = true;
+			}
+			
+			static bool first = true;
+			if(first && threshold_reached)
+				cout << "threshold reached" << endl, first = false;
 
 			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque, forward_projections)) //allocates objects in "successors"
-			{
+			{				
+				
+				if((threshold_reached) || (max_fw_width != 0 && p_c->size() >= max_fw_width)) //TEST
+				{
+					fwinfo << *p_c << " blocked" << endl;
+					fw_state_blocked = true;
+					delete p_c;
+					continue;
+				}
+
 				OState* p = const_cast<OState*>(p_c); invariant(p->accel == nullptr);
 
 				//fwinfo << "Checking successor " << *p << endl;
@@ -397,11 +421,13 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 	fwinfo << "fw while exit" << endl;
 
-	shared_fw_done = true;
+	if(!fw_state_blocked){
+		shared_fw_done = true;
 	
-	shared_cout_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), shared_cout_mutex.unlock();
+		shared_cout_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), shared_cout_mutex.unlock();
 	
-	debug_assert(implies(shared_fw_finised_first,W.empty()));
+		debug_assert(implies(shared_fw_finised_first,!fw_safe || W.empty()));
+	}
 	
 	if(shared_fw_finised_first) 
 		finish_time = boost::posix_time::microsec_clock::local_time(), fwinfo << "fw first" << endl;
@@ -430,6 +456,8 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		statsout << "---------------------------------" << endl;
 		statsout << "max. forward depth checked      : " << ctr_fw_maxdepth << endl;
 		statsout << "max. forward width checked      : " << ctr_fw_maxwidth << endl;
+		statsout << "---------------------------------" << endl;
+		statsout << "state blocked                   : " << (fw_state_blocked?"yes":"no") << endl;
 		statsout << "---------------------------------" << endl;
 
 		shared_cout_mutex.unlock();

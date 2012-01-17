@@ -25,6 +25,11 @@ void disable_time_limit()
 	if(setrlimit(RLIMIT_CPU, &t) < 0) cerr << ("could not set softlimit for RLIMIT_CPU") << endl;
 }
 
+#ifdef IMMEDIATE_STOP_ON_INTERRUPT
+bool first_interrupt = false;
+#else
+bool first_interrupt = true;
+#endif
 void catcher(int sig)
 {
 	fflush(stdout);
@@ -36,19 +41,31 @@ void catcher(int sig)
 	default:		cerr << "unknown signal, terminate" << endl; _exit(7);
 	}
 
-	if(execution_state != RUNNING){
+	if(first_interrupt)
+	{
+		first_interrupt = false;
+		cerr << "first interrupt" << endl;
+		switch(sig)
+		{
+		case SIGXCPU:
+			//disable soft limit
+			disable_time_limit();
+			execution_state = TIMEOUT;
+			cerr << "time limit disabled; execution state changed to TIMEOUT" << endl;
+			break;
+		case SIGINT:
+			max_fw_width = 1;
+			cerr << "stopping oracle" << endl;
+			break;
+		default: 
+			execution_state = UNKNOWN;
+			cerr << "execution state changed to UNKNOWN" << endl;
+		}
+	}
+	else
+	{
 		cerr << "second interrupt; terminate" << endl;
 		_exit(5);
-	}else{
-		cerr << "first interrupt; handle signal" << endl;
-	}
-
-	if(sig == SIGXCPU) { 
-		//disable soft limit
-		disable_time_limit();
-		execution_state = TIMEOUT;
-	}else{
-		execution_state = UNKNOWN;
 	}
 }
 

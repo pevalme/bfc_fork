@@ -98,6 +98,10 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 
 	foreach(const antichain_t& s, M.uv){
 		foreach(const bstate_t& q, s.M_cref()){
+
+			if(q->nb->sleeping)
+				continue;
+
 			S.push(q); seen.insert(q);
 			out << '"' << q->id_str() << '"' << ' ';
 			dot_state_out(q,p,P,prune,graph_type,out);
@@ -106,6 +110,9 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 	}
 
 	foreach(const bstate_t& q, N){
+
+		invariant(!q->nb->sleeping);
+
 		S.push(q); seen.insert(q);
 		out << '"' << q->id_str() << '"' << ' ';
 		dot_state_out(q,p,P,prune,graph_type,out);

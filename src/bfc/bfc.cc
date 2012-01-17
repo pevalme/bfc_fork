@@ -1,3 +1,6 @@
+//#define PUBLIC_RELEASE
+#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
+
 /*
 
 known bugs: 
@@ -47,8 +50,6 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
-//#define PUBLIC_RELEASE
-
 #define EXIT_VERIFICATION_SUCCESSFUL 0
 #define EXIT_VERIFICATION_FAILED 10
 
@@ -66,6 +67,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ostate.h"
 #include "bstate.h"
 #include "complement.h"
+
+unsigned max_fw_width = 0;
+unsigned fw_threshold = 0;
 #include "bfc.interrupts.h"
 #include "options_str.h"
 
@@ -112,7 +116,10 @@ enum weigth_t
 	order_random
 } bw_weight, fw_weight;
 
+bool fw_state_blocked = false;
+int kfw = -1;
 #include "fw.h"
+bool defer = false;
 #include "bw.h"
 
 
@@ -122,7 +129,8 @@ void print_bw_stats(unsigned sleep_msec, string o)
 	if(sleep_msec == 0) return;
 
 	//const unsigned dst = 7;
-	const unsigned dst = 0;
+	const unsigned sdst = 5;
+	const unsigned ldst = 7;
 	//const string sep = "|";
 	const string sep = ",";
 
@@ -140,18 +148,26 @@ void print_bw_stats(unsigned sleep_msec, string o)
 		<< "BCWid" << sep
 		<< "BDept" << sep
 		<< "BWidt" << sep
-		<< "BItrs" << sep
-		<< "BPrun" << sep
+		<< "BItrs__" << sep//ldist 5
+		<< "BPrun__" << sep//ldist 6
 		<< "BCycF" << sep
 		<< "BCycB" << sep
-		<< "BNode" << sep
+		<< "BNode__" << sep//ldist 9
+		<< "osz____" << sep//ldist 9
+		<< "dsz____" << sep//ldist 9
+		<< "wdsz___" << sep//ldist 9
+		<< "WNode__" << sep//ldist 10
+		<< "GNode__" << sep//ldist 10
+		<< "LMin___" << sep//ldist 10
+		<< "GMin___" << sep//ldist 10
 		<< "FDept" << sep
 		<< "FWidt" << sep
-		<< "FItrs" << sep
-		<< "FAccs" << sep
-		<< "FNode" << sep
+		<< "FItrs__" << sep//ldist 13
+		<< "FAccs__" << sep//ldist 14
+		<< "FNode__" << sep//ldist 15
+		<< "FWNod__" << sep//ldist 15
 #ifndef WIN32
-		<< "MemMB" << sep
+		<< "MemMB__" << sep//ldist 17
 #endif
 		<< endl
 		;
@@ -166,24 +182,32 @@ void print_bw_stats(unsigned sleep_msec, string o)
 
 		logStream 
 			//bw
-			<< setw(dst) << ctr_bw_curdepth << /*' ' << */sep
-			<< setw(dst) << ctr_bw_curwidth << /*' ' << */sep
-			<< setw(dst) << ctr_bw_maxdepth << /*' ' << */sep
-			<< setw(dst) << ctr_bw_maxwidth << /*' ' << */sep
-			<< setw(dst) << witeration << /*' ' << */sep
-			<< setw(dst) << piteration << /*' ' << */sep
-			<< setw(dst) << fpcycles << /*' ' << */sep
-			<< setw(dst) << bpcycles << /*' ' << */sep
-			<< setw(dst) << nsz + msz << /*' ' << */sep
+			<< setw(sdst) << ctr_bw_curdepth << /*' ' << */sep
+			<< setw(sdst) << ctr_bw_curwidth << /*' ' << */sep
+			<< setw(sdst) << ctr_bw_maxdepth << /*' ' << */sep
+			<< setw(sdst) << ctr_bw_maxwidth << /*' ' << */sep
+			<< setw(ldst) << witeration << /*' ' << */sep
+			<< setw(ldst) << piteration << /*' ' << */sep
+			<< setw(sdst) << fpcycles << /*' ' << */sep
+			<< setw(sdst) << bpcycles << /*' ' << */sep
+			<< setw(ldst) << nsz + msz << /*' ' << */sep
+			<< setw(ldst) << osz << /*' ' << */sep
+			<< setw(ldst) << dsz << /*' ' << */sep
+			<< setw(ldst) << wdsz << /*' ' << */sep
+			<< setw(ldst) << wsz << /*' ' << */sep
+			<< setw(ldst) << gsz << /*' ' << */sep
+			<< setw(ldst) << ctr_locally_minimal << /*' ' << */sep
+			<< setw(ldst) << ctr_globally_minimal << /*' ' << */sep
 			//fw
-			<< setw(dst) << ctr_fw_maxdepth << /*' ' << */sep
-			<< setw(dst) << ctr_fw_maxwidth << /*' ' << */sep
-			<< setw(dst) << f_its << /*' ' << */sep
-			<< setw(dst) << accelerations << /*' ' << */sep
-			<< setw(dst) << fw_qsz << /*' ' << */sep
+			<< setw(sdst) << ctr_fw_maxdepth << /*' ' << */sep
+			<< setw(sdst) << ctr_fw_maxwidth << /*' ' << */sep
+			<< setw(ldst) << f_its << /*' ' << */sep
+			<< setw(ldst) << accelerations << /*' ' << */sep
+			<< setw(ldst) << fw_qsz << /*' ' << */sep
+			<< setw(ldst) << fw_wsz << /*' ' << */sep
 			//both
 #ifndef WIN32
-			<< setw(dst) << memUsed()/1024/1024 << /*' ' << */sep
+			<< setw(ldst) << memUsed()/1024/1024 << /*' ' << */sep
 #endif
 			<< endl
 			, 
@@ -240,6 +264,20 @@ vector<BState> read_trace(string trace_fn)
 
 int main(int argc, char* argv[]) 
 {
+
+	//unordered_set<bstate_t> sadsd;
+	//cout << "sadsd.bucket_count " << sadsd.bucket_count() << endl;
+	//unordered_set<bstate_t> sadsd2(0);
+	//cout << "sadsd2.bucket_count " << sadsd2.bucket_count() << endl;
+
+	//BState sad(213,1);
+	//cout << sad.bl->blocked_by.bucket_count() << endl;
+	//cout << sad.bl->blocks.bucket_count() << endl;
+	//cout << sad.nb->pre.bucket_count() << endl;
+	//cout << sad.nb->suc.bucket_count() << endl;
+
+//	return 1;
+
 	int return_value = EXIT_SUCCESS;
 
 	srand((unsigned)microsec_clock::local_time().time_of_day().total_microseconds());
@@ -293,7 +331,7 @@ int main(int argc, char* argv[])
 		problem.add_options()
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
 			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1; don't specify for k-cover)")
-			(OPT_STR_SATBOUND,		value<unsigned>(&k)->default_value(2), "saturation bound/bound for the k-cover");
+			;
 
 		//Initial state
 		options_description istate("Initial state");
@@ -320,6 +358,7 @@ int main(int argc, char* argv[])
 		//FW options
 		options_description fw_exploration("Forward exploration");
 		fw_exploration.add_options()
+			(OPT_STR_SATBOUND_FW,	value<int>(&kfw), "forward projection bound/bound for the k-cover")
 			(OPT_STR_ACCEL_BOUND,	value<unsigned>(&ab)->default_value(OPT_STR_ACCEL_BOUND_DEFVAL), "acceleration bound")
 			(OPT_STR_FW_INFO,		bool_switch(&print_fwinf), "print info during forward exploration")
 			(OPT_STR_PRINT_HASH_INFO,	bool_switch(&print_hash_info), "print info during forward exploration (slow, req. stats option)")
@@ -332,11 +371,15 @@ int main(int argc, char* argv[])
 			+ "- " + '"' + OPT_STR_WEIGHT_DEPTH + '"'	+ " (depth), or \n"
 			+ "- " + '"' + OPT_STR_WEIGHT_WIDTH + '"'	+ " (width)"
 			).c_str())
+			(OPT_STR_FW_WIDTH,	value<unsigned>(&max_fw_width)->default_value(OPT_STR_FW_WIDTH_DEFVAL), "maximum thread count considered during exploration")
+			(OPT_STR_FW_THRESHOLD,	value<unsigned>(&fw_threshold)->default_value(OPT_STR_FW_THRESHOLD_DEFVAL), "stop oracle after that many seconds if it did not progress")
 			;
 
 		//BW options
 		options_description bw_exploration("Backward exploration");
 		bw_exploration.add_options()
+			(OPT_STR_SATBOUND_BW,	value<unsigned>(&k)->default_value(2), "backward saturation bound/bound for the k-cover")
+			("defer", bool_switch(&defer), "defer states with only non-global predecessor (optimistic exploration)")
 			(OPT_STR_PRE_INFO,		bool_switch(&print_preinf), "print info during predecessor computation")
 			(OPT_STR_BW_INFO,		bool_switch(&print_bwinf), "print info during backward exloration")
 			(OPT_STR_BW_ORDER,		value<string>(&border_str)->default_value(OPT_STR_BW_ORDER_DEFVAL), (string("order of the backward workset:\n")
@@ -349,7 +392,8 @@ int main(int argc, char* argv[])
 			+ "- " + '"' + OPT_STR_WEIGHT_WIDTH + '"'	+ " (width)"
 			).c_str())
 			(OPT_STR_WRITE_BW_TRACE,bool_switch(&writetrace), "write exploration sequence to file (extension .trace)")
-			(OPT_STR_READ_BW_TRACE,	bool_switch(&readtrace), "read exploration sequence from file (extension .trace)");
+			(OPT_STR_READ_BW_TRACE,	bool_switch(&readtrace), "read exploration sequence from file (extension .trace)")
+			;
 
 		options_description cmdline_options;
 		cmdline_options
@@ -367,6 +411,9 @@ int main(int argc, char* argv[])
 
 		variables_map vm;
 		store(command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), vm), notify(vm);
+
+		if(kfw == -1)
+			kfw = k;
 
 		if(h || v)
 		{ 
@@ -439,7 +486,8 @@ int main(int argc, char* argv[])
 			net.init.unbounded_locals.insert(init_local);
 
 #ifndef NOSPAWN_REWRITE
-		net.init.unbounded_locals.insert(net.local_thread_pool);
+		if(net.has_spawns)
+			net.init.unbounded_locals.insert(net.local_thread_pool);
 #endif
 
 		if      (mode_str == FW_OPTION_STR)		mode = FW, forward_projections = 0; //OPT_STR_MODE
@@ -646,6 +694,7 @@ int main(int argc, char* argv[])
 		cout << "max. virt. memory usage (mb): " << max_mem_used << endl;
 #endif
 
+		//TODO: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold
 		if(execution_state == RUNNING)
 		{
 			if(net.check_target) 
@@ -680,6 +729,7 @@ int main(int argc, char* argv[])
 		case UNKNOWN: statsout << "UNKNOWN" << endl; break;
 		}
 #endif
+
 	}
 	catch(std::exception& e)			{ 
 		cout << e.what() << "\n"; 

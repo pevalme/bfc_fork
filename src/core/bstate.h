@@ -1,3 +1,5 @@
+//#define USE_SETS
+
 /******************************************************************************
   Synopsis		[State object for greedy algorithm.]
 
@@ -72,6 +74,8 @@ typedef std::pair<Breached_t::const_iterator,int> Bpriority_iterator;
 struct priority_iterator_comparison{ bool operator() (Bpriority_iterator& lhs, Bpriority_iterator& rhs) const; };
 typedef std::priority_queue<Bpriority_iterator,std::vector<Bpriority_iterator>,priority_iterator_comparison> work_priority_queue_t;
 
+#define INIT_BUCKETS (0)
+
 enum po_rel_t
 {
 	neq_le = 0,		//covered by
@@ -103,22 +107,40 @@ struct BState{
 
 	struct neighborhood_t
 	{
+#ifdef USE_SETS
+		typedef set<bstate_t> pre_set_t;
+		typedef set<bstate_t> suc_set_t;
+#else
+		typedef unordered_set<bstate_t> pre_set_t;
+		typedef unordered_set<bstate_t> suc_set_t;
+#endif
+
 		bool					ini; //marks the source state (previously stored via src==this which is not possible anymore if the source is moved to a different "source tree")
 		bstate_t				src; //the source
-		unordered_set<bstate_t>	pre; //the predecessor
-		unordered_set<bstate_t>	suc; //the successors
+		pre_set_t				pre; //the predecessor
+		suc_set_t				suc; //the successors
 
 		status_t				status; //this should go somewhere else
 		bool					sleeping; //this should go somewhere else
 
 		unsigned				depth;
 
-		neighborhood_t(bstate_t source = nullptr, unordered_set<bstate_t> predecessor = unordered_set<bstate_t>(), unordered_set<bstate_t> successors = unordered_set<bstate_t>(), status_t m = unset, bool sleeps = false);
+#ifdef USE_SETS
+		neighborhood_t(bstate_t = nullptr, pre_set_t = pre_set_t(), suc_set_t = suc_set_t(), status_t m = unset, bool sleeps = false);
+#else
+		neighborhood_t(bstate_t = nullptr, pre_set_t = pre_set_t(INIT_BUCKETS), suc_set_t = suc_set_t(INIT_BUCKETS), status_t m = unset, bool sleeps = false);
+#endif
 	};
 
 	struct blocking_t{
-		unordered_set<bstate_t>	blocked_by;	//states that block this
-		unordered_set<bstate_t>	blocks;	//states this blocks
+#ifdef USE_SETS
+		typedef set<bstate_t> blocking_set_t;
+#else
+		typedef unordered_set<bstate_t> blocking_set_t;
+#endif
+
+		blocking_set_t	blocked_by;	//states that block this
+		blocking_set_t	blocks;	//states this blocks
 
 		blocking_t();
 	};
@@ -135,6 +157,7 @@ struct BState{
 	neighborhood_t*				nb;
 	blocking_t*					bl;
 	vec_upperset_t*				us;
+	unsigned					fl; //flags; for temporary usage
 
 	static size_t L, S;
 
@@ -146,6 +169,7 @@ struct BState{
 	template<class Iter> BState(shared_t s, Iter first, Iter last, bool alloc = false, bstate_t src = nullptr, type_t t = def);
 	BState(std::string str, bool alloc = false);
 	void allocate();
+	void deallocate();
 
 	/* ---- Order operators ---- */
 	bool operator == (const BState& r) const;
@@ -182,7 +206,7 @@ struct BState{
 
 template<class Iter>
 BState::BState(shared_t s, Iter first, Iter last, bool alloc, bstate_t src, type_t t)
-	: type(t), shared(s), bounded_locals(first,last), nb(alloc?new neighborhood_t():nullptr), bl(alloc?new blocking_t():nullptr), us(nullptr)
+	: type(t), shared(s), bounded_locals(first,last), nb(alloc?new neighborhood_t():nullptr), bl(alloc?new blocking_t():nullptr), us(nullptr), fl(0)
 {
 	if(alloc) nb->src = src;
 }

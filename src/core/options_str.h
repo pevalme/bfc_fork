@@ -33,7 +33,7 @@
 #define FW_OPTION_STR				"F"
 #define BW_OPTION_STR				"B"
 #define OPT_STR_ACCEL_BOUND			"acc-bound"
-#define OPT_STR_ACCEL_BOUND_DEFVAL	20
+#define OPT_STR_ACCEL_BOUND_DEFVAL	500
 #define OPT_STR_FW_INFO				"fw-info"
 #define OPT_STR_PRINT_HASH_INFO		"hash-info"
 #define OPT_STR_FW_ORDER			"fw-order"
@@ -44,6 +44,7 @@
 
 #define OPT_STR_SATBOUND_FW			"fw-sat-bound"
 #define OPT_STR_SATBOUND_BW			"sat-bound,k"
+#define OPT_STR_SATBOUND_BW_DEFVAL	2
 
 #define OPT_STR_FW_WEIGHT			"fw-weight"
 #define OPT_STR_FW_WIDTH			"max_fw_width"

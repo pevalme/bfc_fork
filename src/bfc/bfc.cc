@@ -1,4 +1,4 @@
-//#define PUBLIC_RELEASE
+#define PUBLIC_RELEASE
 #define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
 
 /*
@@ -68,10 +68,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "bstate.h"
 #include "complement.h"
 
-unsigned max_fw_width = 0;
-unsigned fw_threshold = 0;
-#include "bfc.interrupts.h"
 #include "options_str.h"
+unsigned max_fw_width = OPT_STR_FW_WIDTH_DEFVAL;
+unsigned fw_threshold = OPT_STR_FW_THRESHOLD_DEFVAL;
+#include "bfc.interrupts.h"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/program_options.hpp>
@@ -283,7 +283,7 @@ int main(int argc, char* argv[])
 	srand((unsigned)microsec_clock::local_time().time_of_day().total_microseconds());
 
 	enum {FW,BW,FWBW,CON,FW_CON} mode;
-	unsigned k,ab(OPT_STR_ACCEL_BOUND_DEFVAL), mon_interval(OPT_STR_MON_INTERV_DEFVAL);
+	unsigned k(OPT_STR_SATBOUND_BW_DEFVAL),ab(OPT_STR_ACCEL_BOUND_DEFVAL), mon_interval(OPT_STR_MON_INTERV_DEFVAL);
 	unordered_priority_set<bstate_t>::order_t border;
 	unordered_priority_set<ostate_t>::order_t forder;
 	vector<BState> work_sequence;
@@ -306,8 +306,8 @@ int main(int argc, char* argv[])
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_CROSS_CHECK,	bool_switch(&cross_check), "compare results obtained with forward and backward")
-#endif
 			(OPT_STR_PRINT_KCOVER,	bool_switch(&print_cover), "print k-cover elements")
+#endif
 			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")
@@ -330,7 +330,7 @@ int main(int argc, char* argv[])
 		options_description problem("Problem instance");
 		problem.add_options()
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
-			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1; don't specify for k-cover)")
+			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
 			;
 
 		//Initial state
@@ -344,7 +344,9 @@ int main(int argc, char* argv[])
 		//Exploration mode
 		options_description exploration_mode("Exploration mode");
 		exploration_mode.add_options()
+#ifndef PUBLIC_RELEASE
 			(OPT_STR_NO_POR,		bool_switch(&net.prj_all), "do not use partial order reduction")
+#endif
 			(OPT_STR_MODE,			value<string>(&mode_str)->default_value(CON_OPTION_STR), (string("exploration mode: \n") 
 			+ "- " + '"' + CON_OPTION_STR + '"'		+ " (concurrent forward/backward), \n"
 #ifndef PUBLIC_RELEASE
@@ -378,8 +380,8 @@ int main(int argc, char* argv[])
 		//BW options
 		options_description bw_exploration("Backward exploration");
 		bw_exploration.add_options()
-			(OPT_STR_SATBOUND_BW,	value<unsigned>(&k)->default_value(2), "backward saturation bound/bound for the k-cover")
-			("defer", bool_switch(&defer), "defer states with only non-global predecessor (optimistic exploration)")
+			(OPT_STR_SATBOUND_BW,	value<unsigned>(&k)->default_value(OPT_STR_SATBOUND_BW_DEFVAL), "backward saturation bound/bound for the k-cover")
+			("defer", bool_switch(&defer), "defer states with only non-global predecessors (optimistic exploration)")
 			(OPT_STR_PRE_INFO,		bool_switch(&print_preinf), "print info during predecessor computation")
 			(OPT_STR_BW_INFO,		bool_switch(&print_bwinf), "print info during backward exloration")
 			(OPT_STR_BW_ORDER,		value<string>(&border_str)->default_value(OPT_STR_BW_ORDER_DEFVAL), (string("order of the backward workset:\n")
@@ -477,6 +479,10 @@ int main(int argc, char* argv[])
 			if(!net.target->consistent()) throw logic_error("invalid target");
 			net.Otarget = OState(net.target->shared,net.target->bounded_locals.begin(),net.target->bounded_locals.end());
 			net.check_target = true;
+		}
+		else
+		{
+			throw logic_error("no target specified");
 		}
 
 		net.init = OState(init_shared), net.local_init = init_local; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL

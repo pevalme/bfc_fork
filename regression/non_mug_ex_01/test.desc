@@ -1,0 +1,9 @@
+CORE
+main.tts
+--target main.prop --i-single
+^EXIT=0$
+^SIGNAL=0$
+^VERIFICATION SUCCESSFUL$
+--
+--
+no comments

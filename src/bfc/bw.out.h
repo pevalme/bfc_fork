@@ -86,6 +86,8 @@ ofstream& dot_state_out(bstate_t q, bstate_t p, const work_pq& P, bool prune, gr
 void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, bstate_t p, const work_pq& P, bool prune, unsigned witeration, unsigned piteration, string ext) //p will be highlighted
 {
 
+	bout << "writing uncoverability graph..." << "\n";
+
 	string out_fn = net.filename + ".bw-graph.it_" + add_leading_zeros(boost::lexical_cast<string>(witeration),5) + "-" + add_leading_zeros(boost::lexical_cast<string>(piteration),5) + ext + ".dot";
 
 	set<bstate_t> seen;
@@ -94,7 +96,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 	ofstream out(out_fn.c_str());
 	if(!out.good())
 		throw logic_error(string("cannot write to ") + out_fn);
-	out << "digraph BDD {" << std::endl;
+	out << "digraph BDD {" << "\n";
 
 	foreach(const antichain_t& s, M.uv){
 		foreach(const bstate_t& q, s.M_cref()){
@@ -103,55 +105,68 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 				continue;
 
 			S.push(q); seen.insert(q);
+
+			//if(q->nb->status != BState::processed)
+			//	continue;
+
 			out << '"' << q->id_str() << '"' << ' ';
 			dot_state_out(q,p,P,prune,graph_type,out);
-			out << endl;
+			out << "\n";
 		}
 	}
 
 	foreach(const bstate_t& q, N){
 
 		invariant(!q->nb->sleeping);
-
 		S.push(q); seen.insert(q);
+
+		//if(q->nb->status != BState::processed)
+		//	continue;
+
 		out << '"' << q->id_str() << '"' << ' ';
 		dot_state_out(q,p,P,prune,graph_type,out);
-		out << endl;
+		out << "\n";
 	}
 
 	while(!S.empty()){
 		bstate_t s = S.top(); S.pop();
 
-		foreach(bstate_t n, s->nb->suc)
-		{
-			string to_style;
-
-			switch(graph_type)
+		//if(s->nb->status == BState::processed)
+		//{
+			foreach(bstate_t n, s->nb->suc)
 			{
-			case GTYPE_TIKZ:
-				{
-					if(n->nb->src==s->nb->src) to_style = "localpredecessoredge";
-					else to_style = "nonlocalpredecessoredge";
+				string to_style;
 
-					if(n->nb->status == BState::blocked_pending || n->nb->status == BState::blocked_processed) to_style += ",toblocked";
-					else to_style += ",tononblocked";
+				//if(n->nb->status == BState::processed)
+				//{
+					switch(graph_type)
+					{
+					case GTYPE_TIKZ:
+						{
+							if(n->nb->src==s->nb->src) to_style = "localpredecessoredge";
+							else to_style = "nonlocalpredecessoredge";
 
-					if(n->nb->sleeping) to_style += ",sleeping";
+							if(n->nb->status == BState::blocked_pending || n->nb->status == BState::blocked_processed) to_style += ",toblocked";
+							else to_style += ",tononblocked";
 
-					out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=" << '"' << to_style << '"' << "];" << std::endl;
-				}
-				break;
-			case GTYPE_DOT:
-				{
-					if(n->nb->src==s->nb->src) to_style = DOT_local_edge_style;
-					else to_style = DOT_non_local_edge_style;
+							if(n->nb->sleeping) to_style += ",sleeping";
 
-					out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << to_style << "];" << std::endl;
-				}
-				break;
+							out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=" << '"' << to_style << '"' << "];" << "\n";
+						}
+						break;
+					case GTYPE_DOT:
+						{
+							if(n->nb->src==s->nb->src) to_style = DOT_local_edge_style;
+							else to_style = DOT_non_local_edge_style;
+
+							out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << to_style << "];" << "\n";
+						}
+						break;
+					}
+				//}
 			}
-		}
-
+		//}
+		
 		foreach(bstate_t n, s->nb->suc)
 			if(seen.insert(n).second)
 				S.push(n);
@@ -172,13 +187,17 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 			if(!seen.insert(c).second) continue;
 			foreach(BState const * n, c->bl->blocked_by){
 				C.push(n);
+
+				//if(n->nb->status != BState::processed)
+				//	continue;
+
 				switch(graph_type){
-				case GTYPE_TIKZ: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=\"blockedby\"];" << std::endl; break;
-				case GTYPE_DOT: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << DOT_blocks_edge_style << "];" << std::endl; break;}
+				case GTYPE_TIKZ: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=\"blockedby\"];" << "\n"; break;
+				case GTYPE_DOT: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << DOT_blocks_edge_style << "];" << "\n"; break;}
 			}
 		}
 	}
 
-	out << "}" << std::endl;
+	out << "}" << "\n";
 	out.close();
 }

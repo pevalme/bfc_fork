@@ -17,15 +17,16 @@ string warning(string s)
 	return string("WARNING: ") + s;
 }
 
-ostream inf(cout.rdbuf());
-ostream fwinfo(cout.rdbuf());
-ostream preinf(cout.rdbuf());
-ostream bout(cout.rdbuf());
-ostream dout(cout.rdbuf());
-ostream statsout(cout.rdbuf());
+//std::ostream fwinfo(cout.rdbuf());
+//std::ostream fwtrace(cout.rdbuf());
+//std::ostream dout(cout.rdbuf());
+//std::ostream bout(cout.rdbuf());
+//std::ostream fwstatsout(cout.rdbuf());
+//std::ostream bwstatsout(cout.rdbuf());
+//std::ostream ttsstatsout(cout.rdbuf());
 
 boost::mutex shared_cout_mutex;
 
-graph_type_t graph_type;
+graph_type_t graph_type, tree_type;
 
 interrupt_t execution_state = RUNNING;

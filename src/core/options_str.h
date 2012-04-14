@@ -21,9 +21,9 @@
 #define OPT_STR_INI_SHARED			"i-shared,s"
 #define OPT_STR_INI_SHARED_DEFVAL	0
 #define OPT_STR_INI_LOCAL			"i-local,l"
+#define OPT_STR_INI_LOCAL2			"i-local2"
 #define OPT_STR_INI_LOCAL_DEFVAL	0
 #define OPT_STR_SINGLE_INITIAL		"i-single,i"
-
 
 #define OPT_STR_NO_POR				"prj-all"
 #define OPT_STR_MODE				"mode,d"
@@ -54,16 +54,17 @@
 #define OPT_STR_FW_THRESHOLD_DEFVAL	0
 
 #define OPT_STR_BW_GRAPH			"write-graph"
+#define OPT_STR_FW_TREE				"write-fw-tree"
 #define OPT_STR_BW_GRAPH_OPT_none	"none"
 #define OPT_STR_BW_GRAPH_OPT_TIKZ	"tikz"
 #define OPT_STR_BW_GRAPH_OPT_DOTTY	"dot"
 #define OPT_STR_BW_GRAPH_DEFVAL		OPT_STR_BW_GRAPH_OPT_none
-#define OPT_STR_PRE_INFO			"pre-info"
 #define OPT_STR_BW_INFO				"bw-info"
 
 #define OPT_STR_BW_ORDER			"bw-order"
 #define OPT_STR_BW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
 
+#define OPT_STR_BW_WAITFORFW		"fw-blocks-bw"
 
 #define OPT_STR_BW_WEIGHT			"bw-weight"
 #define OPT_STR_WEIGHT_DEPTH		"D"

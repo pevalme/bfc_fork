@@ -117,6 +117,7 @@ struct Net{
 
 	local_t 
 		local_init,
+		init_local2,
 		local_thread_pool;
 
 
@@ -356,7 +357,7 @@ struct Net{
 			OState::L = BState::L;
 
 		}
-		catch(bad_cast& e)
+		catch(bad_cast&)
 		{
 			throw logic_error((string)"error while parsing line " + '"' + line + '"' + "(bad lexical cast)");
 		}

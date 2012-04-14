@@ -51,19 +51,21 @@ std::string warning(std::string);
 
 //shared data
 #include <iostream>
-extern std::ostream inf;
-extern std::ostream fwinfo;
-extern std::ostream preinf;
-extern std::ostream bout;
-extern std::ostream dout;
-extern std::ostream statsout;
+
+//extern std::ostream fwinfo;
+//extern std::ostream fwtrace;
+//extern std::ostream dout;
+//extern std::ostream bout;
+//extern std::ostream fwstatsout;
+//extern std::ostream bwstatsout;
+//extern std::ostream ttsstatsout;
 
 #include <boost/thread.hpp>
 extern boost::mutex shared_cout_mutex;
 
 
 enum graph_type_t {GTYPE_TIKZ,GTYPE_DOT,GTYPE_NONE};
-extern graph_type_t graph_type;
+extern graph_type_t graph_type, tree_type;
 
 enum interrupt_t { RUNNING,TIMEOUT,MEMOUT,UNKNOWN};
 extern interrupt_t execution_state;

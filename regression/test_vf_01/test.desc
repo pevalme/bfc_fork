@@ -1,10 +1,9 @@
 CORE
 main.tts
---target main.prop
-^EXIT=10$
+--i-single --target main.prop
+^EXIT=0$
 ^SIGNAL=0$
-^VERIFICATION FAILED$
+^VERIFICATION SUCCESSFUL$
 --
-^warning: ignoring
 --
 no comments

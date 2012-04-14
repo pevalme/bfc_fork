@@ -1,5 +1,5 @@
-#define PUBLIC_RELEASE
-#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
+//#define PUBLIC_RELEASE
+//#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
 
 /*
 
@@ -71,12 +71,14 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "options_str.h"
 unsigned max_fw_width = OPT_STR_FW_WIDTH_DEFVAL;
 unsigned fw_threshold = OPT_STR_FW_THRESHOLD_DEFVAL;
+bool threshold_reached = false;
 #include "bfc.interrupts.h"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
+#include <sstream>
 
 using namespace std;
 using namespace boost::program_options;
@@ -116,10 +118,79 @@ enum weigth_t
 	order_random
 } bw_weight, fw_weight;
 
+
+struct Print {
+  Print() {}
+  void flush(){ std::cout << buf.str(); buf.clear(); }
+  ~Print() { std::cout << buf.str(); }
+  mutable std::ostringstream buf;
+};
+
+class FullExpressionAccumulator {
+public:
+	void rdbuf(basic_streambuf<char, std::char_traits<char> >* a){
+		os.rdbuf(a);
+	}
+
+	FullExpressionAccumulator(basic_streambuf<char, std::char_traits<char> >* a) : os(a) {
+		ss << "----------------------------" << "\n";
+	}
+
+	FullExpressionAccumulator(std::ostream& os) : os(os.rdbuf()) {
+		ss << "----------------------------" << "\n";
+	}
+    
+	~FullExpressionAccumulator() {
+		if(os.rdbuf()) 
+			os << ss.rdbuf() << std::flush; // write the whole shebang in one go
+    }
+
+	void flush()
+	{
+		int size;
+		if(os.rdbuf()) {
+			ss.seekg(0, ios::end), size = ss.tellg(), ss.seekg(0, ios::beg);
+			if(size){
+
+				ss << "----------------------------" << "\n";
+
+				shared_cout_mutex.lock();
+				os << ss.rdbuf() << std::flush;
+				ss.str( std::string() ), ss.clear(); //http://stackoverflow.com/questions/2848087/how-to-clear-stringstream
+
+				ss << "----------------------------" << "\n";
+
+				shared_cout_mutex.unlock();
+			}
+		}
+	}
+    std::stringstream ss;
+    std::ostream os;
+private:
+};
+
+//template < class T > const Print & operator<<(const Print & p, const T & t) { p.buf << t; return p; }
+template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulator& p, T const& t) {
+	if(p.os.rdbuf()) 
+		p.ss << t; // accumulate into a non-shared stringstream, no threading issues
+	return p;
+}
+
+FullExpressionAccumulator
+	fwinfo(cout.rdbuf()), //optional fw info
+	fwtrace(cout.rdbuf()), //trace
+	dout(cout.rdbuf()), //debug info (main routine)
+	bout(cout.rdbuf()), //optional bw info
+	fwstatsout(cout.rdbuf()), //fw stats
+	bwstatsout(cout.rdbuf()), //bw stats
+	ttsstatsout(cout.rdbuf()) //tts stats
+	;
+
 bool fw_state_blocked = false;
 int kfw = -1;
 #include "fw.h"
 bool defer = false;
+bool fw_blocks_bw = false;
 #include "bw.h"
 
 
@@ -262,21 +333,9 @@ vector<BState> read_trace(string trace_fn)
 	return work_sequence;
 }
 
+
 int main(int argc, char* argv[]) 
 {
-
-	//unordered_set<bstate_t> sadsd;
-	//cout << "sadsd.bucket_count " << sadsd.bucket_count() << endl;
-	//unordered_set<bstate_t> sadsd2(0);
-	//cout << "sadsd2.bucket_count " << sadsd2.bucket_count() << endl;
-
-	//BState sad(213,1);
-	//cout << sad.bl->blocked_by.bucket_count() << endl;
-	//cout << sad.bl->blocks.bucket_count() << endl;
-	//cout << sad.nb->pre.bucket_count() << endl;
-	//cout << sad.nb->suc.bucket_count() << endl;
-
-//	return 1;
 
 	int return_value = EXIT_SUCCESS;
 
@@ -292,9 +351,9 @@ int main(int argc, char* argv[])
 
 	try {
 		shared_t init_shared;
-		local_t init_local;
-		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), print_sgraph(0), stats_info(0), print_preinf(0), print_bwinf(0), print_fwinf(0), single_initial(0), debug_info(1);
+		local_t init_local, init_local2(-1);
+		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
+		bool h(0), v(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), debug_info(1);
 #ifndef WIN32
 		unsigned to,mo;
 #endif
@@ -317,12 +376,13 @@ int main(int argc, char* argv[])
 			(OPT_STR_MEMOUT,		value<unsigned>(&mo)->default_value(0), "virtual memory limit in megabyte (\"0\" for no limit)")
 #endif
 #ifndef PUBLIC_RELEASE
-			(OPT_STR_BW_GRAPH,		value<string>(&graph_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), (string("write search graph at each iteration:\n")
+			(OPT_STR_BW_GRAPH,		value<string>(&graph_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), (string("write bw search graph:\n")
 			+ "- " + '"' + OPT_STR_BW_GRAPH_OPT_none + '"' + ", \n"
 			+ "- " + '"' + OPT_STR_BW_GRAPH_OPT_TIKZ + '"'	+ ", or \n"
 			+ "- " + '"' + OPT_STR_BW_GRAPH_OPT_DOTTY + '"'
 			).c_str())
-			(OPT_STR_OUTPUT_FILE, value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "monitor output file (\"stdout\" for console)")
+			(OPT_STR_FW_TREE,		value<string>(&tree_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), ("write fw search tree (same arguments as above)"))
+			(OPT_STR_OUTPUT_FILE,	value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "monitor output file (\"stdout\" for console)")
 #endif
 			;
 
@@ -338,6 +398,7 @@ int main(int argc, char* argv[])
 		istate.add_options()
 			(OPT_STR_INI_SHARED,	value<shared_t>(&init_shared)->default_value(OPT_STR_INI_SHARED_DEFVAL), "initial shared state")
 			(OPT_STR_INI_LOCAL,		value<local_t>(&init_local)->default_value(OPT_STR_INI_LOCAL_DEFVAL), "initial local state")
+			(OPT_STR_INI_LOCAL2,	value<local_t>(&init_local2), "second initial local state")
 			(OPT_STR_SINGLE_INITIAL,bool_switch(&single_initial), "do not parametrize the local initial state")
 			;
 
@@ -382,8 +443,8 @@ int main(int argc, char* argv[])
 		bw_exploration.add_options()
 			(OPT_STR_SATBOUND_BW,	value<unsigned>(&k)->default_value(OPT_STR_SATBOUND_BW_DEFVAL), "backward saturation bound/bound for the k-cover")
 			("defer", bool_switch(&defer), "defer states with only non-global predecessors (optimistic exploration)")
-			(OPT_STR_PRE_INFO,		bool_switch(&print_preinf), "print info during predecessor computation")
 			(OPT_STR_BW_INFO,		bool_switch(&print_bwinf), "print info during backward exloration")
+			(OPT_STR_BW_WAITFORFW,	bool_switch(&fw_blocks_bw), "backward exloration is blocked until foward exploration reaches the threshold")
 			(OPT_STR_BW_ORDER,		value<string>(&border_str)->default_value(OPT_STR_BW_ORDER_DEFVAL), (string("order of the backward workset:\n")
 			+ "- " + '"' + ORDER_SMALLFIRST_OPTION_STR + '"'	+ " (small first), \n"
 			+ "- " + '"' + ORDER_LARGEFIRST_OPTION_STR + '"'	+ " (large first), or \n"
@@ -439,7 +500,7 @@ int main(int argc, char* argv[])
 			return EXIT_SUCCESS;
 		}
 
-		if(!stats_info){ statsout.rdbuf(0); } //OPT_STR_STATS
+		if(!stats_info){ bwstatsout.rdbuf(0), fwstatsout.rdbuf(0), ttsstatsout.rdbuf(0); } //OPT_STR_STATS
 
 #ifndef WIN32
 		if(to != 0)
@@ -485,11 +546,19 @@ int main(int argc, char* argv[])
 			throw logic_error("no target specified");
 		}
 
-		net.init = OState(init_shared), net.local_init = init_local; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
+		net.init = OState(init_shared), net.local_init = init_local, net.init_local2 = init_local2; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
 		if(single_initial) 
+		{
+			if(init_local2 != -1)
+				net.init.bounded_locals.insert(init_local2);
 			net.init.bounded_locals.insert(init_local);
+		}
 		else
+		{
+			if(init_local2 != -1)
+				net.init.unbounded_locals.insert(init_local2);
 			net.init.unbounded_locals.insert(init_local);
+		}
 
 #ifndef NOSPAWN_REWRITE
 		if(net.has_spawns)
@@ -508,6 +577,7 @@ int main(int argc, char* argv[])
 		if(print_cover && (mode == FW))
 			throw logic_error("printing cover information not supported in this mode");
 
+		//if(!print_fwinf){ fwinfo.rdbuf(0); } //OPT_STR_FW_INFO
 		if(!print_fwinf){ fwinfo.rdbuf(0); } //OPT_STR_FW_INFO
 
 		if(print_hash_info && !stats_info) throw logic_error("hash info requires stats argument");
@@ -521,16 +591,18 @@ int main(int argc, char* argv[])
 		else if(fweight_str == OPT_STR_WEIGHT_WIDTH) fw_weight = order_width;
 		else throw logic_error("invalid weight argument");
 
-		if(!print_preinf){ preinf.rdbuf(0); } //OPT_STR_PRE_INFO
 		if(!print_bwinf){ bout.rdbuf(0); } //OPT_STR_BW_INFO
 		if(!debug_info){ dout.rdbuf(0); } //
-
-		
 
 		if	   (graph_style == OPT_STR_BW_GRAPH_OPT_none) graph_type = GTYPE_NONE;
 		else if(graph_style == OPT_STR_BW_GRAPH_OPT_TIKZ) graph_type = GTYPE_TIKZ;
 		else if(graph_style == OPT_STR_BW_GRAPH_OPT_DOTTY) graph_type = GTYPE_DOT;
 		else throw logic_error("invalid graph type");
+
+		if	   (tree_style == OPT_STR_BW_GRAPH_OPT_none) tree_type = GTYPE_NONE;
+		else if(tree_style == OPT_STR_BW_GRAPH_OPT_TIKZ) tree_type = GTYPE_TIKZ;
+		else if(tree_style == OPT_STR_BW_GRAPH_OPT_DOTTY) tree_type = GTYPE_DOT;
+		else throw logic_error("invalid tree type");
 
 		if     (border_str == ORDER_SMALLFIRST_OPTION_STR) border = unordered_priority_set<bstate_t>::less;
 		else if(border_str == ORDER_LARGEFIRST_OPTION_STR) border = unordered_priority_set<bstate_t>::greater;
@@ -551,34 +623,35 @@ int main(int argc, char* argv[])
 		}
 
 		Net::net_stats_t sts = net.get_net_stats();
-		statsout << "---------------------------------" << endl;
-		statsout << "Statistics for " << net.filename << endl;
-		statsout << "---------------------------------" << endl;
-		statsout << "local states                    : " << sts.L << endl;
-		statsout << "shared states                   : " << sts.S << endl;
-		statsout << "transitions                     : " << sts.T << endl;
-		statsout << "thread transitions              : " << sts.trans_type_counters[thread_transition] << endl;
-		//statsout << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << endl;
-		statsout << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << endl;
-		//statsout << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << endl;
-		statsout << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << endl;
-		//statsout << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << endl;
-		statsout << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << endl;
-		//statsout << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << endl;
-		statsout << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << endl;
-		//statsout << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << endl;
-		statsout << "disconnected thread states      : " << sts.discond << endl;
-		//statsout << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << endl;
+		ttsstatsout << "---------------------------------" << "\n";
+		ttsstatsout << "Statistics for " << net.filename << "\n";
+		ttsstatsout << "---------------------------------" << "\n";
+		ttsstatsout << "local states                    : " << sts.L << "\n";
+		ttsstatsout << "shared states                   : " << sts.S << "\n";
+		ttsstatsout << "transitions                     : " << sts.T << "\n";
+		ttsstatsout << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
+		//ttsstatsout << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
+		ttsstatsout << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
+		//ttsstatsout << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
+		ttsstatsout << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
+		//ttsstatsout << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
+		ttsstatsout << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
+		//ttsstatsout << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
+		ttsstatsout << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
+		//ttsstatsout << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
+		ttsstatsout << "disconnected thread states      : " << sts.discond << "\n";
+		//ttsstatsout << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
 #ifdef DETAILED_TTS_STATS
-		statsout << "strongly connected components   : " << sts.SCC_num << endl;
-		statsout << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << endl;
+		ttsstatsout << "strongly connected components   : " << sts.SCC_num << "\n";
+		ttsstatsout << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
 #endif
-		statsout << "maximum indegree                : " << sts.max_indegree << endl;
-		statsout << "maximum outdegree               : " << sts.max_outdegree << endl;
-		statsout << "maximum degree                  : " << sts.max_degree << endl;
-		statsout << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << endl;
-		statsout << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << endl;
-		statsout << "---------------------------------" << endl;
+		ttsstatsout << "maximum indegree                : " << sts.max_indegree << "\n";
+		ttsstatsout << "maximum outdegree               : " << sts.max_outdegree << "\n";
+		ttsstatsout << "maximum degree                  : " << sts.max_degree << "\n";
+		ttsstatsout << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << "\n";
+		ttsstatsout << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
+		ttsstatsout << "---------------------------------" << "\n";
+		ttsstatsout.flush();
 
 	}
 	catch(std::exception& e)			{ cout << "INPUT ERROR: " << e.what() << "\n"; cout << "type " << argv[0] << " -h for instructions" << endl; return EXIT_FAILURE; }
@@ -674,8 +747,8 @@ int main(int argc, char* argv[])
 				bw_mem(print_bw_stats, mon_interval, o)
 				;
 			
-			dout << "waiting for fw..." << endl, fw.join(), dout << "fw joined" << endl;
-			dout << "waiting for bw..." << endl, bw.join(), dout << "bw joined" << endl;
+			dout << "waiting for fw..." << "\n", dout.flush(), fw.join(), dout << "fw joined" << "\n", dout.flush();
+			dout << "waiting for bw..." << "\n", dout.flush(), bw.join(), dout << "bw joined" << "\n", dout.flush();
 			bw_mem.interrupt();
 			bw_mem.join();
 			
@@ -727,12 +800,12 @@ int main(int argc, char* argv[])
 		}
 
 #ifndef WIN32
-		statsout << "execution state: ";
+		ttsstatsout << "execution state: ";
 		switch(execution_state){
-		case RUNNING: statsout << "SUCCESSFUL" << endl; break;
-		case TIMEOUT: statsout << "TIMEOUT" << endl; break;
-		case MEMOUT: statsout << "MEMOUT" << endl; break;
-		case UNKNOWN: statsout << "UNKNOWN" << endl; break;
+		case RUNNING: ttsstatsout << "SUCCESSFUL" << "\n"; break;
+		case TIMEOUT: ttsstatsout << "TIMEOUT" << "\n"; break;
+		case MEMOUT: ttsstatsout << "MEMOUT" << "\n"; break;
+		case UNKNOWN: ttsstatsout << "UNKNOWN" << "\n"; break;
 		}
 #endif
 

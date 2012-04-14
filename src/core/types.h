@@ -69,4 +69,32 @@ extern graph_type_t graph_type, tree_type;
 
 enum interrupt_t { RUNNING,TIMEOUT,MEMOUT,UNKNOWN};
 extern interrupt_t execution_state;
+
+#include <iostream>
+#include <sstream>
+class FullExpressionAccumulator {
+public:
+	void rdbuf(std::basic_streambuf<char, std::char_traits<char> >*);
+	FullExpressionAccumulator(std::basic_streambuf<char, std::char_traits<char> >* a);
+	FullExpressionAccumulator(std::ostream& os);
+	~FullExpressionAccumulator();
+	void flush();
+    std::stringstream ss;
+    std::ostream os;
+};
+
+template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulator& p, T const& t) {
+	if(p.os.rdbuf()) 
+	{
+		p.ss << t; // accumulate into a non-shared stringstream, no threading issues
+#ifdef _DEBUG
+		p.flush();
+#endif
+	}
+	return p;
+}
+
+extern FullExpressionAccumulator maincout;
+extern FullExpressionAccumulator maincerr;
+
 #endif

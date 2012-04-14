@@ -12,17 +12,17 @@
 void disable_mem_limit()
 {
 	static rlimit t;
-	if (getrlimit(RLIMIT_AS, &t) < 0) cerr << ("could not get softlimit for RLIMIT_AS") << endl;
+	if (getrlimit(RLIMIT_AS, &t) < 0) maincerr << ("could not get softlimit for RLIMIT_AS") << "\n";
 	t.rlim_cur = RLIM_INFINITY;
-	if(setrlimit(RLIMIT_AS, &t) < 0) cerr << ("could not set softlimit for RLIMIT_AS") << endl;
+	if(setrlimit(RLIMIT_AS, &t) < 0) maincerr << ("could not set softlimit for RLIMIT_AS") << "\n";
 }
 
 void disable_time_limit()
 {
 	rlimit t;
-	if (getrlimit(RLIMIT_CPU, &t) < 0) cerr << ("could not get softlimit for RLIMIT_CPU") << endl;
+	if (getrlimit(RLIMIT_CPU, &t) < 0) maincerr << ("could not get softlimit for RLIMIT_CPU") << "\n";
 	t.rlim_cur = RLIM_INFINITY;
-	if(setrlimit(RLIMIT_CPU, &t) < 0) cerr << ("could not set softlimit for RLIMIT_CPU") << endl;
+	if(setrlimit(RLIMIT_CPU, &t) < 0) maincerr << ("could not set softlimit for RLIMIT_CPU") << "\n";
 }
 
 #ifdef IMMEDIATE_STOP_ON_INTERRUPT
@@ -33,38 +33,38 @@ bool first_interrupt = true;
 void catcher(int sig)
 {
 	fflush(stdout);
-	cerr << "Interrupted by signal ";
+	maincerr << "Interrupted by signal ";
 	switch(sig){
-	case SIGXCPU:	cerr << "SIGXCPU" << endl; break;
-	//case SIGSEGV:	cerr << "SIGSEGV" << endl; break; //this signal is not generated when the memory limit is reached; a malloc fails instead, causing std:bad_all to be thrown
-	case SIGINT:	cerr << "SIGINT" << endl; break;
-	default:		cerr << "unknown signal, terminate" << endl; _exit(7);
+	case SIGXCPU:	maincerr << "SIGXCPU" << "\n"; break;
+	//case SIGSEGV:	maincerr << "SIGSEGV" << "\n"; break; //this signal is not generated when the memory limit is reached; a malloc fails instead, causing std:bad_all to be thrown
+	case SIGINT:	maincerr << "SIGINT" << "\n"; break;
+	default:		maincerr << "unknown signal, terminate" << "\n"; _exit(7);
 	}
 
 	if(first_interrupt)
 	{
 		first_interrupt = false;
-		cerr << "first interrupt" << endl;
+		maincerr << "first interrupt" << "\n";
 		switch(sig)
 		{
 		case SIGXCPU:
 			//disable soft limit
 			disable_time_limit();
 			execution_state = TIMEOUT;
-			cerr << "time limit disabled; execution state changed to TIMEOUT" << endl;
+			maincerr << "time limit disabled; execution state changed to TIMEOUT" << "\n";
 			break;
 		case SIGINT:
 			max_fw_width = 1;
-			cerr << "stopping oracle" << endl;
+			maincerr << "stopping oracle" << "\n";
 			break;
 		default: 
 			execution_state = UNKNOWN;
-			cerr << "execution state changed to UNKNOWN" << endl;
+			maincerr << "execution state changed to UNKNOWN" << "\n";
 		}
 	}
 	else
 	{
-		cerr << "second interrupt; terminate" << endl;
+		maincerr << "second interrupt; terminate" << "\n";
 		_exit(5);
 	}
 }
@@ -75,10 +75,10 @@ void installSignalHandler()
 	stack_t ss;
 	const unsigned int stack_size = SIGSTKSZ*10;
 	ss.ss_sp = malloc(stack_size);
-	if (ss.ss_sp == NULL) { cerr << "Could not allocate signal stack context" << endl; exit(3); }
+	if (ss.ss_sp == NULL) { maincerr << "Could not allocate signal stack context" << "\n"; exit(3); }
 	ss.ss_size = stack_size, ss.ss_flags = 0;
-	if (sigaltstack(&ss, NULL) == -1) { cerr << "Could install signal stack context" << endl; exit(3); }
-	cout << "Signal stack context installed" << endl;
+	if (sigaltstack(&ss, NULL) == -1) { maincerr << "Could install signal stack context" << "\n"; exit(3); }
+	maincout << "Signal stack context installed" << "\n";
 
 	//declare act to deal with action on signal set.
 	static struct sigaction act;
@@ -87,10 +87,10 @@ void installSignalHandler()
 	sigfillset(&(act.sa_mask));
 
 	// install signal handler
-	if(sigaction( SIGXCPU, &act, NULL ) != 0){cerr << "Could not install SIGXCPU signal handler" << endl; exit(3);}
-	//if(sigaction( SIGSEGV, &act, NULL ) != 0){cerr << "Could not install SIGSEGV signal handler" << endl; exit(3);}
-	if(sigaction( SIGINT, &act, NULL )  != 0){cerr << "Could not install SIGINT signal handler" << endl; exit(3);}
-	cout << "Interrupt handlers installed" << endl;
+	if(sigaction( SIGXCPU, &act, NULL ) != 0){maincerr << "Could not install SIGXCPU signal handler" << "\n"; exit(3);}
+	//if(sigaction( SIGSEGV, &act, NULL ) != 0){maincerr << "Could not install SIGSEGV signal handler" << "\n"; exit(3);}
+	if(sigaction( SIGINT, &act, NULL )  != 0){maincerr << "Could not install SIGINT signal handler" << "\n"; exit(3);}
+	maincout << "Interrupt handlers installed" << "\n";
 }
 
 //from minisat

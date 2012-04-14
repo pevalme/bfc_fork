@@ -128,6 +128,9 @@ struct Net{
 		prj_all,
 		has_spawns;
 
+	shared_t S_input;
+	local_t L_input;
+	
 	/* ---- Constructors/input ---- */
 	void read_net_from_file(string fn)
 	{
@@ -137,10 +140,22 @@ struct Net{
 			filename = fn;
 			has_spawns = false;
 
-			ifstream orig;
-			orig.open(filename.c_str(), ifstream::in);
-			if(!orig.is_open()) throw runtime_error((string("cannot read from input file ") + filename).c_str());
-			else cout << "Input file " << filename << " successfully opened" << endl;
+			ifstream orig_file(filename.c_str());
+			istream orig(std::cin.rdbuf()); 
+
+			if(fn != "")
+			{
+				if(!orig_file.is_open()) 
+					throw runtime_error((string("cannot read from input file ") + filename).c_str());
+				else 
+					maincout << "Reading TTS from file " << filename << "\n", maincout.flush();
+				
+				orig.rdbuf(orig_file.rdbuf());
+			}
+			else
+			{
+				maincout << "Reading TTS from stdin" << "\n", maincout.flush();
+			}
 
 			stringstream in;
 			string line2;
@@ -149,10 +164,13 @@ struct Net{
 				const size_t comment_start = line2.find("#");
 				in << ( comment_start == string::npos ? line2 : line2.substr(0, comment_start) ) << endl; 
 			}
-			orig.close();
+			//orig.close();
 
 			in >> BState::S >> BState::L;
 			shared_t smax = BState::S;
+
+			S_input = BState::S;
+			L_input = BState::L;
 
 #ifndef NOSPAWN_REWRITE
 			local_thread_pool = BState::L;
@@ -218,7 +236,7 @@ struct Net{
 
 				if(!trans_set.insert(Transition(source,target,ty)).second)
 				{
-					cout << warning("multiple occurrences of transition ") << Transition(source,target,ty) << endl;
+					maincout << warning("multiple occurrences of transition ") << Transition(source,target,ty) << "\n", maincout.flush();
 					continue;
 				}
 
@@ -347,7 +365,7 @@ struct Net{
 				//}
 				//catch(...)
 				//{
-				//	cout << "ignore line: " << line << endl;
+				//	maincout << "ignore line: " << line << endl;
 				//}
 				++id;
 			}

@@ -61,6 +61,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //#define EAGER_ALLOC
 #define VERSION "1.0"
 
+#include <iostream>
+using namespace std;
+
+ostream
+//FullExpressionAccumulator
+	fwinfo(cerr.rdbuf()), //optional fw info
+	fwtrace(cerr.rdbuf()), //trace
+	dout(cerr.rdbuf()), //debug info (main routine)
+	bout(cerr.rdbuf()), //optional bw info
+	fwstatsout(cerr.rdbuf()), //fw stats
+	bwstatsout(cerr.rdbuf()), //bw stats
+	ttsstatsout(cerr.rdbuf()), //tts stats
+	resultcout(cout.rdbuf())
+	;
+
 #include "types.h"
 #include "user_assert.h"
 #include "net.h"
@@ -118,74 +133,6 @@ enum weigth_t
 	order_random
 } bw_weight, fw_weight;
 
-
-struct Print {
-  Print() {}
-  void flush(){ std::cout << buf.str(); buf.clear(); }
-  ~Print() { std::cout << buf.str(); }
-  mutable std::ostringstream buf;
-};
-
-class FullExpressionAccumulator {
-public:
-	void rdbuf(basic_streambuf<char, std::char_traits<char> >* a){
-		os.rdbuf(a);
-	}
-
-	FullExpressionAccumulator(basic_streambuf<char, std::char_traits<char> >* a) : os(a) {
-		ss << "----------------------------" << "\n";
-	}
-
-	FullExpressionAccumulator(std::ostream& os) : os(os.rdbuf()) {
-		ss << "----------------------------" << "\n";
-	}
-    
-	~FullExpressionAccumulator() {
-		if(os.rdbuf()) 
-			os << ss.rdbuf() << std::flush; // write the whole shebang in one go
-    }
-
-	void flush()
-	{
-		int size;
-		if(os.rdbuf()) {
-			ss.seekg(0, ios::end), size = ss.tellg(), ss.seekg(0, ios::beg);
-			if(size){
-
-				ss << "----------------------------" << "\n";
-
-				shared_cout_mutex.lock();
-				os << ss.rdbuf() << std::flush;
-				ss.str( std::string() ), ss.clear(); //http://stackoverflow.com/questions/2848087/how-to-clear-stringstream
-
-				ss << "----------------------------" << "\n";
-
-				shared_cout_mutex.unlock();
-			}
-		}
-	}
-    std::stringstream ss;
-    std::ostream os;
-private:
-};
-
-//template < class T > const Print & operator<<(const Print & p, const T & t) { p.buf << t; return p; }
-template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulator& p, T const& t) {
-	if(p.os.rdbuf()) 
-		p.ss << t; // accumulate into a non-shared stringstream, no threading issues
-	return p;
-}
-
-FullExpressionAccumulator
-	fwinfo(cout.rdbuf()), //optional fw info
-	fwtrace(cout.rdbuf()), //trace
-	dout(cout.rdbuf()), //debug info (main routine)
-	bout(cout.rdbuf()), //optional bw info
-	fwstatsout(cout.rdbuf()), //fw stats
-	bwstatsout(cout.rdbuf()), //bw stats
-	ttsstatsout(cout.rdbuf()) //tts stats
-	;
-
 bool fw_state_blocked = false;
 int kfw = -1;
 #include "fw.h"
@@ -240,7 +187,7 @@ void print_bw_stats(unsigned sleep_msec, string o)
 #ifndef WIN32
 		<< "MemMB__" << sep//ldist 17
 #endif
-		<< endl
+		<< "\n"
 		;
 
 	while(1) 
@@ -280,7 +227,7 @@ void print_bw_stats(unsigned sleep_msec, string o)
 #ifndef WIN32
 			<< setw(ldst) << memUsed()/1024/1024 << /*' ' << */sep
 #endif
-			<< endl
+			<< "\n"
 			, 
 			logStream.flush()
 			;
@@ -304,7 +251,7 @@ vector<BState> read_trace(string trace_fn)
 	w.open(trace_fn.c_str(),ifstream::in);
 
 	if(!w.is_open()) throw logic_error((string("cannot read from input file ") + (net.filename + ".trace")).c_str());
-	else cout << "trace input file " << (net.filename + ".trace") << " successfully opened" << endl;
+	else maincout << "trace input file " << (net.filename + ".trace") << " successfully opened" << "\n";
 
 	unsigned s_,l_,k_;
 	w >> s_ >> l_ >> k_;
@@ -316,7 +263,7 @@ vector<BState> read_trace(string trace_fn)
 		while (getline(w, line = "")) 
 		{
 			const size_t comment_start = line.find("#");
-			in << ( comment_start == string::npos ? line : line.substr(0, comment_start) ) << endl; 
+			in << ( comment_start == string::npos ? line : line.substr(0, comment_start) ) << "\n"; 
 		}
 	}
 	w.close();
@@ -353,7 +300,7 @@ int main(int argc, char* argv[])
 		shared_t init_shared;
 		local_t init_local, init_local2(-1);
 		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), debug_info(1);
+		bool h(0), v(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), notrace_info(0);
 #ifndef WIN32
 		unsigned to,mo;
 #endif
@@ -370,6 +317,9 @@ int main(int argc, char* argv[])
 			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")
+			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main procedure info")
+			(OPT_STR_NORES_INFO,	bool_switch(&noresult_info), "print no result")
+			(OPT_STR_NOTRACE_INFO,	bool_switch(&notrace_info), "print no forward trace")
 #endif
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
@@ -480,8 +430,8 @@ int main(int argc, char* argv[])
 
 		if(h || v)
 		{ 
-			if(h) cout	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << endl << cmdline_options; 
-			if(v) cout	<< "                                   \n" //http://patorjk.com/software/taag, font: Lean
+			if(h) maincout	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << "\n" << cmdline_options; 
+			if(v) maincout	<< "                                   \n" //http://patorjk.com/software/taag, font: Lean
 				<< "    _/_/_/    _/_/_/_/    _/_/_/   \n"
 				<< "   _/    _/  _/        _/          \n"
 				<< "  _/_/_/    _/_/_/    _/           \n"
@@ -501,6 +451,11 @@ int main(int argc, char* argv[])
 		}
 
 		if(!stats_info){ bwstatsout.rdbuf(0), fwstatsout.rdbuf(0), ttsstatsout.rdbuf(0); } //OPT_STR_STATS
+		if(nomain_info){ maincout.rdbuf(0); maincerr.rdbuf(0); }
+		if(!print_fwinf){ fwinfo.rdbuf(0); } //OPT_STR_FW_INFO
+		if(!print_bwinf){ bout.rdbuf(0); } //OPT_STR_BW_INFO
+		if(noresult_info){ resultcout.rdbuf(0); }
+		if(notrace_info){ fwtrace.rdbuf(0); }
 
 #ifndef WIN32
 		if(to != 0)
@@ -509,7 +464,7 @@ int main(int argc, char* argv[])
 			if (getrlimit(RLIMIT_CPU, &t) < 0) throw logic_error("could not get softlimit for RLIMIT_CPU");
 			t.rlim_cur = to;
 			if(setrlimit(RLIMIT_CPU, &t) < 0) throw logic_error("could not set softlimit for RLIMIT_CPU");
-			else cout << "successfully set CPU time limit" << endl;
+			else maincout << "successfully set CPU time limit" << "\n";
 		}
 
 		if(mo != 0)
@@ -518,11 +473,12 @@ int main(int argc, char* argv[])
 			if (getrlimit(RLIMIT_AS, &v) < 0) throw logic_error("could not get softlimit for RLIMIT_AS");
 			v.rlim_cur = (unsigned long)mo * 1024 * 1024; //is set in bytes rather than Mb
 			if(setrlimit(RLIMIT_AS, &v) < 0) throw logic_error("could not set softlimit for RLIMIT_AS");
-			else cout << "successfully set softlimit for the process's virtual memory" << endl;
+			else maincout << "successfully set softlimit for the process's virtual memory" << "\n";
 		}
 #endif
 
-		(filename == string())?throw logic_error("No input file specified"):net.read_net_from_file(filename); //OPT_STR_INPUT_FILE
+		//(filename == string())?throw logic_error("No input file specified"):net.read_net_from_file(filename); //OPT_STR_INPUT_FILE
+		net.read_net_from_file(filename);
 
 		if(BState::S == 0 || BState::L == 0) throw logic_error("Input file has invalid dimensions");
 
@@ -573,12 +529,9 @@ int main(int argc, char* argv[])
 		else throw logic_error("Invalid mode"); 
 
 		if(print_cover && (mode == CON || mode == FW_CON))
-			cout << warning("printing cover information slows down concurrent mode") << endl;
+			maincout << warning("printing cover information slows down concurrent mode") << "\n";
 		if(print_cover && (mode == FW))
 			throw logic_error("printing cover information not supported in this mode");
-
-		//if(!print_fwinf){ fwinfo.rdbuf(0); } //OPT_STR_FW_INFO
-		if(!print_fwinf){ fwinfo.rdbuf(0); } //OPT_STR_FW_INFO
 
 		if(print_hash_info && !stats_info) throw logic_error("hash info requires stats argument");
 
@@ -589,10 +542,7 @@ int main(int argc, char* argv[])
 
 		if     (fweight_str == OPT_STR_WEIGHT_DEPTH) fw_weight = order_depth;
 		else if(fweight_str == OPT_STR_WEIGHT_WIDTH) fw_weight = order_width;
-		else throw logic_error("invalid weight argument");
-
-		if(!print_bwinf){ bout.rdbuf(0); } //OPT_STR_BW_INFO
-		if(!debug_info){ dout.rdbuf(0); } //
+		else throw logic_error("invalid weight argument");		
 
 		if	   (graph_style == OPT_STR_BW_GRAPH_OPT_none) graph_type = GTYPE_NONE;
 		else if(graph_style == OPT_STR_BW_GRAPH_OPT_TIKZ) graph_type = GTYPE_TIKZ;
@@ -618,7 +568,7 @@ int main(int argc, char* argv[])
 		else if(readtrace) work_sequence = read_trace(net.filename + ".trace");
 		else if(writetrace) {
 			ofstream w((net.filename + ".trace").c_str()); //empty trace file if it exists
-			w << BState::S << " " << BState::L << " " << k << endl;
+			w << BState::S << " " << BState::L << " " << k << "\n";
 			w.close();
 		}
 
@@ -654,16 +604,16 @@ int main(int argc, char* argv[])
 		ttsstatsout.flush();
 
 	}
-	catch(std::exception& e)			{ cout << "INPUT ERROR: " << e.what() << "\n"; cout << "type " << argv[0] << " -h for instructions" << endl; return EXIT_FAILURE; }
-	catch (...)                         { cerr << "unknown error while checking program arguments" << endl; return EXIT_FAILURE; }
+	catch(std::exception& e)			{ maincout << "INPUT ERROR: " << e.what() << "\n"; maincout << "type " << argv[0] << " -h for instructions" << "\n"; return EXIT_FAILURE; }
+	catch (...)                         { maincerr << "unknown error while checking program arguments" << "\n"; return EXIT_FAILURE; }
 
 #ifndef WIN32
 	installSignalHandler();
 #endif
 
-	if(!net.check_target)	cout << "Problem to solve: Compute the " << k << "-cover" << endl;
-	else					cout << "Problem to solve: Check specific target property" << endl;
-	cout << "Running coverability engine..." << endl;
+	if(!net.check_target)	maincout << "Problem to solve: Compute the " << k << "-cover" << "\n";
+	else					maincout << "Problem to solve: Check specific target property" << "\n";
+	maincout << "Running coverability engine..." << "\n";
 
 	ptime start_time;
 
@@ -688,7 +638,7 @@ int main(int argc, char* argv[])
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval, o);
 				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder), shared_fw_done = 0;
-				cout << "total time (fw): " << time_diff_str(finish_time,start_time) << endl;
+				maincout << "total time (fw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
 
 			if(mode == BW || mode == FWBW) //run bw
@@ -696,7 +646,7 @@ int main(int argc, char* argv[])
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval, o);
 				Pre2(&net,k,border,&U,work_sequence,print_cover), shared_bw_done = 0;
-				cout << "total time (bw): " << time_diff_str(finish_time,start_time) << endl;
+				maincout << "total time (bw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
 
 			//compare results
@@ -711,12 +661,12 @@ int main(int argc, char* argv[])
 						foreach(const cmb_node_p c, D.lv[s]) if(U.luv[s].l_nodes.find(c) == U.luv[s].l_nodes.end()) throw logic_error("backward search unsound");
 						foreach(const cmb_node_p c, U.luv[s].l_nodes) if(D.lv[s].find(c) == D.lv[s].end()) throw logic_error("forward search unsound");
 					}
-					cout << info("sequential forward/backward search results match (same k-cover)") << endl;
+					maincout << info("sequential forward/backward search results match (same k-cover)") << "\n";
 				}
 				else if(fw_safe != bw_safe)
 					throw logic_error("inconclusive safety result");
 				else
-					cout << info("sequential forward/backward search results match (same result for target)") << endl;
+					maincout << info("sequential forward/backward search results match (same result for target)") << "\n";
 			}
 
 		}
@@ -747,12 +697,12 @@ int main(int argc, char* argv[])
 				bw_mem(print_bw_stats, mon_interval, o)
 				;
 			
-			dout << "waiting for fw..." << "\n", dout.flush(), fw.join(), dout << "fw joined" << "\n", dout.flush();
-			dout << "waiting for bw..." << "\n", dout.flush(), bw.join(), dout << "bw joined" << "\n", dout.flush();
+			maincout << "waiting for fw..." << "\n", maincout.flush(), fw.join(), maincout << "fw joined" << "\n", maincout.flush();
+			maincout << "waiting for bw..." << "\n", maincout.flush(), bw.join(), maincout << "bw joined" << "\n", maincout.flush();
 			bw_mem.interrupt();
 			bw_mem.join();
 			
-			cout << "total time (conc): " << time_diff_str(finish_time,start_time) << endl;
+			maincout << "total time (conc): " << time_diff_str(finish_time,start_time) << "\n";
 			
 			if(mode == FW_CON && cross_check)
 			{
@@ -761,7 +711,7 @@ int main(int argc, char* argv[])
 					if(!implies(fw_safe && bw_safe, fw_safe_seq) || !implies(!fw_safe || !bw_safe, !fw_safe_seq)) 
 						throw logic_error("inconclusive results (conc. vs. seq. forward)");
 					else
-						cout << info("sequential forward/concurrent forward/backward search results match (same result for target)") << endl;
+						maincout << info("sequential forward/concurrent forward/backward search results match (same result for target)") << "\n";
 				}
 				else
 					throw logic_error("cross-check in concurrent mode currently not supported");
@@ -770,7 +720,7 @@ int main(int argc, char* argv[])
 
 #ifndef WIN32
 		mon_mem.interrupt(), mon_mem.join();
-		cout << "max. virt. memory usage (mb): " << max_mem_used << endl;
+		maincout << "max. virt. memory usage (mb): " << max_mem_used << "\n";
 #endif
 
 		//TODO: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold
@@ -778,24 +728,24 @@ int main(int argc, char* argv[])
 		{
 			if(net.check_target) 
 			{
-				if(bw_safe && fw_safe) return_value = EXIT_VERIFICATION_SUCCESSFUL, cout << "VERIFICATION SUCCESSFUL" << endl;
-				else return_value = EXIT_VERIFICATION_FAILED, cout << "VERIFICATION FAILED" << endl;
+				if(bw_safe && fw_safe) return_value = EXIT_VERIFICATION_SUCCESSFUL, resultcout << "VERIFICATION SUCCESSFUL" << "\n";
+				else return_value = EXIT_VERIFICATION_FAILED, resultcout << "VERIFICATION FAILED" << "\n";
 			}
 			else
 			{
-				cout << k << "-COVER SUCCESSFULLY COMPUTED" << endl;
+				maincout << k << "-COVER SUCCESSFULLY COMPUTED" << "\n";
 				if(print_cover)
-					cout << endl,
-					cout << "---------------------------------" << endl,
-					cout << k << " cover statistics:" << endl,
-					cout << "---------------------------------" << endl,
+					maincout << "\n",
+					maincout << "---------------------------------" << "\n",
+					maincout << k << " cover statistics:" << "\n",
+					maincout << "---------------------------------" << "\n",
 #ifdef PRINT_KCOVER_ELEMENTS
-					cout << "coverable                       : " << endl, U.print_upper_set(cout), cout << endl,
-					cout << "uncoverable                     : " << endl, U.print_lower_set(cout), cout << endl,
+					maincout << "coverable                       : " << "\n", U.print_upper_set(maincout), maincout << "\n",
+					maincout << "uncoverable                     : " << "\n", U.print_lower_set(maincout), maincout << "\n",
 #endif
-					cout << "coverable elements (all)        : " << U.lower_size() << endl,
-					cout <<	"uncoverable elements (min)      : " << U.upper_size() << endl,
-					cout << "---------------------------------" << endl;
+					maincout << "coverable elements (all)        : " << U.lower_size() << "\n",
+					maincout <<	"uncoverable elements (min)      : " << U.upper_size() << "\n",
+					maincout << "---------------------------------" << "\n";
 			}
 		}
 
@@ -811,10 +761,10 @@ int main(int argc, char* argv[])
 
 	}
 	catch(std::exception& e)			{ 
-		cout << e.what() << "\n"; 
+		maincout << e.what() << "\n"; 
 		return EXIT_FAILURE; 
 	}
-	catch (...)                         { cerr << "unknown error" << endl; return EXIT_FAILURE; }
+	catch (...)                         { maincerr << "unknown error" << "\n"; return EXIT_FAILURE; }
 
 	return return_value;
 

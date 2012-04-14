@@ -37,6 +37,10 @@
 #define OPT_STR_FW_INFO				"fw-info"
 #define OPT_STR_PRINT_HASH_INFO		"hash-info"
 #define OPT_STR_FW_ORDER			"fw-order"
+#define OPT_STR_NOMAIN_INFO			"no-main-info"
+#define OPT_STR_NORES_INFO			"no-result-info"
+#define OPT_STR_NOTRACE_INFO		"no-trace-info"
+
 #define ORDER_SMALLFIRST_OPTION_STR	"S"
 #define ORDER_LARGEFIRST_OPTION_STR	"L"
 #define ORDER_RANDOM_OPTION_STR		"R"
@@ -60,7 +64,6 @@
 #define OPT_STR_BW_GRAPH_OPT_DOTTY	"dot"
 #define OPT_STR_BW_GRAPH_DEFVAL		OPT_STR_BW_GRAPH_OPT_none
 #define OPT_STR_BW_INFO				"bw-info"
-
 #define OPT_STR_BW_ORDER			"bw-order"
 #define OPT_STR_BW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
 

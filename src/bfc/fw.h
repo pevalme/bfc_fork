@@ -207,7 +207,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				{
 					succs.insert(succ); //add to return set
 					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections, kfw); //project
-					//cout << c << " ";
+					//maincout << c << " ";
 				}
 				else
 				{
@@ -326,7 +326,8 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		ostate_t cur, walker;
 		unsigned depth;
 
-		while(execution_state == RUNNING && fw_safe && !shared_bw_done && W.try_get(cur)) //retrieve the next working element
+		//while(execution_state == RUNNING && fw_safe && !shared_bw_done && W.try_get(cur)) //retrieve the next working element
+		while(execution_state == RUNNING && fw_safe && (!shared_bw_done || !bw_safe) && W.try_get(cur)) //retrieve the next working element
 		{
 
 			++f_its;
@@ -369,15 +370,27 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 					fwinfo << "Forward trace to target covering state found" << "\n";
 
 					//print trace
-					fwtrace << "FW TACE" << "\n";
-					fwtrace << "-------" << "\n";
+					maincout << "FW TACE" << "\n";
+					maincout << "-------" << "\n";
 					ostate_t walker = cur;
 					
-					fwtrace << *p << "\n";
-					fwtrace << *walker << "\n";
+					OState tmp(*p); tmp.unbounded_locals.erase(net.local_thread_pool);
+					fwtrace << tmp << "\n";
+
+					if(walker->shared < net.S_input){
+						OState tmp(*walker); tmp.unbounded_locals.erase(net.local_thread_pool);
+						fwtrace << tmp << "\n";
+					}
 					while(walker->prede != nullptr)
-						fwtrace << *walker->prede << "\n", walker = walker->prede;
-					fwtrace << "-------" << "\n";
+					{
+						if(walker->prede->shared < net.S_input) 
+						{
+							OState tmp(*walker->prede); tmp.unbounded_locals.erase(net.local_thread_pool);
+							fwtrace << tmp << "\n";
+						}
+						walker = walker->prede;
+					}
+					maincout << "-------" << "\n";
 					fwtrace.flush();
 					break;
 				}

@@ -8,8 +8,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>main.tts --target main.prop --sat-bound 1 --stats -i --acc-bound 1 -d B --bw-order R --bw-info</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>main.tts --target main.prop --prj-all</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\hor_por_vs_03</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\trace_output_01</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

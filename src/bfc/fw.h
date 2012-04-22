@@ -48,7 +48,7 @@ const string accel_edge_style = "style=dotted,arrowhead=tee,arrowsize=\"0.5\"";
 void print_dot_search_graph(const Oreached_t& Q)
 {
 
-	fwinfo << "writing coverability tree..." << "\n", fwinfo.flush();
+	fw_log << "writing coverability tree..." << "\n", fw_log.weak_flush();
 	
 	string out_fn = net.filename + ".fw-tree.dot";
 
@@ -156,14 +156,14 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				//if((!thread_in_u && (ty == thread_transition || horiz_trans)))
 				if((!thread_in_u && (ty == thread_transition || ty == spawn_transition || horiz_trans)))
 				{
-					//fwinfo << "Ignore: No/no incomparable successors" << "\n";
+					//fw_log << "Ignore: No/no incomparable successors" << "\n";
 					continue;
 				}
 
 				OState* succ;
 				if(!g_in_use && ++(ttnex = tt) == tte && ++(tsbnex = tsb) == tse)
 				{
-					//fwinfo << "Reuse existing state " << *g << "\n";
+					//fw_log << "Reuse existing state " << *g << "\n";
 					succ = g, g_in_use = true;
 				}
 				else
@@ -207,7 +207,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				{
 					succs.insert(succ); //add to return set
 					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections, kfw); //project
-					//maincout << c << " ";
+					//fw_log << c << " ";
 				}
 				else
 				{
@@ -264,13 +264,13 @@ void print_hash_stats(const Oreached_t& Q)
 		bucket_size_counters[min((unsigned)Q.bucket_size(i),9U)]++,
 		Q_size += Q.bucket_size(i);
 
-	fwstatsout << "Maximum bucket size             : " << max_bucket_size << "\n";
-	fwstatsout << "Hash load factor                : " << Q.load_factor() << "\n";
-	fwstatsout << "Max collisions                  : " << max_bucket_size << "\n";
+	fw_stats << "Maximum bucket size             : " << max_bucket_size << "\n";
+	fw_stats << "Hash load factor                : " << Q.load_factor() << "\n";
+	fw_stats << "Max collisions                  : " << max_bucket_size << "\n";
 
 	for(map<unsigned, unsigned>::const_iterator i = bucket_size_counters.begin(), ie = bucket_size_counters.end(); i != ie; ++i)
-		if(i->first < 9) fwstatsout << "Buckets of size " << boost::lexical_cast<string>(i->first) << "               : " << i->second << "\n";
-		else fwstatsout << "Buckets of size >" << boost::lexical_cast<string>(i->first) << "              : " << i->second << "\n";
+		if(i->first < 9) fw_stats << "Buckets of size " << boost::lexical_cast<string>(i->first) << "               : " << i->second << "\n";
+		else fw_stats << "Buckets of size >" << boost::lexical_cast<string>(i->first) << "              : " << i->second << "\n";
 }
 
 unsigned 
@@ -332,7 +332,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 			++f_its;
 			
-			fwinfo << "Exploring: " << *cur << " (depth: " << cur->depth << ")" << "\n";
+			fw_log << "Exploring: " << *cur << " (depth: " << cur->depth << ")" << "\n";
 			ctr_fw_maxdepth = max(ctr_fw_maxdepth,cur->depth), ctr_fw_maxwidth = max(ctr_fw_maxwidth,(unsigned)cur->size());
 
 			fw_qsz = Q.size();
@@ -347,14 +347,14 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			
 			static bool first = true;
 			if(first && threshold_reached)
-				fwinfo << "threshold reached" << "\n", first = false;
+				fw_log << "threshold reached" << "\n", first = false;
 
 			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque, forward_projections)) //allocates objects in "successors"
 			{				
 				
 				if((threshold_reached) || (max_fw_width != 0 && p_c->size() >= max_fw_width)) //TEST
 				{
-					fwinfo << *p_c << " blocked" << "\n";
+					fw_log << *p_c << " blocked" << "\n";
 					fw_state_blocked = true;
 					delete p_c;
 					continue;
@@ -362,36 +362,34 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				OState* p = const_cast<OState*>(p_c); invariant(p->accel == nullptr);
 
-				//fwinfo << "Checking successor " << *p << "\n";
+				//fw_log << "Checking successor " << *p << "\n";
 
 				if(n->check_target && n->Otarget <= *p)
 				{
 					fw_safe = false;
-					fwinfo << "Forward trace to target covering state found" << "\n";
+					fw_log << "Forward trace to target covering state found" << "\n";
 
 					//print trace
-					maincout << "FW TACE" << "\n";
-					maincout << "-------" << "\n";
 					ostate_t walker = cur;
 					
 					OState tmp(*p); tmp.unbounded_locals.erase(net.local_thread_pool);
-					fwtrace << tmp << "\n";
+					main_inf << "counterexample" << "\n";
+					main_inf << tmp << "\n";
 
 					if(walker->shared < net.S_input){
 						OState tmp(*walker); tmp.unbounded_locals.erase(net.local_thread_pool);
-						fwtrace << tmp << "\n";
+						main_inf << tmp << "\n";
 					}
 					while(walker->prede != nullptr)
 					{
 						if(walker->prede->shared < net.S_input) 
 						{
 							OState tmp(*walker->prede); tmp.unbounded_locals.erase(net.local_thread_pool);
-							fwtrace << tmp << "\n";
+							main_inf << tmp << "\n";
 						}
 						walker = walker->prede;
 					}
-					maincout << "-------" << "\n";
-					fwtrace.flush();
+					main_inf.weak_flush();
 					break;
 				}
 				
@@ -404,7 +402,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 						if(accel(walker, p)) //returns true if p was accelerated wrt. walker
 						{
 							++accelerations, max_accel_depth = max(max_accel_depth,depth), const_cast<OState*>(p)->accel = walker;
-							//fwinfo << "accelerated to " << *p << " based on predecessor " << *walker << "\n";
+							//fw_log << "accelerated to " << *p << " based on predecessor " << *walker << "\n";
 							break;
 						}
 
@@ -416,13 +414,13 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				p->prede = cur, p->depth = 1 + cur->depth; 
 				if(Q.insert(p).second)
-					W.push(keyprio_pair(p));/*, fwinfo << "added" << "\n";*/
+					W.push(keyprio_pair(p));/*, fw_log << "added" << "\n";*/
 				else
 					delete p;
 
 			}
 
-			fwinfo.flush();
+			fw_log.weak_flush();
 
 		}
 
@@ -438,45 +436,45 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 #endif
 	}
 
-	fwinfo << "fw while exit" << "\n", fwinfo.flush();
+	fw_log << "fw while exit" << "\n", fw_log.weak_flush();
 
 	if(!fw_state_blocked){
 		shared_fw_done = true;
 	
-		shared_cout_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), shared_cout_mutex.unlock();
+		fwbw_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), fwbw_mutex.unlock();
 	
 		debug_assert(implies(shared_fw_finised_first,!fw_safe || W.empty()));
 	}
 	
 	if(shared_fw_finised_first) 
-		finish_time = boost::posix_time::microsec_clock::local_time(), fwinfo << "fw first" << "\n", fwinfo.flush();
+		finish_time = boost::posix_time::microsec_clock::local_time(), fw_log << "fw first" << "\n", fw_log.weak_flush();
 	else 
-		fwinfo << "fw not first" << "\n", fwinfo.flush();
+		fw_log << "fw not first" << "\n", fw_log.weak_flush();
 	
 	if(tree_type != GTYPE_NONE) print_dot_search_graph(Q);
 
 	{
-		fwstatsout << "\n";
-		fwstatsout << "---------------------------------" << "\n";
-		fwstatsout << "Forward statistics:" << "\n";
-		fwstatsout << "---------------------------------" << "\n";
-		fwstatsout << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
-		fwstatsout << "\n";
-		fwstatsout << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";
-		fwstatsout << "forward-reachable global states : " << Q.size() << "\n";
-		fwstatsout << "projections found               : " << D->size() << "\n";
-		fwstatsout << "\n";
-		fwstatsout << "accelerations                   : " << accelerations << "\n";
-		fwstatsout << "max acceleration depth checked  : " << max_depth_checked << "\n";
-		fwstatsout << "max acceleration depth          : " << max_accel_depth << "\n";
-		if(print_hash_info) fwstatsout << "\n", print_hash_stats(Q);
-		fwstatsout << "---------------------------------" << "\n";
-		fwstatsout << "max. forward depth checked      : " << ctr_fw_maxdepth << "\n";
-		fwstatsout << "max. forward width checked      : " << ctr_fw_maxwidth << "\n";
-		fwstatsout << "---------------------------------" << "\n";
-		fwstatsout << "state blocked                   : " << (fw_state_blocked?"yes":"no") << "\n";
-		fwstatsout << "---------------------------------" << "\n";
-		fwstatsout.flush();
+		fw_stats << "\n";
+		fw_stats << "---------------------------------" << "\n";
+		fw_stats << "Forward statistics:" << "\n";
+		fw_stats << "---------------------------------" << "\n";
+		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
+		fw_stats << "\n";
+		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";
+		fw_stats << "forward-reachable global states : " << Q.size() << "\n";
+		fw_stats << "projections found               : " << D->size() << "\n";
+		fw_stats << "\n";
+		fw_stats << "accelerations                   : " << accelerations << "\n";
+		fw_stats << "max acceleration depth checked  : " << max_depth_checked << "\n";
+		fw_stats << "max acceleration depth          : " << max_accel_depth << "\n";
+		if(print_hash_info) fw_stats << "\n", print_hash_stats(Q);
+		fw_stats << "---------------------------------" << "\n";
+		fw_stats << "max. forward depth checked      : " << ctr_fw_maxdepth << "\n";
+		fw_stats << "max. forward width checked      : " << ctr_fw_maxwidth << "\n";
+		fw_stats << "---------------------------------" << "\n";
+		fw_stats << "state blocked                   : " << (fw_state_blocked?"yes":"no") << "\n";
+		fw_stats << "---------------------------------" << "\n";
+		fw_stats.weak_flush();
 	}
 
 	foreach(ostate_t p, Q) //contains init_p

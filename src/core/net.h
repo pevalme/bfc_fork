@@ -147,14 +147,14 @@ struct Net{
 			{
 				if(!orig_file.is_open()) 
 					throw runtime_error((string("cannot read from input file ") + filename).c_str());
-				else 
-					maincout << "Reading TTS from file " << filename << "\n", maincout.flush();
+				//else 
+				//	maincout << "Reading TTS from file " << filename << "\n", maincout.weak_flush();
 				
 				orig.rdbuf(orig_file.rdbuf());
 			}
 			else
 			{
-				maincout << "Reading TTS from stdin" << "\n", maincout.flush();
+				//maincout << "Reading TTS from stdin" << "\n", maincout.weak_flush();
 			}
 
 			stringstream in;
@@ -236,7 +236,7 @@ struct Net{
 
 				if(!trans_set.insert(Transition(source,target,ty)).second)
 				{
-					maincout << warning("multiple occurrences of transition ") << Transition(source,target,ty) << "\n", maincout.flush();
+					//maincout << warning("multiple occurrences of transition ") << Transition(source,target,ty) << "\n", maincout.weak_flush();
 					continue;
 				}
 

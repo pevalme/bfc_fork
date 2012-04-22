@@ -39,7 +39,8 @@
 #define OPT_STR_FW_ORDER			"fw-order"
 #define OPT_STR_NOMAIN_INFO			"no-main-info"
 #define OPT_STR_NORES_INFO			"no-result-info"
-#define OPT_STR_NOTRACE_INFO		"no-trace-info"
+#define OPT_STR_NORESSOURCE_INFO	"no-ressource-info"
+#define OPT_STR_NOMAIN_LOG			"no-main-log"
 
 #define ORDER_SMALLFIRST_OPTION_STR	"S"
 #define ORDER_LARGEFIRST_OPTION_STR	"L"

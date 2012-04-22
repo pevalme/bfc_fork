@@ -86,7 +86,7 @@ ofstream& dot_state_out(bstate_t q, bstate_t p, const work_pq& P, bool prune, gr
 void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, bstate_t p, const work_pq& P, bool prune, unsigned witeration, unsigned piteration, string ext) //p will be highlighted
 {
 
-	bout << "writing uncoverability graph..." << "\n";
+	bw_log << "writing uncoverability graph..." << "\n";
 
 	string out_fn = net.filename + ".bw-graph.it_" + add_leading_zeros(boost::lexical_cast<string>(witeration),5) + "-" + add_leading_zeros(boost::lexical_cast<string>(piteration),5) + ext + ".dot";
 

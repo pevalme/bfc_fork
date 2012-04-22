@@ -64,19 +64,23 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 using namespace std;
 
-ostream
-//FullExpressionAccumulator
-	fwinfo(cerr.rdbuf()), //optional fw info
-	fwtrace(cerr.rdbuf()), //trace
-	dout(cerr.rdbuf()), //debug info (main routine)
-	bout(cerr.rdbuf()), //optional bw info
-	fwstatsout(cerr.rdbuf()), //fw stats
-	bwstatsout(cerr.rdbuf()), //bw stats
-	ttsstatsout(cerr.rdbuf()), //tts stats
-	resultcout(cout.rdbuf())
+#include "types.h"
+
+//ostream
+FullExpressionAccumulator
+	fw_log(cerr.rdbuf()), //optional fw info
+	fw_stats(cerr.rdbuf()), //fw stats
+
+	bw_log(cerr.rdbuf()), //optional bw info
+	bw_stats(cerr.rdbuf()), //bw stats
+
+	main_livestats(cerr.rdbuf()), 
+	main_log(cerr.rdbuf()), 
+	main_res(cout.rdbuf()), //result: (VERIFICATION SUCCEEDED / VERIFICATION FAILED / ERROR)
+	main_inf(cout.rdbuf()), //trace
+	main_tme(cout.rdbuf()) //time and memory info
 	;
 
-#include "types.h"
 #include "user_assert.h"
 #include "net.h"
 #include "ostate.h"
@@ -140,28 +144,23 @@ bool defer = false;
 bool fw_blocks_bw = false;
 #include "bw.h"
 
-
-
 void print_bw_stats(unsigned sleep_msec, string o)
 {
 	if(sleep_msec == 0) return;
 
-	//const unsigned dst = 7;
 	const unsigned sdst = 5;
 	const unsigned ldst = 7;
-	//const string sep = "|";
 	const string sep = ",";
 
-	ostream logStream(std::cout.rdbuf());
 	ofstream csvFile;
 	if(o != OPT_STR_OUTPUT_FILE_STDOUT)
 	{
 		csvFile.open(o.c_str());
 		if(!csvFile.good()) throw std::runtime_error((string("cannot write to file ") + o).c_str());
-		logStream.rdbuf(csvFile.rdbuf()); // redirect output to our log file
+		main_livestats.os.rdbuf(csvFile.rdbuf()); //redirect output to our log file
 	}
 
-	logStream
+	main_livestats
 		<< "BCDep" << sep
 		<< "BCWid" << sep
 		<< "BDept" << sep
@@ -196,9 +195,7 @@ void print_bw_stats(unsigned sleep_msec, string o)
 		if(shared_bw_done || shared_fw_done)
 			break;
 
-		shared_cout_mutex.lock();
-
-		logStream 
+		main_livestats 
 			//bw
 			<< setw(sdst) << ctr_bw_curdepth << /*' ' << */sep
 			<< setw(sdst) << ctr_bw_curwidth << /*' ' << */sep
@@ -229,10 +226,8 @@ void print_bw_stats(unsigned sleep_msec, string o)
 #endif
 			<< "\n"
 			, 
-			logStream.flush()
+			main_livestats.weak_flush()
 			;
-
-		shared_cout_mutex.unlock();
 
 		boost::this_thread::sleep(boost::posix_time::milliseconds(sleep_msec));
 	}
@@ -251,7 +246,7 @@ vector<BState> read_trace(string trace_fn)
 	w.open(trace_fn.c_str(),ifstream::in);
 
 	if(!w.is_open()) throw logic_error((string("cannot read from input file ") + (net.filename + ".trace")).c_str());
-	else maincout << "trace input file " << (net.filename + ".trace") << " successfully opened" << "\n";
+	else main_log << "trace input file " << (net.filename + ".trace") << " successfully opened" << "\n";
 
 	unsigned s_,l_,k_;
 	w >> s_ >> l_ >> k_;
@@ -300,7 +295,7 @@ int main(int argc, char* argv[])
 		shared_t init_shared;
 		local_t init_local, init_local2(-1);
 		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), notrace_info(0);
+		bool h(0), v(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0);
 #ifndef WIN32
 		unsigned to,mo;
 #endif
@@ -317,9 +312,10 @@ int main(int argc, char* argv[])
 			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")
-			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main procedure info")
+			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main info")
 			(OPT_STR_NORES_INFO,	bool_switch(&noresult_info), "print no result")
-			(OPT_STR_NOTRACE_INFO,	bool_switch(&notrace_info), "print no forward trace")
+			(OPT_STR_NORESSOURCE_INFO,	bool_switch(&noressource_info), "print no ressource info")
+			(OPT_STR_NOMAIN_LOG,	bool_switch(&no_main_log), "print no main log")
 #endif
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
@@ -430,8 +426,8 @@ int main(int argc, char* argv[])
 
 		if(h || v)
 		{ 
-			if(h) maincout	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << "\n" << cmdline_options; 
-			if(v) maincout	<< "                                   \n" //http://patorjk.com/software/taag, font: Lean
+			if(h) main_inf	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << "\n" << cmdline_options; 
+			if(v) main_inf	<< "                                   \n" //http://patorjk.com/software/taag, font: Lean
 				<< "    _/_/_/    _/_/_/_/    _/_/_/   \n"
 				<< "   _/    _/  _/        _/          \n"
 				<< "  _/_/_/    _/_/_/    _/           \n"
@@ -450,12 +446,20 @@ int main(int argc, char* argv[])
 			return EXIT_SUCCESS;
 		}
 
-		if(!stats_info){ bwstatsout.rdbuf(0), fwstatsout.rdbuf(0), ttsstatsout.rdbuf(0); } //OPT_STR_STATS
-		if(nomain_info){ maincout.rdbuf(0); maincerr.rdbuf(0); }
-		if(!print_fwinf){ fwinfo.rdbuf(0); } //OPT_STR_FW_INFO
-		if(!print_bwinf){ bout.rdbuf(0); } //OPT_STR_BW_INFO
-		if(noresult_info){ resultcout.rdbuf(0); }
-		if(notrace_info){ fwtrace.rdbuf(0); }
+		if(!stats_info){ bw_stats.rdbuf(0), fw_stats.rdbuf(0); } //OPT_STR_STATS
+
+		if(!print_fwinf){ fw_log.rdbuf(0); } //OPT_STR_FW_INFO
+		
+		if(!print_bwinf){ bw_log.rdbuf(0); } //OPT_STR_BW_INFO
+
+		if(nomain_info){ main_inf.rdbuf(0); }
+		else{ main_log << "Log: " << "\n"; } 
+
+		if(noresult_info){ main_res.rdbuf(0); }
+		
+		if(noressource_info){ main_tme.rdbuf(0); }
+
+		if(no_main_log){ main_log.rdbuf(0); }
 
 #ifndef WIN32
 		if(to != 0)
@@ -464,7 +468,7 @@ int main(int argc, char* argv[])
 			if (getrlimit(RLIMIT_CPU, &t) < 0) throw logic_error("could not get softlimit for RLIMIT_CPU");
 			t.rlim_cur = to;
 			if(setrlimit(RLIMIT_CPU, &t) < 0) throw logic_error("could not set softlimit for RLIMIT_CPU");
-			else maincout << "successfully set CPU time limit" << "\n";
+			else main_log << "successfully set CPU time limit" << "\n";
 		}
 
 		if(mo != 0)
@@ -473,7 +477,7 @@ int main(int argc, char* argv[])
 			if (getrlimit(RLIMIT_AS, &v) < 0) throw logic_error("could not get softlimit for RLIMIT_AS");
 			v.rlim_cur = (unsigned long)mo * 1024 * 1024; //is set in bytes rather than Mb
 			if(setrlimit(RLIMIT_AS, &v) < 0) throw logic_error("could not set softlimit for RLIMIT_AS");
-			else maincout << "successfully set softlimit for the process's virtual memory" << "\n";
+			else main_log << "successfully set softlimit for the process's virtual memory" << "\n";
 		}
 #endif
 
@@ -529,7 +533,7 @@ int main(int argc, char* argv[])
 		else throw logic_error("Invalid mode"); 
 
 		if(print_cover && (mode == CON || mode == FW_CON))
-			maincout << warning("printing cover information slows down concurrent mode") << "\n";
+			main_log << warning("printing cover information slows down concurrent mode") << "\n";
 		if(print_cover && (mode == FW))
 			throw logic_error("printing cover information not supported in this mode");
 
@@ -573,47 +577,53 @@ int main(int argc, char* argv[])
 		}
 
 		Net::net_stats_t sts = net.get_net_stats();
-		ttsstatsout << "---------------------------------" << "\n";
-		ttsstatsout << "Statistics for " << net.filename << "\n";
-		ttsstatsout << "---------------------------------" << "\n";
-		ttsstatsout << "local states                    : " << sts.L << "\n";
-		ttsstatsout << "shared states                   : " << sts.S << "\n";
-		ttsstatsout << "transitions                     : " << sts.T << "\n";
-		ttsstatsout << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
-		//ttsstatsout << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
-		ttsstatsout << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
-		//ttsstatsout << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
-		ttsstatsout << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
-		//ttsstatsout << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
-		ttsstatsout << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
-		//ttsstatsout << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
-		ttsstatsout << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
-		//ttsstatsout << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
-		ttsstatsout << "disconnected thread states      : " << sts.discond << "\n";
-		//ttsstatsout << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
+		main_log << "---------------------------------" << "\n";
+		main_log << "Statistics for " << net.filename << "\n";
+		main_log << "---------------------------------" << "\n";
+		main_log << "local states                    : " << sts.L << "\n";
+		main_log << "shared states                   : " << sts.S << "\n";
+		main_log << "transitions                     : " << sts.T << "\n";
+		main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
+		//main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
+		main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
+		//main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
+		main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
+		//main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
+		main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
+		//main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
+		main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
+		//main_log << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
+		main_log << "disconnected thread states      : " << sts.discond << "\n";
+		//main_log << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
 #ifdef DETAILED_TTS_STATS
-		ttsstatsout << "strongly connected components   : " << sts.SCC_num << "\n";
-		ttsstatsout << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
+		main_log << "strongly connected components   : " << sts.SCC_num << "\n";
+		main_log << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
 #endif
-		ttsstatsout << "maximum indegree                : " << sts.max_indegree << "\n";
-		ttsstatsout << "maximum outdegree               : " << sts.max_outdegree << "\n";
-		ttsstatsout << "maximum degree                  : " << sts.max_degree << "\n";
-		ttsstatsout << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << "\n";
-		ttsstatsout << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
-		ttsstatsout << "---------------------------------" << "\n";
-		ttsstatsout.flush();
+		main_log << "maximum indegree                : " << sts.max_indegree << "\n";
+		main_log << "maximum outdegree               : " << sts.max_outdegree << "\n";
+		main_log << "maximum degree                  : " << sts.max_degree << "\n";
+		main_log << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << "\n";
+		main_log << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
+		main_log << "---------------------------------" << "\n";
+		main_log.weak_flush();
 
 	}
-	catch(std::exception& e)			{ maincout << "INPUT ERROR: " << e.what() << "\n"; maincout << "type " << argv[0] << " -h for instructions" << "\n"; return EXIT_FAILURE; }
-	catch (...)                         { maincerr << "unknown error while checking program arguments" << "\n"; return EXIT_FAILURE; }
+	catch(std::exception& e)			{ cerr << "INPUT ERROR: " << e.what() << "\n"; main_res << "type " << argv[0] << " -h for instructions" << "\n"; return EXIT_FAILURE; }
+	catch (...)                         { cerr << "unknown error while checking program arguments" << "\n"; return EXIT_FAILURE; }
 
 #ifndef WIN32
 	installSignalHandler();
 #endif
 
-	if(!net.check_target)	maincout << "Problem to solve: Compute the " << k << "-cover" << "\n";
-	else					maincout << "Problem to solve: Check specific target property" << "\n";
-	maincout << "Running coverability engine..." << "\n";
+	main_log << "Running coverability engine..." << "\n";
+
+	//write stream "headers"
+	bw_stats << "BW stats:" << "\n", fw_stats << "FW stats:" << "\n";
+	fw_log << "FW log:" << "\n";
+	bw_log << "BW log:" << "\n";
+	main_inf << "Additional info:" << "\n";
+	main_res << "Result: " << "\n";
+	main_tme << "Ressources: " << "\n";
 
 	ptime start_time;
 
@@ -638,7 +648,7 @@ int main(int argc, char* argv[])
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval, o);
 				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder), shared_fw_done = 0;
-				maincout << "total time (fw): " << time_diff_str(finish_time,start_time) << "\n";
+				main_tme << "total time (fw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
 
 			if(mode == BW || mode == FWBW) //run bw
@@ -646,7 +656,7 @@ int main(int argc, char* argv[])
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval, o);
 				Pre2(&net,k,border,&U,work_sequence,print_cover), shared_bw_done = 0;
-				maincout << "total time (bw): " << time_diff_str(finish_time,start_time) << "\n";
+				main_tme << "total time (bw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
 
 			//compare results
@@ -661,12 +671,12 @@ int main(int argc, char* argv[])
 						foreach(const cmb_node_p c, D.lv[s]) if(U.luv[s].l_nodes.find(c) == U.luv[s].l_nodes.end()) throw logic_error("backward search unsound");
 						foreach(const cmb_node_p c, U.luv[s].l_nodes) if(D.lv[s].find(c) == D.lv[s].end()) throw logic_error("forward search unsound");
 					}
-					maincout << info("sequential forward/backward search results match (same k-cover)") << "\n";
+					main_log << info("sequential forward/backward search results match (same k-cover)") << "\n";
 				}
 				else if(fw_safe != bw_safe)
 					throw logic_error("inconclusive safety result");
 				else
-					maincout << info("sequential forward/backward search results match (same result for target)") << "\n";
+					main_log << info("sequential forward/backward search results match (same result for target)") << "\n";
 			}
 
 		}
@@ -697,12 +707,12 @@ int main(int argc, char* argv[])
 				bw_mem(print_bw_stats, mon_interval, o)
 				;
 			
-			maincout << "waiting for fw..." << "\n", maincout.flush(), fw.join(), maincout << "fw joined" << "\n", maincout.flush();
-			maincout << "waiting for bw..." << "\n", maincout.flush(), bw.join(), maincout << "bw joined" << "\n", maincout.flush();
+			main_log << "waiting for fw..." << "\n", main_log.weak_flush(), fw.join(), main_log << "fw joined" << "\n", main_log.weak_flush();
+			main_log << "waiting for bw..." << "\n", main_log.weak_flush(), bw.join(), main_log << "bw joined" << "\n", main_log.weak_flush();
 			bw_mem.interrupt();
 			bw_mem.join();
 			
-			maincout << "total time (conc): " << time_diff_str(finish_time,start_time) << "\n";
+			main_tme << "total time (conc): " << time_diff_str(finish_time,start_time) << "\n";
 			
 			if(mode == FW_CON && cross_check)
 			{
@@ -711,60 +721,53 @@ int main(int argc, char* argv[])
 					if(!implies(fw_safe && bw_safe, fw_safe_seq) || !implies(!fw_safe || !bw_safe, !fw_safe_seq)) 
 						throw logic_error("inconclusive results (conc. vs. seq. forward)");
 					else
-						maincout << info("sequential forward/concurrent forward/backward search results match (same result for target)") << "\n";
+						main_log << info("sequential forward/concurrent forward/backward search results match (same result for target)") << "\n";
 				}
 				else
 					throw logic_error("cross-check in concurrent mode currently not supported");
 			}
 		}
-
+		
 #ifndef WIN32
 		mon_mem.interrupt(), mon_mem.join();
-		maincout << "max. virt. memory usage (mb): " << max_mem_used << "\n";
+		main_tme << "max. virt. memory usage (mb): " << max_mem_used << "\n";
 #endif
 
 		//TODO: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold
-		if(execution_state == RUNNING)
-		{
-			if(net.check_target) 
-			{
-				if(bw_safe && fw_safe) return_value = EXIT_VERIFICATION_SUCCESSFUL, resultcout << "VERIFICATION SUCCESSFUL" << "\n";
-				else return_value = EXIT_VERIFICATION_FAILED, resultcout << "VERIFICATION FAILED" << "\n";
-			}
-			else
-			{
-				maincout << k << "-COVER SUCCESSFULLY COMPUTED" << "\n";
-				if(print_cover)
-					maincout << "\n",
-					maincout << "---------------------------------" << "\n",
-					maincout << k << " cover statistics:" << "\n",
-					maincout << "---------------------------------" << "\n",
-#ifdef PRINT_KCOVER_ELEMENTS
-					maincout << "coverable                       : " << "\n", U.print_upper_set(maincout), maincout << "\n",
-					maincout << "uncoverable                     : " << "\n", U.print_lower_set(maincout), maincout << "\n",
-#endif
-					maincout << "coverable elements (all)        : " << U.lower_size() << "\n",
-					maincout <<	"uncoverable elements (min)      : " << U.upper_size() << "\n",
-					maincout << "---------------------------------" << "\n";
-			}
-		}
-
-#ifndef WIN32
-		ttsstatsout << "execution state: ";
 		switch(execution_state){
-		case RUNNING: ttsstatsout << "SUCCESSFUL" << "\n"; break;
-		case TIMEOUT: ttsstatsout << "TIMEOUT" << "\n"; break;
-		case MEMOUT: ttsstatsout << "MEMOUT" << "\n"; break;
-		case UNKNOWN: ttsstatsout << "UNKNOWN" << "\n"; break;
+		case RUNNING: 
+			if(bw_safe && fw_safe) 
+				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << "VERIFICATION SUCCESSFUL" << "\n";
+			else 
+				return_value = EXIT_VERIFICATION_FAILED, main_res << "VERIFICATION FAILED" << "\n";
+			break;
+		case TIMEOUT: 
+			return_value = EXIT_FAILURE, main_res << "TIMEOUT" << "\n"; 
+			break;
+		case MEMOUT: 
+			return_value = EXIT_FAILURE, main_res << "MEMOUT" << "\n"; 
+			break;
+		case UNKNOWN: 
+			return_value = EXIT_FAILURE, main_res << "UNKNOWN" << "\n"; 
+			break;
 		}
-#endif
 
 	}
-	catch(std::exception& e)			{ 
-		maincout << e.what() << "\n"; 
-		return EXIT_FAILURE; 
+	catch(std::exception& e)
+	{ 
+		main_res << e.what() << "\n"; 
+		return_value = EXIT_FAILURE;
 	}
-	catch (...)                         { maincerr << "unknown error" << "\n"; return EXIT_FAILURE; }
+	catch (...){
+		main_res << "unknown error" << "\n"; 
+		return_value = EXIT_FAILURE;
+	}
+	
+	//print stream in this order
+	main_res.flush();
+	main_inf.flush();
+	main_tme.flush();
+	//all other streams are flushed on destruction (in some order)
 
 	return return_value;
 

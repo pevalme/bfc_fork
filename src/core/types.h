@@ -52,17 +52,8 @@ std::string warning(std::string);
 //shared data
 #include <iostream>
 
-//extern std::ostream fwinfo;
-//extern std::ostream fwtrace;
-//extern std::ostream dout;
-//extern std::ostream bout;
-//extern std::ostream fwstatsout;
-//extern std::ostream bwstatsout;
-//extern std::ostream ttsstatsout;
-
 #include <boost/thread.hpp>
-extern boost::mutex shared_cout_mutex;
-
+extern boost::mutex fwbw_mutex;
 
 enum graph_type_t {GTYPE_TIKZ,GTYPE_DOT,GTYPE_NONE};
 extern graph_type_t graph_type, tree_type;
@@ -79,8 +70,11 @@ public:
 	FullExpressionAccumulator(std::ostream& os);
 	~FullExpressionAccumulator();
 	void flush();
+	void weak_flush();
     std::stringstream ss;
     std::ostream os;
+private:
+	boost::mutex shared_cout_mutex;
 };
 
 template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulator& p, T const& t) {
@@ -93,8 +87,5 @@ template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulat
 	}
 	return p;
 }
-
-extern FullExpressionAccumulator maincout;
-extern FullExpressionAccumulator maincerr;
 
 #endif

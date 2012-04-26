@@ -1,9 +1,10 @@
 CORE
 main.tts
---target main.prop --i-single
+-k3
 ^EXIT=0$
 ^SIGNAL=0$
-^VERIFICATION SUCCESSFUL$
+^3-COVER SUCCESSFULLY COMPUTED$
 --
+^warning: ignoring
 --
 no comments

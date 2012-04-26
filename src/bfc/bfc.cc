@@ -50,8 +50,17 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
-#define EXIT_VERIFICATION_SUCCESSFUL 0
-#define EXIT_VERIFICATION_FAILED 10
+#define EXIT_VERIFICATION_SUCCESSFUL		0
+#define EXIT_VERIFICATION_SUCCESSFUL_STR	"VERIFICATION SUCCESSFUL"
+
+#define EXIT_VERIFICATION_FAILED			10
+#define EXIT_VERIFICATION_FAILED_STR		"VERIFICATION FAILED"
+
+#define EXIT_UNKNOWN_RESULT					EXIT_FAILURE
+#define EXIT_UNKNOWN_RESULT_STR				"UNKNOWN"
+
+#define EXIT_KCOVERCOMPUTED_SUCCESSFUL		EXIT_VERIFICATION_SUCCESSFUL
+#define EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR	EXIT_VERIFICATION_SUCCESSFUL_STR
 
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #if !defined WIN32 && GCC_VERSION < 40601
@@ -90,6 +99,7 @@ FullExpressionAccumulator
 #include "options_str.h"
 unsigned max_fw_width = OPT_STR_FW_WIDTH_DEFVAL;
 unsigned fw_threshold = OPT_STR_FW_THRESHOLD_DEFVAL;
+bool resolve_omegas = false;
 bool threshold_reached = false;
 #include "bfc.interrupts.h"
 
@@ -109,6 +119,10 @@ boost::posix_time::ptime
 	last_new_prj_found,
 	fw_start_time,
 	finish_time
+	;
+
+unsigned fw_prj_found = 0,
+	fw_last_prj_width = 0
 	;
 
 shared_cmb_deque_t 
@@ -183,6 +197,7 @@ void print_bw_stats(unsigned sleep_msec, string o)
 		<< "FAccs__" << sep//ldist 14
 		<< "FNode__" << sep//ldist 15
 		<< "FWNod__" << sep//ldist 15
+		<< "FWPrj__" << sep
 #ifndef WIN32
 		<< "MemMB__" << sep//ldist 17
 #endif
@@ -220,13 +235,14 @@ void print_bw_stats(unsigned sleep_msec, string o)
 			<< setw(ldst) << accelerations << /*' ' << */sep
 			<< setw(ldst) << fw_qsz << /*' ' << */sep
 			<< setw(ldst) << fw_wsz << /*' ' << */sep
+			<< setw(ldst) << fw_prj_found << /*' ' << */sep
 			//both
 #ifndef WIN32
 			<< setw(ldst) << memUsed()/1024/1024 << /*' ' << */sep
 #endif
 			<< "\n"
 			, 
-			main_livestats.weak_flush()
+			main_livestats.flush()
 			;
 
 		boost::this_thread::sleep(boost::posix_time::milliseconds(sleep_msec));
@@ -295,7 +311,7 @@ int main(int argc, char* argv[])
 		shared_t init_shared;
 		local_t init_local, init_local2(-1);
 		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0);
+		bool h(0), v(0), ignore_target(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0);
 #ifndef WIN32
 		unsigned to,mo;
 #endif
@@ -337,6 +353,7 @@ int main(int argc, char* argv[])
 		problem.add_options()
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
 			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
+			(OPT_STR_IGN_TARGET,	bool_switch(&ignore_target), "ignore the target")
 			;
 
 		//Initial state
@@ -382,6 +399,7 @@ int main(int argc, char* argv[])
 			).c_str())
 			(OPT_STR_FW_WIDTH,	value<unsigned>(&max_fw_width)->default_value(OPT_STR_FW_WIDTH_DEFVAL), "maximum thread count considered during exploration")
 			(OPT_STR_FW_THRESHOLD,	value<unsigned>(&fw_threshold)->default_value(OPT_STR_FW_THRESHOLD_DEFVAL), "stop oracle after that many seconds if it did not progress")
+			(OPT_STR_FW_NO_OMEGAS,	bool_switch(&resolve_omegas), "no omegas in successors (i.e. finite-state exploration)")
 			;
 
 		//BW options
@@ -486,6 +504,9 @@ int main(int argc, char* argv[])
 
 		if(BState::S == 0 || BState::L == 0) throw logic_error("Input file has invalid dimensions");
 
+		if(ignore_target)
+			target_fn = "";
+
 		if(target_fn != string())
 		{
 			try{ 
@@ -500,10 +521,15 @@ int main(int argc, char* argv[])
 			if(!net.target->consistent()) throw logic_error("invalid target");
 			net.Otarget = OState(net.target->shared,net.target->bounded_locals.begin(),net.target->bounded_locals.end());
 			net.check_target = true;
+
+			main_log << "Problem to solve: check target" << "\n"; 
 		}
 		else
 		{
+#if 0
 			throw logic_error("no target specified");
+#endif 
+			main_log << "Problem to solve: compute cover" << "\n"; 
 		}
 
 		net.init = OState(init_shared), net.local_init = init_local, net.init_local2 = init_local2; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
@@ -547,6 +573,15 @@ int main(int argc, char* argv[])
 		if     (fweight_str == OPT_STR_WEIGHT_DEPTH) fw_weight = order_depth;
 		else if(fweight_str == OPT_STR_WEIGHT_WIDTH) fw_weight = order_width;
 		else throw logic_error("invalid weight argument");		
+
+		if(resolve_omegas && max_fw_width == 0)
+			throw logic_error((string(OPT_STR_FW_NO_OMEGAS) + " requires an argument for " + OPT_STR_FW_WIDTH).c_str());
+
+		if(resolve_omegas)
+		{
+			main_log << "deactive acceleration, due to option " << OPT_STR_FW_NO_OMEGAS << "\n";
+			ab = 0;
+		}
 
 		if	   (graph_style == OPT_STR_BW_GRAPH_OPT_none) graph_type = GTYPE_NONE;
 		else if(graph_style == OPT_STR_BW_GRAPH_OPT_TIKZ) graph_type = GTYPE_TIKZ;
@@ -644,18 +679,20 @@ int main(int argc, char* argv[])
 			//FW data structure
 			if(mode == FW || mode == FWBW) //run fw
 			{
+				shared_fw_done = 0;
 				D.project_and_insert(net.init,shared_cmb_deque,false);
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval, o);
-				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder), shared_fw_done = 0;
+				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder);
 				main_tme << "total time (fw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
 
 			if(mode == BW || mode == FWBW) //run bw
 			{
+				shared_fw_done = 0;
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval, o);
-				Pre2(&net,k,border,&U,work_sequence,print_cover), shared_bw_done = 0;
+				Pre2(&net,k,border,&U,work_sequence,print_cover);
 				main_tme << "total time (bw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
 
@@ -733,13 +770,34 @@ int main(int argc, char* argv[])
 		main_tme << "max. virt. memory usage (mb): " << max_mem_used << "\n";
 #endif
 
-		//TODO: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold
+		if(!net.check_target && print_cover)
+		{
+#ifdef PRINT_KCOVER_ELEMENTS
+			main_log << "coverable                       : " << "\n", U.print_upper_set(main_log), main_log << "\n";
+			main_log << "uncoverable                     : " << "\n", U.print_lower_set(main_log), main_log << "\n";
+#endif
+			main_inf << "coverable elements (all)        : " << U.lower_size() << "\n";
+			main_inf <<	"uncoverable elements (min)      : " << U.upper_size() << "\n";
+		}
+
+		//TODO??: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold
+
+		invariant(implies(fw_state_blocked,!shared_fw_done)); //"shared_fw_done" means "fw done and sound"
+
 		switch(execution_state){
 		case RUNNING: 
-			if(bw_safe && fw_safe) 
-				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << "VERIFICATION SUCCESSFUL" << "\n";
+			if(!shared_fw_done && !shared_bw_done)
+			{
+				return_value = EXIT_UNKNOWN_RESULT, main_res << EXIT_UNKNOWN_RESULT_STR << "\n";
+			}
+			else if(!net.check_target)
+			{
+				return_value = EXIT_KCOVERCOMPUTED_SUCCESSFUL, main_res << EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR << "\n";
+			}
+			else if(bw_safe && fw_safe) 
+				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << EXIT_VERIFICATION_SUCCESSFUL_STR << "\n";
 			else 
-				return_value = EXIT_VERIFICATION_FAILED, main_res << "VERIFICATION FAILED" << "\n";
+				return_value = EXIT_VERIFICATION_FAILED, main_res << EXIT_VERIFICATION_FAILED_STR << "\n";
 			break;
 		case TIMEOUT: 
 			return_value = EXIT_FAILURE, main_res << "TIMEOUT" << "\n"; 

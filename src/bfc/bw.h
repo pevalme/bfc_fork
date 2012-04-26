@@ -82,17 +82,6 @@ string add_leading_zeros(const string& s, unsigned count)
 	else return s;
 }
 
-template<typename Ty>
-void copy_deref_range(Ty first, Ty last, ostream& out = bw_log, char dbeg = '{', char delim = ',', char dend = '}'){
-   out << dbeg;
-   while (first != last) {
-      out << **first; //note: only for containers that store pointers
-      if (++first != last) 
-		  out << delim;
-   }
-   out << dend;
-}
-
 #include "bw.inv.h"
 #include "bw.out.h"
 
@@ -1217,7 +1206,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 						bw_log << "locally minimal" << "\n";
 						if(local_insert.case_type == neq_le) //check for existance of locally minimal elements that are larger and incomparable to the predecessor
 						{
-							//bw_log << "local detach wrt. smaller local states: "; copy_deref_range(local_insert.exist_els.begin(), local_insert.exist_els.end(), bw_log); bw_log << "\n";
+							bw_log << "local detach wrt. smaller local states: "; copy_deref_range(local_insert.exist_els.begin(), local_insert.exist_els.end(), bw_log); bw_log << "\n";
 							ctr_locally_pruned += local_detach(src,local_insert.exist_els,M,N,O,W,*C,D,t,W_deferred); //detach parts of the local search tree that start in (now) locally non-minimal states
 						}
 
@@ -1241,7 +1230,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 							if(global_insert.case_type == neq_ge) //check whether the predecessor is >= and != existing states with a different source
 							{
-								//bw_log << "globally non-minimal; blocks on "; copy_deref_range(global_insert.exist_els.begin(), global_insert.exist_els.end(), bw_log); bw_log << "\n";
+								bw_log << "globally non-minimal; blocks on "; copy_deref_range(global_insert.exist_els.begin(), global_insert.exist_els.end(), bw_log); bw_log << "\n";
 
 								N.insert(pre), enqueue(global_insert.exist_els,O.LGE(pre, vec_antichain_t::set_t::greater_equal),pre), O.max_insert(pre), pre->nb->status = BState::blocked_pending; //the predecessor is locally, but not globally minimal; it is added to the set of non-minimal elements, its blocking edged are adjusted wrt. to existing states and its status is set to blocked_pending
 
@@ -1269,7 +1258,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 								
 								if(global_insert.case_type == neq_le)
 								{
-									//bw_log << "blocking larger states "; copy_deref_range(global_insert.exist_els.begin(), global_insert.exist_els.end(), bw_log); bw_log << "\n";
+									bw_log << "blocking larger states "; copy_deref_range(global_insert.exist_els.begin(), global_insert.exist_els.end(), bw_log); bw_log << "\n";
 
 									foreach(const bstate_t& other, global_insert.exist_els)
 									{

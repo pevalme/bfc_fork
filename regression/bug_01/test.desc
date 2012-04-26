@@ -3,7 +3,7 @@ main.tts
 -k3
 ^EXIT=0$
 ^SIGNAL=0$
-^3-COVER SUCCESSFULLY COMPUTED$
+^VERIFICATION SUCCESSFUL$
 --
 ^warning: ignoring
 --

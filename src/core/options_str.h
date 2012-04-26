@@ -18,6 +18,7 @@
 #endif
 #define OPT_STR_INPUT_FILE			"input-file"
 #define OPT_STR_TARGET				"target,a"
+#define OPT_STR_IGN_TARGET			"ignore-target"
 #define OPT_STR_INI_SHARED			"i-shared,s"
 #define OPT_STR_INI_SHARED_DEFVAL	0
 #define OPT_STR_INI_LOCAL			"i-local,l"
@@ -57,6 +58,7 @@
 #define OPT_STR_FW_ITS_THRESHOLD	"fw-weight"
 #define OPT_STR_FW_THRESHOLD		"fw-threshold"
 #define OPT_STR_FW_THRESHOLD_DEFVAL	0
+#define OPT_STR_FW_NO_OMEGAS		"fw-no-omegas"
 
 #define OPT_STR_BW_GRAPH			"write-graph"
 #define OPT_STR_FW_TREE				"write-fw-tree"

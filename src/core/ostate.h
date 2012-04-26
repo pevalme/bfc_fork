@@ -196,7 +196,8 @@ struct OState
 	template<class Iter1,class Iter2> OState(shared_t, Iter1, Iter1, Iter2, Iter2);
 	OState(std::istream& cin);
 	static OState get_rand(unsigned, unsigned = 0, bool = false);
-	std::vector<OState> resolve_omegas(size_t) const;
+	//std::vector<OState> resolve_omegas(size_t) const;
+	Oreached_t resolve_omegas(size_t) const;
 
 	/* ---- Order operators ---- */
 	bool operator == (const OState& r) const;

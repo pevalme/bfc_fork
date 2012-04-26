@@ -91,21 +91,48 @@ OState::OState(istream& cin): accel(nullptr), prede(nullptr), tsucc(false), dept
 	}
 }
 
-vector<OState> OState::resolve_omegas(size_t max_width) const
+//vector<OState> OState::resolve_omegas(size_t max_width) const
+//{
+//	vector<OState> ret;
+//
+//	vector<local_t> bench(max_width*unbounded_locals.size());
+//	merge_mult(bounded_locals.begin(), bounded_locals.begin(), unbounded_locals.begin(), unbounded_locals.end(), max_width, bench.begin());
+//
+//	for(unsigned r = 1; r <= max_width; ++r){
+//		do {
+//			//vector<local_t> prj(bench.begin(), bench.begin() + r);
+//			OState t(shared,bounded_locals.begin(),bounded_locals.end()); //ignore unbounded components
+//			t.bounded_locals.insert(bench.begin(), bench.begin() + r);
+//			ret.push_back(t);
+//		} while (boost::next_combination(bench.begin(), bench.begin() + r, bench.begin() + bench.size()));
+//	}
+//
+//	return ret;
+//}
+
+Oreached_t OState::resolve_omegas(size_t max_width) const
 {
-	vector<OState> ret;
+	precondition(!unbounded_locals.empty());
+
+	Oreached_t ret;
 
 	vector<local_t> bench(max_width*unbounded_locals.size());
 	merge_mult(bounded_locals.begin(), bounded_locals.begin(), unbounded_locals.begin(), unbounded_locals.end(), max_width, bench.begin());
 
 	for(unsigned r = 1; r <= max_width; ++r){
 		do {
-			//vector<local_t> prj(bench.begin(), bench.begin() + r);
-			OState t(shared,bounded_locals.begin(),bounded_locals.end()); //ignore unbounded components
-			t.bounded_locals.insert(bench.begin(), bench.begin() + r);
-			ret.push_back(t);
+			OState* t = new OState(shared,bounded_locals.begin(),bounded_locals.end()); //ignore unbounded components
+			t->bounded_locals.insert(bench.begin(), bench.begin() + r);
+
+			if(!ret.insert(t).second)
+				delete t;
+
 		} while (boost::next_combination(bench.begin(), bench.begin() + r, bench.begin() + bench.size()));
 	}
+
+	postcondition_foreach(ostate_t r, ret, this != r);
+	postcondition_foreach(ostate_t r, ret, r->unbounded_locals.empty()); //all omegas are resolved
+	postcondition_foreach(ostate_t r, ret, *r<=*this && !(*r == *this)); //*this strictly covers all returned elements
 
 	return ret;
 }

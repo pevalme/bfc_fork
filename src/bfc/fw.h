@@ -201,8 +201,8 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 					}
 				}
 				debug_assert(succ->consistent());
+				
 				unsigned c = 0;
-				//if(n.core_shared(succ->shared) && n.core_local(v.local))
 				if(n.core_shared(succ->shared))
 				{
 					succs.insert(succ); //add to return set
@@ -216,12 +216,39 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				}
 
 				if(c) 
-					last_new_prj_found = boost::posix_time::microsec_clock::local_time();
+					last_new_prj_found = boost::posix_time::microsec_clock::local_time(), 
+					fw_prj_found += c, 
+					fw_last_prj_width = succ->size();
 			}
 		}
 
 		if(!g_in_use)
 			delete g;
+	}
+
+	static bool resolved_once = false;
+	invariant_foreach(ostate_t s, succs, implies(resolve_omegas && resolved_once,s->unbounded_locals.empty()));
+	if(resolve_omegas && !resolved_once)
+	{
+		Oreached_t succs_resolved;
+		
+		foreach(ostate_t p_c, succs)
+		{
+			if(p_c->unbounded_locals.empty()) succs_resolved.insert(p_c);
+			else
+			{
+				Oreached_t resolved_state(p_c->resolve_omegas(max_fw_width-1)); //all states with width max_fw_width are blocked anyway
+				succs_resolved.insert(resolved_state.begin(),resolved_state.end());
+
+				fw_log << "resolved " << *p_c << " to "; copy_deref_range(succs_resolved.begin(), succs_resolved.end(), fw_log); fw_log << "\n";
+
+				fw_state_blocked = true;
+				delete p_c;
+			}
+		}
+		
+		succs_resolved.swap(succs);
+		resolved_once = true;
 	}
 
 	return succs;
@@ -326,7 +353,6 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		ostate_t cur, walker;
 		unsigned depth;
 
-		//while(execution_state == RUNNING && fw_safe && !shared_bw_done && W.try_get(cur)) //retrieve the next working element
 		while(execution_state == RUNNING && fw_safe && (!shared_bw_done || !bw_safe) && W.try_get(cur)) //retrieve the next working element
 		{
 
@@ -350,9 +376,9 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 				fw_log << "threshold reached" << "\n", first = false;
 
 			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque, forward_projections)) //allocates objects in "successors"
-			{				
+			{
 				
-				if((threshold_reached) || (max_fw_width != 0 && p_c->size() >= max_fw_width)) //TEST
+				if((threshold_reached) || (max_fw_width != OPT_STR_FW_WIDTH_DEFVAL && p_c->size() >= max_fw_width)) //TEST
 				{
 					fw_log << *p_c << " blocked" << "\n";
 					fw_state_blocked = true;
@@ -425,7 +451,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		}
 
 		threshold_reached = true;
-	
+
 	}
 	catch(std::bad_alloc)
 	{
@@ -461,6 +487,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
 		fw_stats << "\n";
 		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";
+		fw_stats << "width of last projections       : " << fw_last_prj_width << "\n";
 		fw_stats << "forward-reachable global states : " << Q.size() << "\n";
 		fw_stats << "projections found               : " << D->size() << "\n";
 		fw_stats << "\n";

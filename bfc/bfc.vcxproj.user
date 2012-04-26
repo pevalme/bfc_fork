@@ -8,7 +8,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>main.tts --target main.prop --prj-all</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>main.tts --prj-all --fw-info --bw-info -dF --max_fw_width 5 --fw-no-omegas</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\trace_output_01</LocalDebuggerWorkingDirectory>
   </PropertyGroup>

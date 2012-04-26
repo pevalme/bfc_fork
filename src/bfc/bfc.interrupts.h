@@ -70,6 +70,19 @@ void catcher(int sig)
 	else
 	{
 		main_log << "second interrupt; terminate" << "\n";
+
+		fw_log.flush();
+		fw_stats.flush();
+
+		bw_log.flush();
+		bw_stats.flush();
+
+		main_livestats.flush();
+		main_log.flush();
+		main_res.flush();
+		main_inf.flush();
+		main_tme.flush();
+
 		_exit(5);
 	}
 }

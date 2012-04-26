@@ -88,4 +88,15 @@ template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulat
 	return p;
 }
 
+template<typename Ty, typename Os>
+void copy_deref_range(Ty first, Ty last, Os& out, char dbeg = '{', char delim = ',', char dend = '}'){
+   out << dbeg;
+   while (first != last) {
+      out << **first; //note: only for containers that store pointers
+      if (++first != last) 
+		  out << delim;
+   }
+   out << dend;
+}
+
 #endif

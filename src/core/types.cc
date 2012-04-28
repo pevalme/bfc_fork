@@ -1,5 +1,7 @@
 #include "types.h"
 
+#include "user_assert.h"
+
 using namespace std;
 
 string info(string s)
@@ -23,19 +25,22 @@ graph_type_t graph_type, tree_type;
 
 interrupt_t execution_state = RUNNING;
 
-void FullExpressionAccumulator::rdbuf(basic_streambuf<char, std::char_traits<char> >* a){
-	os.rdbuf(a);
+streambuf * FullExpressionAccumulator::rdbuf(streambuf * a){
+	return os.rdbuf(a);
 }
 
-FullExpressionAccumulator::FullExpressionAccumulator(basic_streambuf<char, std::char_traits<char> >* a) : os(a) {
+FullExpressionAccumulator::FullExpressionAccumulator(streambuf * a) : os(a) {
 }
 
 FullExpressionAccumulator::FullExpressionAccumulator(std::ostream& os) : os(os.rdbuf()) {
 }
 
 FullExpressionAccumulator::~FullExpressionAccumulator() {
-	if(os.rdbuf()) 
+	if(os.rdbuf())
+	{
+		invariant(os.rdbuf() && ss.rdbuf() && ss.good());
 		os << ss.rdbuf() << std::flush; // write the whole shebang in one go
+	}
 }
 
 void FullExpressionAccumulator::weak_flush(){

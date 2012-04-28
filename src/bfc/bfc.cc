@@ -57,10 +57,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define EXIT_VERIFICATION_FAILED_STR		"VERIFICATION FAILED"
 
 #define EXIT_UNKNOWN_RESULT					EXIT_FAILURE
-#define EXIT_UNKNOWN_RESULT_STR				"UNKNOWN"
+#define EXIT_UNKNOWN_RESULT_STR				"VERIFICATION UNKNOWN"
 
 #define EXIT_KCOVERCOMPUTED_SUCCESSFUL		EXIT_VERIFICATION_SUCCESSFUL
 #define EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR	EXIT_VERIFICATION_SUCCESSFUL_STR
+
+#define EXIT_ERROR_RESULT					EXIT_FAILURE
+#define EXIT_ERROR_RESULT_STR				"ERROR"
 
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #if !defined WIN32 && GCC_VERSION < 40601
@@ -71,6 +74,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define VERSION "1.0"
 
 #include <iostream>
+#include <fstream>
 using namespace std;
 
 #include "types.h"
@@ -90,6 +94,9 @@ FullExpressionAccumulator
 	main_tme(cout.rdbuf()) //time and memory info
 	;
 
+ofstream main_livestats_ofstream; //must have the same storage duration as main_livestats
+streambuf* main_livestats_rdbuf_backup;
+
 #include "user_assert.h"
 #include "net.h"
 #include "ostate.h"
@@ -107,7 +114,6 @@ bool threshold_reached = false;
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
-#include <sstream>
 
 using namespace std;
 using namespace boost::program_options;
@@ -158,21 +164,13 @@ bool defer = false;
 bool fw_blocks_bw = false;
 #include "bw.h"
 
-void print_bw_stats(unsigned sleep_msec, string o)
+void print_bw_stats(unsigned sleep_msec)
 {
 	if(sleep_msec == 0) return;
 
 	const unsigned sdst = 5;
 	const unsigned ldst = 7;
 	const string sep = ",";
-
-	ofstream csvFile;
-	if(o != OPT_STR_OUTPUT_FILE_STDOUT)
-	{
-		csvFile.open(o.c_str());
-		if(!csvFile.good()) throw std::runtime_error((string("cannot write to file ") + o).c_str());
-		main_livestats.os.rdbuf(csvFile.rdbuf()); //redirect output to our log file
-	}
 
 	main_livestats
 		<< "BCDep" << sep
@@ -247,6 +245,7 @@ void print_bw_stats(unsigned sleep_msec, string o)
 
 		boost::this_thread::sleep(boost::posix_time::milliseconds(sleep_msec));
 	}
+
 }
 
 string time_diff_str(boost::posix_time::ptime a, boost::posix_time::ptime b)
@@ -640,7 +639,7 @@ int main(int argc, char* argv[])
 		main_log << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << "\n";
 		main_log << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
 		main_log << "---------------------------------" << "\n";
-		main_log.weak_flush();
+		main_log.flush();
 
 	}
 	catch(std::exception& e)			{ cerr << "INPUT ERROR: " << e.what() << "\n"; main_res << "type " << argv[0] << " -h for instructions" << "\n"; return EXIT_FAILURE; }
@@ -665,6 +664,15 @@ int main(int argc, char* argv[])
 	try
 	{
 		
+		if(o != OPT_STR_OUTPUT_FILE_STDOUT)
+		{
+			main_livestats_ofstream.open(o.c_str()), main_log << "csv output file opened" << "\n";
+			if(!main_livestats_ofstream.good()) 
+				throw std::runtime_error((string("cannot write to file ") + o).c_str());
+
+			main_livestats_rdbuf_backup = main_livestats.rdbuf(main_livestats_ofstream.rdbuf());
+		}
+
 #ifndef WIN32
 		boost::thread mon_mem(monitor_mem_usage, mon_interval);
 #endif
@@ -682,7 +690,7 @@ int main(int argc, char* argv[])
 				shared_fw_done = 0;
 				D.project_and_insert(net.init,shared_cmb_deque,false);
 				start_time = microsec_clock::local_time();
-				boost::thread bw_mem(print_bw_stats, mon_interval, o);
+				boost::thread bw_mem(print_bw_stats, mon_interval);
 				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder);
 				main_tme << "total time (fw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
@@ -691,7 +699,7 @@ int main(int argc, char* argv[])
 			{
 				shared_fw_done = 0;
 				start_time = microsec_clock::local_time();
-				boost::thread bw_mem(print_bw_stats, mon_interval, o);
+				boost::thread bw_mem(print_bw_stats, mon_interval);
 				Pre2(&net,k,border,&U,work_sequence,print_cover);
 				main_tme << "total time (bw): " << time_diff_str(finish_time,start_time) << "\n";
 			}
@@ -741,11 +749,11 @@ int main(int argc, char* argv[])
 			boost::thread 
 				fw(do_fw_bfs, &net, ab, &D, &shared_cmb_deque, forward_projections, forder), 
 				bw(Pre2,&net,k,border,&U,work_sequence,print_cover), 
-				bw_mem(print_bw_stats, mon_interval, o)
+				bw_mem(print_bw_stats, mon_interval)
 				;
 			
-			main_log << "waiting for fw..." << "\n", main_log.weak_flush(), fw.join(), main_log << "fw joined" << "\n", main_log.weak_flush();
-			main_log << "waiting for bw..." << "\n", main_log.weak_flush(), bw.join(), main_log << "bw joined" << "\n", main_log.weak_flush();
+			main_log << "waiting for fw..." << "\n", main_log.flush(), fw.join(), main_log << "fw joined" << "\n", main_log.flush();
+			main_log << "waiting for bw..." << "\n", main_log.flush(), bw.join(), main_log << "bw joined" << "\n", main_log.flush();
 			bw_mem.interrupt();
 			bw_mem.join();
 			
@@ -784,48 +792,36 @@ int main(int argc, char* argv[])
 
 		invariant(implies(fw_state_blocked,!shared_fw_done)); //"shared_fw_done" means "fw done and sound"
 
-		switch(execution_state){
-		case RUNNING: 
+		if(execution_state == RUNNING)
+		{
 			if(!shared_fw_done && !shared_bw_done)
-			{
 				return_value = EXIT_UNKNOWN_RESULT, main_res << EXIT_UNKNOWN_RESULT_STR << "\n";
-			}
 			else if(!net.check_target)
-			{
 				return_value = EXIT_KCOVERCOMPUTED_SUCCESSFUL, main_res << EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR << "\n";
-			}
 			else if(bw_safe && fw_safe) 
 				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << EXIT_VERIFICATION_SUCCESSFUL_STR << "\n";
 			else 
 				return_value = EXIT_VERIFICATION_FAILED, main_res << EXIT_VERIFICATION_FAILED_STR << "\n";
-			break;
-		case TIMEOUT: 
-			return_value = EXIT_FAILURE, main_res << "TIMEOUT" << "\n"; 
-			break;
-		case MEMOUT: 
-			return_value = EXIT_FAILURE, main_res << "MEMOUT" << "\n"; 
-			break;
-		case UNKNOWN: 
-			return_value = EXIT_FAILURE, main_res << "UNKNOWN" << "\n"; 
-			break;
+		}
+		else
+		{
+			invariant(execution_state == TIMEOUT || execution_state == MEMOUT || execution_state == INTERRUPTED);
+			return_value = EXIT_ERROR_RESULT, main_res << EXIT_ERROR_RESULT_STR << "\n";
 		}
 
 	}
-	catch(std::exception& e)
-	{ 
-		main_res << e.what() << "\n"; 
-		return_value = EXIT_FAILURE;
-	}
+	catch(std::exception& e){
+		return_value = EXIT_FAILURE, main_res << e.what() << "\n";}
 	catch (...){
-		main_res << "unknown error" << "\n"; 
-		return_value = EXIT_FAILURE;
-	}
+		return_value = EXIT_FAILURE, main_res << "unknown exception" << "\n";}
+
+	if(o != OPT_STR_OUTPUT_FILE_STDOUT)
+		main_livestats.rdbuf(main_livestats_rdbuf_backup), main_livestats_ofstream.close(), main_log << "csv output file closed" << "\n"; //otherwise the stream might be closed before the destruction of main_livestats which causes an error
 	
-	//print stream in this order
+	//print stream in this order; all other streams are flushed on destruction
 	main_res.flush();
 	main_inf.flush();
 	main_tme.flush();
-	//all other streams are flushed on destruction (in some order)
 
 	return return_value;
 

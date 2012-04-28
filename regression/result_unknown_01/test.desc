@@ -3,7 +3,7 @@ main.tts
 -k3 --fw-no-omegas --max_fw_width 5 --fw-info --prj-all --mode F
 ^EXIT=1$
 ^SIGNAL=0$
-^UNKNOWN$
+^VERIFICATION UNKNOWN$
 --
 ^warning: ignoring
 --

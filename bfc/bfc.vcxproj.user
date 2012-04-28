@@ -8,8 +8,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>main.tts --prj-all --fw-info --bw-info -dF --max_fw_width 5 --fw-no-omegas</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>main.tts --target main.prop --interv 10 --output main.csv</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\trace_output_01</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\spawn_vf_01</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

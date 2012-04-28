@@ -48,7 +48,7 @@ const string accel_edge_style = "style=dotted,arrowhead=tee,arrowsize=\"0.5\"";
 void print_dot_search_graph(const Oreached_t& Q)
 {
 
-	fw_log << "writing coverability tree..." << "\n", fw_log.weak_flush();
+	fw_log << "writing coverability tree..." << "\n", fw_log.flush();
 	
 	string out_fn = net.filename + ".fw-tree.dot";
 
@@ -415,7 +415,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 						}
 						walker = walker->prede;
 					}
-					main_inf.weak_flush();
+					main_inf.flush();
 					break;
 				}
 				
@@ -446,7 +446,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 			}
 
-			fw_log.weak_flush();
+			fw_log.flush();
 
 		}
 
@@ -462,7 +462,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 #endif
 	}
 
-	fw_log << "fw while exit" << "\n", fw_log.weak_flush();
+	fw_log << "fw while exit" << "\n", fw_log.flush();
 
 	if(!fw_state_blocked){
 		shared_fw_done = true;
@@ -473,9 +473,9 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	}
 	
 	if(shared_fw_finised_first) 
-		finish_time = boost::posix_time::microsec_clock::local_time(), fw_log << "fw first" << "\n", fw_log.weak_flush();
+		finish_time = boost::posix_time::microsec_clock::local_time(), fw_log << "fw first" << "\n", fw_log.flush();
 	else 
-		fw_log << "fw not first" << "\n", fw_log.weak_flush();
+		fw_log << "fw not first" << "\n", fw_log.flush();
 	
 	if(tree_type != GTYPE_NONE) print_dot_search_graph(Q);
 
@@ -485,6 +485,11 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		fw_stats << "Forward statistics:" << "\n";
 		fw_stats << "---------------------------------" << "\n";
 		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
+		fw_stats << "execution state                 : "; 
+		switch(execution_state){
+		case TIMEOUT: fw_stats << "TIMEOUT" << "\n"; break;
+		case MEMOUT: fw_stats << "MEMOUT" << "\n"; break;
+		case INTERRUPTED: fw_stats << "INTERRUPTED" << "\n"; break;}
 		fw_stats << "\n";
 		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";
 		fw_stats << "width of last projections       : " << fw_last_prj_width << "\n";
@@ -501,7 +506,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		fw_stats << "---------------------------------" << "\n";
 		fw_stats << "state blocked                   : " << (fw_state_blocked?"yes":"no") << "\n";
 		fw_stats << "---------------------------------" << "\n";
-		fw_stats.weak_flush();
+		fw_stats.flush();
 	}
 
 	foreach(ostate_t p, Q) //contains init_p

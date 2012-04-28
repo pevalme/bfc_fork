@@ -980,7 +980,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 			bw_log << "shared state " << s << " initialized" << "\n";
 			
-			bw_log.weak_flush();
+			bw_log.flush();
 
 		}
 
@@ -1027,19 +1027,19 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			t = nullptr;
 		}
 		bw_log << "Initializing backward data structures... done" << "\n";
-		bw_log.weak_flush();
+		bw_log.flush();
 
 		if(fw_blocks_bw && fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL)
 		{
 			while(!threshold_reached)
 			{
 				boost::this_thread::sleep(boost::posix_time::seconds(2)); 
-				bw_log << "backward search waits (fw threshold not yet reached)..." << "\n", bw_log.weak_flush();
+				bw_log << "backward search waits (fw threshold not yet reached)..." << "\n", bw_log.flush();
 			}
-			bw_log << "backward search unblocked (fw threshold reached)..." << "\n", bw_log.weak_flush();
+			bw_log << "backward search unblocked (fw threshold reached)..." << "\n", bw_log.flush();
 		}
 
-		bw_log << "Starting backward main loop..." << "\n", bw_log.weak_flush();
+		bw_log << "Starting backward main loop..." << "\n", bw_log.flush();
 		while((print_cover || !shared_fw_done) && execution_state == RUNNING)
 		{
 
@@ -1294,7 +1294,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				bw_log << "state processed" << "\n";
 			}
 			
-			bw_log.weak_flush();
+			bw_log.flush();
 		
 		}
 
@@ -1306,7 +1306,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 		debug_assert(intersection_free(D,M));
 
-		bw_log.weak_flush();
+		bw_log.flush();
 
 	}
 	catch(std::bad_alloc)
@@ -1324,9 +1324,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 	debug_assert(implies(shared_bw_finised_first && bw_safe,W.empty()));
 
 	if(shared_bw_finised_first) 
-		finish_time = boost::posix_time::microsec_clock::local_time(), bw_log << "bw first" << "\n", bw_log.weak_flush();
+		finish_time = boost::posix_time::microsec_clock::local_time(), bw_log << "bw first" << "\n", bw_log.flush();
 	else 
-		bw_log << "bw not first" << "\n", bw_log.weak_flush();
+		bw_log << "bw not first" << "\n", bw_log.flush();
 
 	{
 		bw_stats << "\n";
@@ -1334,6 +1334,11 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_stats << "Backward statistics:" << "\n";
 		bw_stats << "---------------------------------" << "\n";
 		bw_stats << "bw finished first               : " << (shared_bw_finised_first?"yes":"no") << "\n";
+		bw_stats << "execution state                 : "; 
+		switch(execution_state){
+		case TIMEOUT: bw_stats << "TIMEOUT" << "\n"; break;
+		case MEMOUT: bw_stats << "MEMOUT" << "\n"; break;
+		case INTERRUPTED: bw_stats << "INTERRUPTED" << "\n"; break;}
 		bw_stats << "\n";
 		bw_stats << "iterations                      : " << witeration + piteration << "\n";
 		bw_stats << "- work iterations               : " << witeration << "\n";
@@ -1377,10 +1382,10 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_stats << "dsz_max                         : " << dsz_max << "\n";
 		bw_stats << "wsz_max                         : " << wsz_max << "\n";
 		bw_stats << "---------------------------------" << "\n";
-		bw_stats.weak_flush();
+		bw_stats.flush();
 	}
 
-	bw_log.weak_flush();
+	bw_log.flush();
 
 }
 

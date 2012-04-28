@@ -58,21 +58,22 @@ extern boost::mutex fwbw_mutex;
 enum graph_type_t {GTYPE_TIKZ,GTYPE_DOT,GTYPE_NONE};
 extern graph_type_t graph_type, tree_type;
 
-enum interrupt_t { RUNNING,TIMEOUT,MEMOUT,UNKNOWN};
+enum interrupt_t { RUNNING,TIMEOUT,MEMOUT,INTERRUPTED};
 extern interrupt_t execution_state;
 
 #include <iostream>
 #include <sstream>
 class FullExpressionAccumulator {
 public:
-	void rdbuf(std::basic_streambuf<char, std::char_traits<char> >*);
-	FullExpressionAccumulator(std::basic_streambuf<char, std::char_traits<char> >* a);
+	std::streambuf* rdbuf(std::streambuf*);
+	FullExpressionAccumulator(std::streambuf *);
 	FullExpressionAccumulator(std::ostream& os);
 	~FullExpressionAccumulator();
 	void flush();
 	void weak_flush();
+
     std::stringstream ss;
-    std::ostream os;
+	std::ostream os;
 private:
 	boost::mutex shared_cout_mutex;
 };

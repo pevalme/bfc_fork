@@ -37,12 +37,10 @@ bool first_interrupt = true;
 void catcher(int sig)
 {
 	fflush(stdout);
-	main_log << "Interrupted by signal ";
-	switch(sig){
-	case SIGXCPU:	main_log << "SIGXCPU" << "\n"; break;
-	//case SIGSEGV:	main_log << "SIGSEGV" << "\n"; break; //this signal is not generated when the memory limit is reached; a malloc fails instead, causing std:bad_all to be thrown
-	case SIGINT:	main_log << "SIGINT" << "\n"; break;
-	default:		main_log << "unknown signal, terminate" << "\n"; _exit(7);
+	switch(sig)
+	{
+	case SIGXCPU:	main_log << "Interrupted by signal SIGXCPU" << "\n"; break;
+	case SIGINT:	main_log << "Interrupted by signal SIGINT" << "\n"; break;
 	}
 
 	if(first_interrupt)
@@ -51,21 +49,23 @@ void catcher(int sig)
 		main_log << "first interrupt" << "\n";
 		switch(sig)
 		{
+
 		case SIGXCPU:
-			//disable soft limit
-			disable_time_limit();
+			disable_time_limit(); //disable soft limit
 			execution_state = TIMEOUT;
 			main_log << "time limit disabled; execution state changed to TIMEOUT" << "\n";
 			break;
-		case SIGINT:
-			max_fw_width = 1;
-			main_log << "stopping oracle" << "\n";
-			break;
+
+		case SIGINT: //fall-through
+			//max_fw_width = 1;
+			//main_log << "stopping oracle" << "\n";
+			//break;
+
 		default: 
-			execution_state = UNKNOWN;
-			main_log << "execution state changed to UNKNOWN" << "\n";
+			execution_state = INTERRUPTED;
+			main_log << "execution state changed to INTERRUPTED" << "\n";
 		}
-		main_log.weak_flush();
+		main_log.flush();
 	}
 	else
 	{
@@ -83,7 +83,7 @@ void catcher(int sig)
 		main_inf.flush();
 		main_tme.flush();
 
-		_exit(5);
+		_exit(sig);
 	}
 }
 

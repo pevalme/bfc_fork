@@ -83,7 +83,7 @@ complement_set::complement_set(complement_set&& other)
 bool complement_set::insert(cmb_node& c) //call discipline: 0 must be inserted before 0,0 etc.
 {
 	us_cmb_node_p_t::iterator f = u_nodes.find(&c);
-	debug_assert(!((u_nodes.find(&c) != u_nodes.end()) == (l_nodes.find(&c) != l_nodes.end()))); //safe if call discipline is met
+	invariant(!((u_nodes.find(&c) != u_nodes.end()) == (l_nodes.find(&c) != l_nodes.end()))); //safe if call discipline is met
 
 	if(f == u_nodes.end()) 
 		return false; //f is already in the lower set
@@ -97,7 +97,7 @@ bool complement_set::insert(cmb_node& c) //call discipline: 0 must be inserted b
 pair<bool,us_cmb_node_p_t> complement_set::diff_insert(const cmb_node& c) //call discipline: 0 must be inserted before 0,0 etc.
 {
 	us_cmb_node_p_t::const_iterator f = u_nodes.find(&c);
-	debug_assert(!((u_nodes.find(&c) != u_nodes.end()) == (l_nodes.find(&c) != l_nodes.end()))); //safe if call discipline is met
+	invariant(!((u_nodes.find(&c) != u_nodes.end()) == (l_nodes.find(&c) != l_nodes.end()))); //safe if call discipline is met
 
 	if(f == u_nodes.end()) 
 		return make_pair(false,us_cmb_node_p_t()); //f is already in the lower set
@@ -107,11 +107,11 @@ pair<bool,us_cmb_node_p_t> complement_set::diff_insert(const cmb_node& c) //call
 
 void complement_set::remove(cmb_node_p f)
 {
-	debug_assert(*(f->rc) == 0);
+	invariant(*(f->rc) == 0);
 
 	try_expand_remove(f);
 	foreach(cmb_node_p p, *(f->lt)){
-		debug_assert(multiset<local_t>(f->c.begin(), f->c.end()) < multiset<local_t>(p->c.begin(), p->c.end()) && *(p->rc) > 0);
+		invariant(multiset<local_t>(f->c.begin(), f->c.end()) < multiset<local_t>(p->c.begin(), p->c.end()) && *(p->rc) > 0);
 		if(--(*p->rc) == 0) m_nodes.erase(p), u_nodes.insert(p);
 	}
 
@@ -120,13 +120,13 @@ void complement_set::remove(cmb_node_p f)
 
 us_cmb_node_p_t complement_set::diff_remove(cmb_node_p f)
 {
-	debug_assert(*(f->rc) == 0);
+	invariant(*(f->rc) == 0);
 
 	us_cmb_node_p_t u_nodes_diff;
 
 	diff_try_expand_remove(f,u_nodes_diff);
 	foreach(cmb_node_p p, *(f->lt)){
-		debug_assert(multiset<local_t>(f->c.begin(), f->c.end()) < multiset<local_t>(p->c.begin(), p->c.end()) && *(p->rc) > 0);
+		invariant(multiset<local_t>(f->c.begin(), f->c.end()) < multiset<local_t>(p->c.begin(), p->c.end()) && *(p->rc) > 0);
 		if(--*(p->rc) == 0) 
 			m_nodes.erase(p), u_nodes.insert(p), u_nodes_diff.insert(p);
 	}
@@ -138,7 +138,7 @@ us_cmb_node_p_t complement_set::diff_remove(cmb_node_p f)
 
 void complement_set::try_expand_remove(cmb_node_p f) 
 {
-	debug_assert(*(f->rc) == 0);
+	invariant(*(f->rc) == 0);
 
 	if(!(f->c.size() < K)) return;
 
@@ -158,7 +158,7 @@ void complement_set::try_expand_remove(cmb_node_p f)
 		cmb_node::cmb_t v_int(cp->c);
 		do {
 			cmb_node t(v_int.begin(), --v_int.end(), 0, NULL);
-			debug_assert(!((u_nodes.find(&t) != u_nodes.end()) == (m_nodes.find(&t) != m_nodes.end())));
+			invariant(!((u_nodes.find(&t) != u_nodes.end()) == (m_nodes.find(&t) != m_nodes.end())));
 			if(f->c == t.c) continue; 
 
 			us_cmb_node_p_t::iterator q = u_nodes.find(&t);
@@ -174,7 +174,7 @@ void complement_set::try_expand_remove(cmb_node_p f)
 
 void complement_set::diff_try_expand_remove(cmb_node_p f,us_cmb_node_p_t& u_nodes_diff) 
 {
-	debug_assert((*f->rc) == 0);
+	invariant((*f->rc) == 0);
 
 	if(!(f->c.size() < K)) return;
 
@@ -195,7 +195,7 @@ void complement_set::diff_try_expand_remove(cmb_node_p f,us_cmb_node_p_t& u_node
 		cmb_node::cmb_t v_int(cp->c);
 		do {
 			cmb_node t(v_int.begin(), --v_int.end(), 0, NULL);
-			debug_assert(!((u_nodes.find(&t) != u_nodes.end()) == (m_nodes.find(&t) != m_nodes.end())));
+			invariant(!((u_nodes.find(&t) != u_nodes.end()) == (m_nodes.find(&t) != m_nodes.end())));
 			if(f->c == t.c) continue; 
 
 			us_cmb_node_p_t::iterator q = u_nodes.find(&t);
@@ -296,8 +296,8 @@ unsigned complement_vec::project_and_insert(const OState& g)
 
 	for(unsigned r = 1; r <= this->K && r <= gg2.size(); ++r){
 		do {
-			debug_assert(r <= gg2.size());
-			debug_assert(is_sorted(gg2.begin(), gg2.begin() + r));
+			invariant(r <= gg2.size());
+			invariant(is_sorted(gg2.begin(), gg2.begin() + r));
 			copy(gg2.begin(), gg2.begin() + r, prj[r-1].c.begin());
 			if(this->luv[g.shared].insert(prj[r-1])) ++new_projections;
 		} while (boost::next_combination(gg2.begin(), gg2.begin() + r, gg2.begin() + gg2_n));
@@ -350,7 +350,7 @@ unsigned lowerset_vec::project_and_insert(const OState& g, shared_cmb_deque_t& s
 
 	for(unsigned r = 1; r <= min(k,gg2_n); ++r){ //the latter loop condition catches the case when we try to project a state that has less components than k: (0|0) cannot be projected with k=2
 		do {
-			debug_assert(is_sorted(gg2.begin(), gg2.begin() + r));
+			invariant(is_sorted(gg2.begin(), gg2.begin() + r));
 			copy(gg2.begin(), gg2.begin() + r, prj[r-1].c.begin());
 
 			if(this->lv[g.shared].find(&prj[r-1]) == this->lv[g.shared].end())

@@ -189,7 +189,7 @@ struct BState{
 
 	static BState get_rand(unsigned max_el, unsigned rep)
 	{
-		debug_assert(rep >= 0 && rep <= 100); //rep in 0...100
+		invariant(rep >= 0 && rep <= 100); //rep in 0...100
 
 		BState r(rand()%S);
 		while(max_el)
@@ -198,7 +198,7 @@ struct BState{
 			do r.bounded_locals.insert(l), --max_el;
 			while(max_el && ((unsigned)rand()%101)<=rep);
 		}
-		debug_assert(r.consistent());
+		invariant(r.consistent());
 		return r;
 	}
 

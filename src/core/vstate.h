@@ -104,7 +104,7 @@ VState::VState(Iter first, Iter last, size_t reserve): type(def), bl(new blockin
 	bounded_locals.reserve(reserve);
 	for( ;first != last; ++first)
 		bounded_locals.push_back(*first);
-	debug_assert(std::is_sorted(bounded_locals.begin(),bounded_locals.end()));
+	invariant(std::is_sorted(bounded_locals.begin(),bounded_locals.end()));
 }
 
 template<class Iter>
@@ -116,7 +116,7 @@ VState::VState(Iter first, Iter last): type(def), bl(new blocking_t)
 			bounded_locals.push_back(*prev_first), prev_first = first;
 	if(prev_first != last) 
 		bounded_locals.push_back(*prev_first);
-	debug_assert(std::is_sorted(bounded_locals.begin(),bounded_locals.end()));
+	invariant(std::is_sorted(bounded_locals.begin(),bounded_locals.end()));
 }
 
 #endif

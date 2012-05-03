@@ -88,7 +88,7 @@ struct unordered_priority_set
 		if(order == random) kp.second = 0;
 
 		size_t erased = v_us[kp.second].erase(kp.first);
-		debug_assert(erased == 1);
+		invariant(erased == 1);
 		if(v_us[kp.second].empty())
 			non_empty.erase(kp.second);
 		
@@ -113,7 +113,7 @@ struct unordered_priority_set
 	bucket_const_iterator find(keyprio_type kp) const
 	{
 		if(order == random) kp.second = 0;
-		debug_assert(contains(kp));
+		invariant(contains(kp));
 		
 		return v_us[kp.second].find(kp.first);
 	}
@@ -143,19 +143,19 @@ struct unordered_priority_set
 
 	keyprio_type top()
 	{
-		debug_assert(!empty());
+		invariant(!empty());
 		
 		if(order == random){
 			if(last_top != v_us[0].end())
 				return make_pair(*last_top,0);
 
-			debug_assert(last_top == v_us[0].end());
-			debug_assert(!v_us[0].empty());
+			invariant(last_top == v_us[0].end());
+			invariant(!v_us[0].empty());
 			int r = rand()%v_us[0].size();
 			last_top = v_us[0].begin();
 			while(r--)
 				++last_top;
-			debug_assert(last_top != v_us[0].end());
+			invariant(last_top != v_us[0].end());
 
 			return make_pair(*last_top,0);
 		}
@@ -165,7 +165,7 @@ struct unordered_priority_set
 		case less: prio = *non_empty.begin(); break;
 		case greater: prio = *non_empty.rbegin(); break;
 		}
-		debug_assert(!v_us[prio].empty());
+		invariant(!v_us[prio].empty());
 
 		return make_pair(*v_us[prio].begin(),prio);
 	}
@@ -173,7 +173,7 @@ struct unordered_priority_set
 	void pop()
 	{
 		if(order == random){
-			debug_assert(last_top != v_us[0].end());
+			invariant(last_top != v_us[0].end());
 			v_us[0].erase(last_top);
 			last_top = v_us[0].end();
 			if(v_us[0].empty())
@@ -187,7 +187,7 @@ struct unordered_priority_set
 		case less: prio = *non_empty.begin(); break;
 		case greater: prio = *non_empty.rbegin(); break;
 		}
-		debug_assert(!v_us[prio].empty());
+		invariant(!v_us[prio].empty());
 		v_us[prio].erase(v_us[prio].begin());
 
 		if(v_us[prio].empty())

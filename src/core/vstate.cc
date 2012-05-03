@@ -98,7 +98,7 @@ bool operator <= (const vector<local_t>& l, const vector<local_t>& r)
 //whether l and r are incomparable, i.e. !(l <= r)&&!(r <= l); hence !(x == y) is different from (x != y)
 bool operator != (const vector<local_t>& l, const vector<local_t>& r)
 {
-	debug_assert(!(l == r));
+	invariant(!(l == r));
 	vector<local_t>::const_iterator first1, last1, first2, last2;
 
 	first1	= l.begin();
@@ -110,14 +110,14 @@ bool operator != (const vector<local_t>& l, const vector<local_t>& r)
 	for(;first1 != last1 && first2 != last2;){
 		if(*first1 < *first2){
 			if(res == neq_ge__or__neq_nge_nle){
-				debug_assert(!(l <= r) && !(r <= l));
+				invariant(!(l <= r) && !(r <= l));
 				return true;
 			}else 
 				res = neq_le__or__neq_nge_nle, ++first1;
 		}
 		else if(*first2 < *first1)
 			if(res == neq_le__or__neq_nge_nle){
-				debug_assert(!(l <= r) && !(r <= l));
+				invariant(!(l <= r) && !(r <= l));
 				return true;
 			}else 
 				res = neq_ge__or__neq_nge_nle, ++first2;
@@ -126,13 +126,13 @@ bool operator != (const vector<local_t>& l, const vector<local_t>& r)
 	}
 
 	if(res == neq_ge__or__neq_le){
-		debug_assert(!(!(l <= r) && !(r <= l)));
+		invariant(!(!(l <= r) && !(r <= l)));
 		return false; //both are comparable
 	}else if(res == neq_le__or__neq_nge_nle){
-		debug_assert((!(l <= r) && !(r <= l)) == (first2 != last2));
+		invariant((!(l <= r) && !(r <= l)) == (first2 != last2));
 		return first2 != last2;
 	}else{
-		debug_assert((!(l <= r) && !(r <= l)) == (first1 != last1));
+		invariant((!(l <= r) && !(r <= l)) == (first1 != last1));
 		return first1 != last1;
 	}
 
@@ -196,17 +196,17 @@ pair<VState const *, bool> VState::enqueue(VState const *bot, VState const *top)
 		while(!C.empty()){
 			VState const * c = C.top(); C.pop();
 
-			debug_assert(!(*c == *this));
+			invariant(!(*c == *this));
 			bool maximal = true;
 			for(unordered_set<VState const*>::const_iterator n = c->bl->blocks__set.begin(), ne = c->bl->blocks__set.end(); n != ne; ++n){
-				debug_assert((*n)->consistent());
+				invariant((*n)->consistent());
 
 				if((*n)->type == VState::top)
 					continue;
 				else if((*n)->bounded_locals <= this->bounded_locals){
 					C.push(*n), maximal = false;
 				}
-				debug_assert(!(**n == *this)); //this case should be handled in advance using a hash set
+				invariant(!(**n == *this)); //this case should be handled in advance using a hash set
 			}
 
 			if(maximal) MaxLE.insert(c);
@@ -219,7 +219,7 @@ pair<VState const *, bool> VState::enqueue(VState const *bot, VState const *top)
 		while(!C.empty()){
 			VState const * c = C.top(); C.pop();
 
-			debug_assert(!(*c == *this));
+			invariant(!(*c == *this));
 			bool minimal = true;
 			for(unordered_set<VState const*>::const_iterator n = c->bl->blocked_by__set.begin(), ne = c->bl->blocked_by__set.end(); n != ne; ++n){
 
@@ -228,7 +228,7 @@ pair<VState const *, bool> VState::enqueue(VState const *bot, VState const *top)
 				else if(this->bounded_locals <= (*n)->bounded_locals){
 					C.push(*n), minimal = false;
 				}
-				debug_assert(!(**n == *this)); //this case should be handled in advance using a hash set
+				invariant(!(**n == *this)); //this case should be handled in advance using a hash set
 			}
 
 			if(minimal) MinGE.insert(c);

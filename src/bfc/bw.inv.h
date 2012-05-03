@@ -2,7 +2,7 @@
 Consistency
 ********************************************************/
 
-#define USE_INVARIANTS
+//#define USE_INVARIANTS
 
 bool intersection_free(const vec_antichain_t& D, const vec_antichain_t& M)
 {

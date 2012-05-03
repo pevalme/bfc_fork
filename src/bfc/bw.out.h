@@ -27,7 +27,7 @@ ofstream& dot_state_out(bstate_t q, bstate_t p, const work_pq& P, bool prune, gr
 	out << '[';
 	switch(gt)
 	{
-	case GTYPE_NONE: debug_assert(0); break;
+	case GTYPE_NONE: assert(0); break;
 	case GTYPE_TIKZ:
 		{
 			out << "lblstyle=" << '"';

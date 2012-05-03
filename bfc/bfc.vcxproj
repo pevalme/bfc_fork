@@ -42,7 +42,7 @@
     <ClInclude Include="..\src\core\types.h" />
     <ClInclude Include="..\src\core\unordered_priority_set.h" />
     <ClInclude Include="..\src\core\user_assert.h" />
-    <ClInclude Include="..\src\core\u_set_vm.h" />
+    <ClInclude Include="..\src\core\u_set_vm.h__" />
     <ClInclude Include="..\src\core\vstate.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

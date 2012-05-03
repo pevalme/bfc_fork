@@ -462,7 +462,7 @@ struct Net{
 		unsigned core_shared_states;
 	};
 	
-	net_stats_t get_net_stats() const
+	net_stats_t get_net_stats()
 	{
 		net_stats_t ret;
 
@@ -512,7 +512,7 @@ struct Net{
 
 		ret.core_shared_states = 0; 
 		for(unsigned  i = 0; i < BState::S; ++i) 
-			if(net.core_shared(i)) ++(ret.core_shared_states);
+			if(core_shared(i)) ++(ret.core_shared_states);
 		
 		return ret;
 	}

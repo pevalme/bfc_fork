@@ -82,13 +82,13 @@ void antichain_t::CG_t::swap(CG_t& other)
 
 antichain_t::CG_t& antichain_t::CG_t::operator=(const CG_t& rhs)
 {
-	assert(rhs.nodes.empty());
+	invariant(rhs.nodes.empty());
 	return *this;
 }
 
 antichain_t::antichain_t(bool ownership_): ownership(ownership_), G()
 {
-	debug_assert(BState::L != 0); 
+	invariant(BState::L != 0); 
 	G.bot->bl->blocks__set.insert(G.top), G.top->bl->blocked_by__set.insert(G.bot);
 }
 
@@ -132,8 +132,8 @@ antichain_t::insert_t::insert_t()
 antichain_t::insert_t antichain_t::case_insert(bstate_t s)
 {
 	//note: s must be globally accessible, as it is only referenced in M
-	debug_assert(s->consistent());
-	debug_assert(s->bounded_locals.size() != 0);
+	invariant(s->consistent());
+	invariant(s->bounded_locals.size() != 0);
 
 	Breached_p_t::iterator f = M.find(s);
 	if(f != M.end()) 
@@ -147,7 +147,7 @@ antichain_t::insert_t antichain_t::case_insert(bstate_t s)
 
 	s_scpc_t lg = LGE(s,greater_equal);
 	//clean look-up table and M set (non-minimal elements are removed)
-	debug_assert(M.find(s) == M.end());
+	invariant(M.find(s) == M.end());
 	foreach(bstate_t const& x, lg) erase(x);
 
 	//update look-up table and M set
@@ -160,7 +160,7 @@ antichain_t::insert_t antichain_t::case_insert(bstate_t s)
 antichain_t::insert_t antichain_t::max_case_insert(bstate_t s)
 {
 	//note: s must be globally accessible, as it is only referenced in M
-	assert(s->consistent());
+	invariant(s->consistent());
 
 	Breached_p_t::iterator f = M.find(s);
 	if(f != M.end())
@@ -199,17 +199,17 @@ po_rel_t antichain_t::relation(BState const * s)
 
 void antichain_t::insert_incomparable(BState const * s)
 {
-	debug_assert(M.find(s) == M.end());
-	debug_assert(LGE(s,less_equal).empty());
-	debug_assert(LGE(s,greater_equal).empty());
+	invariant(M.find(s) == M.end());
+	invariant(LGE(s,less_equal).empty());
+	invariant(LGE(s,greater_equal).empty());
 	integrate(s);
 }
 
 antichain_t::s_scpc_t antichain_t::insert_neq_le(BState const * s)
 {
-	debug_assert(M.find(s) == M.end()); //the element does not yet exist
-	debug_assert(LGE(s,less_equal).empty()); //no smaller elements exists
-	debug_assert(!LGE(s,greater_equal).empty()); //there exists at least one larger element
+	invariant(M.find(s) == M.end()); //the element does not yet exist
+	invariant(LGE(s,less_equal).empty()); //no smaller elements exists
+	invariant(!LGE(s,greater_equal).empty()); //there exists at least one larger element
 	
 	//clean look-up table and M set (non-minimal elements are removed)
 	s_scpc_t lg = LGE(s,greater_equal);
@@ -224,8 +224,8 @@ antichain_t::s_scpc_t antichain_t::insert_neq_le(BState const * s)
 antichain_t::insert_t antichain_t::case_insert(bstate_t s)
 {
 	//note: s must be globally accessible, as it is only referenced in M
-	debug_assert(s->consistent());
-	debug_assert(s->bounded_locals.size() != 0);
+	invariant(s->consistent());
+	invariant(s->bounded_locals.size() != 0);
 
 	Breached_p_t::iterator f = M.find(s);
 	if(f != M.end()) 
@@ -239,7 +239,7 @@ antichain_t::insert_t antichain_t::case_insert(bstate_t s)
 
 	s_scpc_t lg = LGE(s,greater_equal);
 	//clean look-up table and M set (non-minimal elements are removed)
-	debug_assert(M.find(s) == M.end());
+	invariant(M.find(s) == M.end());
 	foreach(bstate_t const& x, lg) erase(x);
 
 	//update look-up table and M set
@@ -270,16 +270,16 @@ pair<bstate_t, bool> antichain_t::max_insert(BState const * s)
 //description: clean look-up table and M set
 void antichain_t::erase(BState const * x)
 {
-	debug_assert(manages(x));
+	invariant(manages(x));
 
 	M.erase(x);
 
 	VState decomp = decompose(x);
 	us_VState_t::iterator f = G.nodes.find(decomp);
-	debug_assert(f != G.nodes.end());
+	invariant(f != G.nodes.end());
 
-	assert(f != G.nodes.end());
-	assert(f->bl->suc.empty() || !f->bl->suc.empty());
+	invariant(f != G.nodes.end());
+	invariant(f->bl->suc.empty() || !f->bl->suc.empty());
 
 	f->bl->suc.erase(x); //here
 
@@ -313,7 +313,7 @@ const Breached_p_t& antichain_t::M_cref() const
 void antichain_t::integrate(BState const * x)
 {
 
-	debug_assert(!manages(x));
+	invariant(!manages(x));
 
 	VState decomp = decompose(x);
 
@@ -424,7 +424,7 @@ antichain_t::s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
 
 				for(auto m = c->bl->blocked_by__set.begin(), me = c->bl->blocked_by__set.end(); m != me; ++m){
 					if(*m != G.bot){
-						debug_assert((*m)->bounded_locals <= decomp.bounded_locals);
+						invariant((*m)->bounded_locals <= decomp.bounded_locals);
 						C.push(*m); 
 					}
 
@@ -441,7 +441,7 @@ antichain_t::s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
 
 				for(auto m = c->bl->blocks__set.begin(), me = c->bl->blocks__set.end(); m != me; ++m){
 					if(*m != G.top){
-						debug_assert(decomp.bounded_locals <= (*m)->bounded_locals);
+						invariant(decomp.bounded_locals <= (*m)->bounded_locals);
 						C.push(*m);
 					}
 

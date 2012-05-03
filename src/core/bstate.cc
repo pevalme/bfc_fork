@@ -62,8 +62,8 @@ std::size_t vec_husher::operator()(const vector<local_t>& v) const
 
 bool vec_eqstr::operator()(const vector<local_t>& v1, const vector<local_t>& v2) const 
 {
-	debug_assert(is_sorted(v1.begin(),v1.end()));
-	debug_assert(is_sorted(v2.begin(),v2.end()));
+	invariant(is_sorted(v1.begin(),v1.end()));
+	invariant(is_sorted(v2.begin(),v2.end()));
 
 	unsigned v1_sz = v1.size();
 	if(v1_sz != v2.size()) return 0;
@@ -147,8 +147,8 @@ BState::BState(string str, bool alloc)
 
 void BState::allocate()
 {
-	debug_assert(nb == nullptr);
-	debug_assert(bl == nullptr);
+	invariant(nb == nullptr);
+	invariant(bl == nullptr);
 
 	nb = new neighborhood_t;
 	bl = new blocking_t;
@@ -173,7 +173,7 @@ bool BState::operator == (const BState& r) const
 
 bool BState::operator <= (const BState& r) const
 {
-	debug_assert(this->type == BState::def || this->type != r.type);
+	invariant(this->type == BState::def || this->type != r.type);
 	if(this->type == BState::bot || r.type == BState::top) 
 		return 1;
 	else if(this->type == BState::top || r.type == BState::bot || this->shared != r.shared)
@@ -282,7 +282,8 @@ bool BState::consistent(check_t c) const
 	}
 
 	foreach(const bstate_t& f,bl->blocks) 
-		assert(f != nullptr);
+		if(f == nullptr)
+			return 0;
 
 	return 1;
 }
@@ -380,11 +381,11 @@ bool enqueue(const set<bstate_t>& bots, const set<bstate_t>& tops, BState const*
 		while(!C.empty()){
 			BState const * c = C.top(); C.pop();
 
-			debug_assert(!(*c == *x));
+			invariant(!(*c == *x));
 			bool maximal = true;
 			foreach(BState const * n, c->bl->blocks)
 			{
-				debug_assert(!(*n == *x));
+				invariant(!(*n == *x));
 				if(*n <= *x) 
 					C.push(n), maximal = false;
 			}
@@ -400,11 +401,11 @@ bool enqueue(const set<bstate_t>& bots, const set<bstate_t>& tops, BState const*
 		while(!C.empty()){
 			BState const * c = C.top(); C.pop();
 
-			debug_assert(!(*c == *x));
+			invariant(!(*c == *x));
 			bool minimal = true;
 			foreach(BState const * n, c->bl->blocked_by)
 			{
-				debug_assert(!(*n == *x));
+				invariant(!(*n == *x));
 				if(*x <= *n) 
 					C.push(n), minimal = false;
 			}
@@ -449,7 +450,7 @@ pair<BState const *, bool> enqueue(BState const *bot, BState const *top, BState 
 		while(!C.empty()){
 			BState const * c = C.top(); C.pop();
 
-			debug_assert(!(*c == *x));
+			invariant(!(*c == *x));
 			bool maximal = true;
 			foreach(BState const * n, c->bl->blocks)
 				if(*n == *x) return pair<BState const *, bool>(n,false);
@@ -465,7 +466,7 @@ pair<BState const *, bool> enqueue(BState const *bot, BState const *top, BState 
 		while(!C.empty()){
 			BState const * c = C.top(); C.pop();
 
-			debug_assert(!(*c == *x));
+			invariant(!(*c == *x));
 			bool minimal = true;
 			foreach(BState const * n, c->bl->blocked_by)
 				if(*n == *x) return pair<BState const *, bool>(n,false);

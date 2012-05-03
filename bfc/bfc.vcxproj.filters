@@ -55,9 +55,6 @@
     <ClInclude Include="..\src\core\types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\core\u_set_vm.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\core\unordered_priority_set.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -80,6 +77,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\core\multiset_adapt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\core\u_set_vm.h__">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -161,6 +161,14 @@ enum weigth_t
 	order_random
 } bw_weight, fw_weight;
 
+#define TIMING
+
+#ifdef TIMING
+#define time_and_exe(e, duration) ptime start = microsec_clock::local_time(); e; duration += microsec_clock::local_time() - start
+#else
+#define time_and_exe(e, duration) e
+#endif
+
 bool fw_state_blocked = false;
 int kfw = -1;
 #include "fw.h"
@@ -459,9 +467,9 @@ int main(int argc, char* argv[])
 				<< "         of Multi-Threaded Programs\n"
 				<< "    with Non-Blocking Communication\n"
 				<< "-----------------------------------\n"
-				<< "     (c)2011 Alexander Kaiser      \n"
+				<< "     (c)2012 Alexander Kaiser      \n"
 				<< " Oxford University, United Kingdom \n"
-				<< "Build Date:  " << __DATE__ << " @ " << __TIME__
+				<< "Build Date:  " << __DATE__ << " @ " << __TIME__ << "\n";
 				;
 
 			return EXIT_SUCCESS;

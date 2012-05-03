@@ -85,6 +85,23 @@ string add_leading_zeros(const string& s, unsigned count)
 #include "bw.inv.h"
 #include "bw.out.h"
 
+#ifdef TIMING
+time_duration 
+	pre_duration,
+	gminimal_duration,
+	clean_replace_and_mark_duration,
+	compute_minimal_predecessors_duration,
+	pruning_duration,
+	livestats_duration,
+	first_alloc_duration,
+	first_insert_duration,
+	check_for_lowerset_interections_duration,
+	check_global_minimal_and_wake_up_duration,
+	defer_state_duration,
+	global_insert_duration
+	;
+#endif
+
 /********************************************************
 Pre image
 ********************************************************/
@@ -131,10 +148,10 @@ Breached_p_t Pre(const BState& s, Net& n)
 			const bool diff_locals = (u.local != v.local);
 			const trans_type&	ty = t->type;
 
-			debug_assert(!(ty == spawn_transition && !thread_in_u && thread_in_v && !horiz_trans && !diff_locals));
-			debug_assert(!(ty == spawn_transition && thread_in_u && !thread_in_v && !horiz_trans && !diff_locals));
-			debug_assert(!(ty == spawn_transition && !thread_in_u && thread_in_v && horiz_trans && !diff_locals));
-			debug_assert(!(ty == spawn_transition && thread_in_u && !thread_in_v && horiz_trans && !diff_locals));
+			invariant(!(ty == spawn_transition && !thread_in_u && thread_in_v && !horiz_trans && !diff_locals));
+			invariant(!(ty == spawn_transition && thread_in_u && !thread_in_v && !horiz_trans && !diff_locals));
+			invariant(!(ty == spawn_transition && !thread_in_u && thread_in_v && horiz_trans && !diff_locals));
+			invariant(!(ty == spawn_transition && thread_in_u && !thread_in_v && horiz_trans && !diff_locals));
 
 			if((horiz_trans && !thread_in_v) || (thread_in_u && diff_locals && ty == transfer_transition) || (horiz_trans && !diff_locals && thread_in_u)) //last condition encodes self-loops
 			{
@@ -467,7 +484,7 @@ unsigned local_detach(bstate_t& expl_src, const set<bstate_t>& S, vec_antichain_
 
 	foreach(const bstate_t& s, S)
 	{
-		//debug_assert(expl_src != s->nb->src); //local subtree consolidation not supported
+		//invariant(expl_src != s->nb->src); //local subtree consolidation not supported
 		
 		if(expl_src == s->nb->src)
 			pruned_ctr += prune(s,M,N,O,W,C,D,t,W_deferred);
@@ -509,7 +526,7 @@ set<bstate_t> sources(bstate_t s, vec_antichain_t& D)
 	while(!W.empty()){
 		bstate_t w = W.top(); W.pop();
 
-		debug_assert(iff(w == w->nb->src, w->nb->ini));
+		invariant(iff(w == w->nb->src, w->nb->ini));
 
 		if(w == w->nb->src) 
 			ret.insert(w);
@@ -679,7 +696,7 @@ bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antic
 					if(b->nb->src == b)
 					{
 						bw_log << *b << " is source => reallocate upperset" << "\n";
-						debug_assert(b->us == nullptr);
+						invariant(b->us == nullptr);
 						const_cast<BState*>(b)->us = new BState::vec_upperset_t, b->us->insert(b);
 					}
 				}
@@ -697,16 +714,20 @@ bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antic
 
 }
 
-#define mark_as_new(b) (assert((b)->bl==nullptr), const_cast<BState*>(b)->bl = (BState::blocking_t*)-1)
+#define mark_as_new(b) (invariant((b)->bl==nullptr), const_cast<BState*>(b)->bl = (BState::blocking_t*)-1)
 #define is_new(b) ((b)->bl == (BState::blocking_t*)-1)
-#define unmark_new(b) (assert((b)->bl==(BState::blocking_t*)-1), const_cast<BState*>(b)->bl = nullptr)
+#define unmark_new(b) (invariant((b)->bl==(BState::blocking_t*)-1), const_cast<BState*>(b)->bl = nullptr)
 
-#define mark_lrel(b,rel) (assert((b)->fl==0), const_cast<BState*>(b)->fl = ((intptr_t)rel+1))
+#define mark_lrel(b,rel) (invariant((b)->fl==0), const_cast<BState*>(b)->fl = ((intptr_t)rel+1))
 #define get_lre(b) ((po_rel_t)((intptr_t)((b)->fl)-1))
-#define unmark_lrel(b) (assert(get_lre(b) == neq_le || get_lre(b) == neq_nge_nle), const_cast<BState*>(b)->fl = 0)
+#define unmark_lrel(b) (invariant(get_lre(b) == neq_le || get_lre(b) == neq_nge_nle), const_cast<BState*>(b)->fl = 0)
 
 void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t& M, non_minimals_t& N, pending_t& W, Net& net)
 {
+
+	ptime start;
+	
+	start = microsec_clock::local_time();
 
 	auto 
 		i = pres.begin(), 
@@ -715,6 +736,7 @@ void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t&
 	//compute set with minimal predecessor
 	BState::vec_upperset_t min_predecs;
 	for( ;i != e; ++i) min_predecs.insert(*i);
+	compute_minimal_predecessors_duration += microsec_clock::local_time() - start;
 
 	//remove all locally non-minimal predecessor
 	i = pres.begin(), e = pres.end();
@@ -802,7 +824,7 @@ bool check_global_minimal_and_wake_up(list<bstate_t>& pres, vec_antichain_t& M, 
 		bstate_t pre = *i;
 		bw_log << "checking predecessor " << *pre << " (phase 1)" << "\n";
 
-		po_rel_t global_rel = M.relation(pre);
+		time_and_exe(po_rel_t global_rel = M.relation(pre), gminimal_duration);
 		if(global_rel == neq_nge_nle || global_rel == neq_le)
 		{
 			bw_log << *pre << " is a global minimal predecessor" << "\n";
@@ -818,6 +840,13 @@ bool check_global_minimal_and_wake_up(list<bstate_t>& pres, vec_antichain_t& M, 
 					{
 						bw_log << "target dependant wake up: " << *other << "\n";
 						other->nb->sleeping = false, W.push(keyprio_pair(other));
+
+//#define UNSOUND
+#ifdef UNSOUND
+						bw_log << "UNSOUND: potentially unsound due to blocked target dependant wake up" << "\n";
+						break;
+#endif
+
 					}
 					else
 					{
@@ -916,6 +945,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 	ctr_locally_pruned = 0;
 
+	ptime bwstart, prunestart;
+
 	work_pq				W(worder); //working set with priority "greater", "less" or "random"
 	W_deferred_t		W_deferred; //state that must be readded to W up on pruning
 
@@ -981,7 +1012,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				t = const_cast<bstate_nc_t>(*M.case_insert(net.target).exist_els.begin());
 				delete net.target, net.target = t;
 			}
-
+			
 			if(M.relation(t) == neq_ge)
 			{
 				BState::upperset_t::insert_t ins = M.case_insert(t); //get smaller elements
@@ -1011,6 +1042,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		}
 		bw_log << "Initializing backward data structures... done" << "\n";
 		bw_log.flush();
+		bwstart = microsec_clock::local_time();
 
 		if(fw_blocks_bw && fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL)
 		{
@@ -1026,11 +1058,14 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		while((print_cover || !shared_fw_done) && execution_state == RUNNING)
 		{
 
-			debug_assert_foreach(bstate_t b, W_deferred, !W.contains(keyprio_pair(b)));
+			invariant_foreach(bstate_t b, W_deferred, !W.contains(keyprio_pair(b)));
 
 			std::list<std::pair<shared_t, cmb_node_p> >* m;
+			bool first = true;
 			while((print_cover || !shared_fw_done) && !shared_cmb_deque.lst->empty())
 			{
+				if(first) first=false, prunestart = microsec_clock::local_time();
+
 				++fpcycles;
 				m = new std::list<std::pair<shared_t, cmb_node_p> >;
 				shared_cmb_deque.mtx.lock(), swap(shared_cmb_deque.lst,m), shared_cmb_deque.mtx.unlock();
@@ -1047,13 +1082,15 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 						if(b->nb->src == b)
 						{
 							bw_log << *b << " is source => reallocate upperset" << "\n";
-							debug_assert(b->us == nullptr);
+							invariant(b->us == nullptr);
 							const_cast<BState*>(b)->us = new BState::vec_upperset_t, b->us->insert(b);
 						}
 					}
 					W_deferred.clear();
-				}
+				}			
 			}
+			if(!first) pruning_duration += microsec_clock::local_time() - prunestart;
+
 
 			if(W.empty() || (!print_cover && shared_fw_done) || !bw_safe) break;
 
@@ -1074,18 +1111,26 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			swap(msz_tmp,msz);
 
 #elif 1
-			//if(++update_counter == 30)
+			if(++update_counter == 30)
 			{
+
+				prunestart = microsec_clock::local_time();
+
+				update_counter = 0;
+
 				//TODO: size() dauert ewig für viele shared states
-				osz = O.size(), nsz = N.size(), msz = M.size(), dsz = D.size(), wsz = W.size();
-				osz_max = max(osz,osz_max), nsz_max = max(nsz,nsz_max), msz_max = max(msz,msz_max), dsz_max = max(dsz,dsz_max), wsz_max = max(wsz,wsz_max);
-				gsz = M.graph_size();
-				wdsz = W_deferred.size();
+				nsz = N.size(), nsz_max = max(nsz,nsz_max), 
+					wsz = W.size(), wsz_max = max(wsz,wsz_max), 
+					wdsz = W_deferred.size();
+
+				//TODO: This takes quite long
+				osz = O.size(), osz_max = max(osz,osz_max), 
+					msz = M.size(), msz_max = max(msz,msz_max),
+					dsz = D.size(), dsz_max = max(dsz,dsz_max),
+					gsz = M.graph_size();
+
+				livestats_duration += microsec_clock::local_time() - prunestart;
 			}
-			//else
-			//{
-				//update_counter = 0;
-			//}
 #endif
 
 			if(witeration >= work_seq.size())
@@ -1095,14 +1140,14 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				if(writetrace)
 				{
 					ofstream nw((n->filename + ".trace").c_str(),ios_base::app);
-					debug_assert(nw.good());
+					invariant(nw.good());
 					nw << *w << "\n", nw.close();
 				}
 			}
 			else
 			{
 				non_minimals_t::const_iterator exist = M.M_cref(work_seq[witeration].shared).find(&work_seq[witeration]);
-				debug_assert(exist != M.M_cref(work_seq[witeration].shared).end() && W.contains(keyprio_pair(*exist)));
+				invariant(exist != M.M_cref(work_seq[witeration].shared).end() && W.contains(keyprio_pair(*exist)));
 				w = *exist, w->nb->status = BState::processed, W.erase(keyprio_pair(*exist));
 			}
 
@@ -1117,24 +1162,29 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 #ifndef EAGER_ALLOC
 			if(src->us == nullptr)
-				const_cast<BState*>(src)->us = new BState::vec_upperset_t, src->us->insert(src); //every source state has an associated upperset (called "local") that initially only contains this state
+			{
+				{time_and_exe(const_cast<BState*>(src)->us = new BState::vec_upperset_t,first_alloc_duration);}
+				{time_and_exe(src->us->insert(src),first_insert_duration);} //every source state has an associated upperset (called "local") that initially only contains this state
+			}
 #endif
 
-			list<bstate_t> pres; { Breached_p_t uniquepres = Pre(*w, *n); pres.insert(pres.begin(),uniquepres.begin(),uniquepres.end()); }
+			list<bstate_t> pres; { time_and_exe(Breached_p_t uniquepres = Pre(*w, *n),pre_duration); pres.insert(pres.begin(),uniquepres.begin(),uniquepres.end()); }
 
 			auto 
 				i = pres.begin(), 
 				e = pres.end();
 
 			//handle lowerset intersections
-			//bool state_pruned = check_for_lowerset_interections();
-			if(check_for_lowerset_interections(w,pres,M,N,O,W,C,D,t,piteration,ctr_prune_dequeues,ctr_known_dequeues,W_deferred,n))
+			bool b; {time_and_exe(b = check_for_lowerset_interections(w,pres,M,N,O,W,C,D,t,piteration,ctr_prune_dequeues,ctr_known_dequeues,W_deferred,n),check_for_lowerset_interections_duration);}
+			if(b)
 				continue;
 			
-			clean_replace_and_mark(src, pres, M, N, W, net);
-			if(defer && !check_global_minimal_and_wake_up(pres, M, W, net)) //check whether there exists a predecessor that is globally minimal; also wake up source nodes covered by any predecessor
+			{time_and_exe(clean_replace_and_mark(src, pres, M, N, W, net),clean_replace_and_mark_duration);}
+			bool bb; 
+			{time_and_exe(bb = !check_global_minimal_and_wake_up(pres, M, W, net),check_global_minimal_and_wake_up_duration);}
+			if(defer && bb) //check whether there exists a predecessor that is globally minimal; also wake up source nodes covered by any predecessor
 			{
-				defer_state(w, pres, W_deferred);
+				time_and_exe(defer_state(w, pres, W_deferred),defer_state_duration);
 				invariant(pres.empty());
 				bw_log << "state not processed; will be readded during the next pruning step" << "\n";
 			}
@@ -1204,7 +1254,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 							pre->nb->src = w->nb->src; //the source of the new predecessor is the source of the work element
 							pre->nb->depth = 1 + w->nb->depth;
 
-							global_insert = M.case_insert(pre);
+							time_and_exe(global_insert = M.case_insert(pre), global_insert_duration);
 							invariant(global_insert.case_type != eq);
 
 							switch(global_insert.case_type){
@@ -1288,7 +1338,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		foreach(bstate_t b, N)
 			delete b;
 
-		debug_assert(intersection_free(D,M));
+		invariant(intersection_free(D,M));
 
 		bw_log.flush();
 
@@ -1305,7 +1355,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 	shared_bw_done = true;
 	
 	fwbw_mutex.lock(), (shared_fw_done) || (shared_bw_finised_first = 1), fwbw_mutex.unlock();
-	debug_assert(implies(shared_bw_finised_first && bw_safe,W.empty()));
+	invariant(implies(shared_bw_finised_first && bw_safe,W.empty()));
 
 	if(shared_bw_finised_first) 
 		finish_time = boost::posix_time::microsec_clock::local_time(), bw_log << "bw first" << "\n", bw_log.flush();
@@ -1365,7 +1415,25 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_stats << "msz_max                         : " << msz_max << "\n";
 		bw_stats << "dsz_max                         : " << dsz_max << "\n";
 		bw_stats << "wsz_max                         : " << wsz_max << "\n";
+#ifdef TIMING
 		bw_stats << "---------------------------------" << "\n";
+		bw_stats << "bw duration after initialization: " << to_simple_string(microsec_clock::local_time() - bwstart) << "\n";
+		bw_stats << "pre duration                    : " << to_simple_string(pre_duration) << "\n";
+		bw_stats << "global minimal test duration    : " << to_simple_string(gminimal_duration) << "\n";
+		bw_stats << "clean replace and mark duration : " << to_simple_string(clean_replace_and_mark_duration) << "\n";
+		bw_stats << " - compute minimal predecessors : " << to_simple_string(compute_minimal_predecessors_duration) << "\n";
+		bw_stats << "pruning duration                : " << to_simple_string(pruning_duration) << "\n";
+		bw_stats << "livestats duration              : " << to_simple_string(livestats_duration) << "\n";
+		bw_stats << "first alloc duration            : " << to_simple_string(first_alloc_duration) << "\n";
+		bw_stats << "first insert duration           : " << to_simple_string(first_insert_duration) << "\n";
+		bw_stats << "lower intersection duration     : " << to_simple_string(check_for_lowerset_interections_duration) << "\n";
+		bw_stats << "check g-minimal/wake up duration: " << to_simple_string(check_global_minimal_and_wake_up_duration) << "\n";
+		bw_stats << "defer state duration            : " << to_simple_string(defer_state_duration) << "\n";
+		bw_stats << "global insert duration          : " << to_simple_string(global_insert_duration) << "\n";
+		
+#endif
+		bw_stats << "---------------------------------" << "\n";
+
 		bw_stats.flush();
 	}
 

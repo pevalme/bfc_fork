@@ -146,7 +146,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				const Thread_State& v = *tsb;
 				const bool bounded_in_u = g->bounded_locals.find(u.local) != g->bounded_locals.end();
 				const bool unbounded_in_u = g->unbounded_locals.find(u.local) != g->unbounded_locals.end(); 
-				debug_assert(!bounded_in_u || !unbounded_in_u);
+				invariant(!bounded_in_u || !unbounded_in_u);
 				const bool bounded_in_v = g->bounded_locals.find(v.local) != g->bounded_locals.end();
 				const bool unbounded_in_v = g->unbounded_locals.find(v.local) != g->unbounded_locals.end();
 				const bool thread_in_u = bounded_in_u || unbounded_in_u;
@@ -200,7 +200,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 						}
 					}
 				}
-				debug_assert(succ->consistent());
+				invariant(succ->consistent());
 				
 				unsigned c = 0;
 				if(n.core_shared(succ->shared))
@@ -469,7 +469,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	
 		fwbw_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), fwbw_mutex.unlock();
 	
-		debug_assert(implies(shared_fw_finised_first,!fw_safe || W.empty()));
+		invariant(implies(shared_fw_finised_first,!fw_safe || W.empty()));
 	}
 	
 	if(shared_fw_finised_first) 

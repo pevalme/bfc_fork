@@ -136,7 +136,7 @@ inline bool leq(bit_T bfirst1, bit_T blast1, bit_T bfirst2, bit_T blast2, uit_T 
 	}
 
 	//note: via random testing these cases where found to be the only feasible ones
-	debug_assert
+	invariant
 		((bfirst1 == blast1 && bfirst2 == blast2 && ufirst1 == ulast1 && ufirst2 == ulast2)
 		|| (bfirst1 == blast1 && bfirst2 == blast2 && ufirst1 == ulast1 && ufirst2 != ulast2) 
 		|| (bfirst1 == blast1 && bfirst2 != blast2 && ufirst1 == ulast1 && ufirst2 == ulast2)

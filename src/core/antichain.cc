@@ -40,8 +40,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "antichain.h"
 
+#include "net.h"
 #include "vstate.h"
 #include "bstate.h"
+
+
 #include <stack>
 
 using namespace std;
@@ -455,10 +458,22 @@ antichain_t::s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
 
 }
 
-vec_antichain_t::vec_antichain_t(bool ownership): uv(0) 
-{ //performance: consider only core states; creating antichain_t objects takes a large part of the overall runtime
+#include "net.h"
+extern Net net;
+
+vec_antichain_t::vec_antichain_t(bool ownership)//: uv(0)
+{
 	for(unsigned i = 0; i < BState::S; ++i)
-		uv.push_back(move(antichain_t(ownership)));
+		if(net.core_shared(i))
+			//uv.insert(move(antichain_t(ownership)));
+			uv[i] = move(antichain_t(ownership));
+
+	//auto garabge = antichain_t(ownership);
+	//for(unsigned i = 0; i < BState::S; ++i)
+	//	if(net.core_shared(i))
+	//		uv.push_back(move(antichain_t(ownership)));
+	//	else
+	//		uv.push_back(move(garabge));
 }
 
 vec_antichain_t::~vec_antichain_t()
@@ -468,8 +483,10 @@ vec_antichain_t::~vec_antichain_t()
 size_t vec_antichain_t::size() const
 {
 	size_t sz = 0;
-	foreach(const antichain_t& s, uv)
-		sz += s.M_cref().size();
+	//foreach(const antichain_t& s, uv)
+	//	sz += s.M_cref().size();
+	foreachit(t, uv)
+		sz += t->second.M_cref().size();
 
 	return sz;
 }
@@ -477,8 +494,10 @@ size_t vec_antichain_t::size() const
 size_t vec_antichain_t::graph_size() const
 {
 	size_t sz = 0;
-	foreach(const antichain_t& s, uv)
-		sz += s.G.nodes.size();
+	//foreach(const antichain_t& s, uv)
+	//	sz += s.G.nodes.size();
+	foreachit(t, uv)
+		sz += t->second.G.nodes.size();
 
 	return sz;
 }
@@ -529,7 +548,9 @@ bool vec_antichain_t::manages(BState const * s)
 
 const Breached_p_t& vec_antichain_t::M_cref(shared_t shared) const
 {
-	return uv[shared].M_cref(); 
+	invariant(uv.find(shared) != uv.end());
+	//return uv[shared].M_cref(); 
+	return uv.find(shared)->second.M_cref();
 }
 
 po_rel_t vec_antichain_t::relation(BState const * s)

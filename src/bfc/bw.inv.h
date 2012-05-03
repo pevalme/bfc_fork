@@ -11,11 +11,15 @@ bool intersection_free(const vec_antichain_t& D, const vec_antichain_t& M)
 #endif
 
 	set<bstate_t> BBs1;
-	for(shared_t s = 0; s < BState::S; ++s)
-		foreach(bstate_t b,M.uv[s].M) BBs1.insert(b);
+	foreachit(u,M.uv)
+		foreach(bstate_t b,u->second.M) BBs1.insert(b);
+	//for(shared_t s = 0; s < BState::S; ++s)
+	//	foreach(bstate_t b,M.uv[s].M) BBs1.insert(b);
 
-	for(shared_t s = 0; s < BState::S; ++s)
-		foreach(bstate_t b,D.uv[s].M){
+	foreachit(u,M.uv)
+		foreach(bstate_t b,u->second.M){
+	//for(shared_t s = 0; s < BState::S; ++s)
+	//	foreach(bstate_t b,D.uv[s].M){
 			if(BBs1.find(b) != BBs1.end())
 				return false;}
 
@@ -42,8 +46,10 @@ bool source_U_minimality(vec_antichain_t& M, non_minimals_t& N)
 	return true;
 #endif
 
-	foreach(const antichain_t& se, M.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, M.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t,M.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 			if(n->nb->src == n){
 				stack<bstate_t> S; S.push(n);
 				while(!S.empty()){
@@ -76,8 +82,10 @@ bool U_consistent(vec_antichain_t& M)
 	return true;
 #endif
 
-	foreach(const antichain_t& se, M.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, M.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t, M.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 			if(n->nb->status != BState::pending && n->nb->status != BState::processed)
 				return false;
 			if(n->nb->status == BState::pending && !n->nb->suc.empty())
@@ -108,8 +116,10 @@ bool U_consistent(vec_antichain_t& M)
 #else
 			if(n->nb->src == n && n->nb->src->us != nullptr){ //source
 #endif
-				foreach(const antichain_t& s, n->nb->src->us->uv){
-					foreach(const bstate_t& q, s.M_cref()){
+				//foreach(const antichain_t& s, n->nb->src->us->uv){
+				//	foreach(const bstate_t& q, s.M_cref()){
+				foreachit(t, n->nb->src->us->uv){
+					foreach(const bstate_t& q, t->second.M_cref()){
 						if(!q->consistent(BState::full_check))
 							return false;
 					}
@@ -127,15 +137,19 @@ bool small_U_consistent(vec_antichain_t& M)
 	return true;
 #endif
 
-	foreach(const antichain_t& se, M.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, M.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t, M.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 #ifdef EAGER_ALLOC
 			if(n->nb->src == n){ //source
 #else
 			if(n->nb->src == n && n->nb->src->us != nullptr){ //source
 #endif
-				foreach(const antichain_t& s, n->nb->src->us->uv){
-					foreach(const bstate_t& q, s.M_cref()){
+				//foreach(const antichain_t& s, n->nb->src->us->uv){
+				//	foreach(const bstate_t& q, s.M_cref()){
+				foreachit(t, n->nb->src->us->uv){
+					foreach(const bstate_t& q, t->second.M_cref()){
 						if(!q->consistent(BState::full_check))
 							return false;
 					}
@@ -152,15 +166,19 @@ bool not_local_U_referenced(bstate_t p, vec_antichain_t& M){
 	return true;
 #endif
 
-	foreach(const antichain_t& se, M.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, M.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t, M.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 #ifdef EAGER_ALLOC
 			if(n->nb->src == n || n->nb->ini){ //source
 #else
 			if(n->nb->src->us != nullptr && (n->nb->src == n || n->nb->ini)){ //source
 #endif
-				foreach(const antichain_t& s, n->nb->src->us->uv){
-					if(s.manages(p))
+				//foreach(const antichain_t& s, n->nb->src->us->uv){
+				//	if(s.manages(p))
+				foreachit(t, n->nb->src->us->uv){
+					if(t->second.manages(p))
 						return false;
 				}
 			}
@@ -176,15 +194,19 @@ bool no_unconnected_local_U_references(vec_antichain_t& M)
 	return true;
 #endif
 
-	foreach(const antichain_t& se, M.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, M.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t, M.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 #ifdef EAGER_ALLOC
 			if(n->nb->src == n || n->nb->ini){ //source
 #else
 			if((n->nb->src == n || n->nb->ini) && n->us != nullptr){ //source
 #endif
-				foreach(const antichain_t& s, n->us->uv){
-					foreach(bstate_t pp, s.M_cref()){
+				//foreach(const antichain_t& s, n->us->uv){
+				//	foreach(bstate_t pp, s.M_cref()){
+				foreachit(t, n->us->uv){
+					foreach(bstate_t pp, t->second.M_cref()){
 						if(pp->nb->ini)
 							continue;
 
@@ -250,15 +272,19 @@ bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_
 	if(!source_U_minimality(M, N))
 		return false;
 
-	foreach(const antichain_t& se, O.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, O.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t, O.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 			if(M.manages(n))
 				return false;
 		}
 	}
 
-	foreach(const antichain_t& se, M.uv){
-		foreach(const bstate_t& n, se.M_cref()){
+	//foreach(const antichain_t& se, M.uv){
+	//	foreach(const bstate_t& n, se.M_cref()){
+	foreachit(t, M.uv){
+		foreach(const bstate_t& n, t->second.M_cref()){
 			if(O.manages(n))
 				return false;
 			if(!n->consistent(BState::full_check)) 
@@ -284,8 +310,10 @@ bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_
 #else
 			if(n->nb->src->us != nullptr && n->nb->src == n){ //source
 #endif
-				foreach(const antichain_t& s, n->nb->src->us->uv){
-					foreach(const bstate_t& q, s.M_cref()){
+				//foreach(const antichain_t& s, n->nb->src->us->uv){
+				//	foreach(const bstate_t& q, s.M_cref()){
+				foreachit(t, n->nb->src->us->uv){
+					foreach(const bstate_t& q, t->second.M_cref()){
 						if(!q->consistent(BState::full_check))
 							return false;
 					}

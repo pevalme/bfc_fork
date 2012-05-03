@@ -9,6 +9,7 @@
 
 #include <boost/foreach.hpp>
 #define foreach(a,b) BOOST_FOREACH(a,b)
+#define foreachit(walker,cont) for(auto walker=cont.begin(),e=cont.end();walker!=e;++walker)
 
 typedef const          short  cshort;
 typedef const          int    cint;

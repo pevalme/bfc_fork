@@ -50,7 +50,7 @@ void FullExpressionAccumulator::weak_flush(){
 }
 
 void FullExpressionAccumulator::flush(){
-	int size;
+	std::streamoff size;
 	if(os.rdbuf()) {
 		ss.seekg(0, ios::end), size = ss.tellg(), ss.seekg(0, ios::beg);
 		if(size){

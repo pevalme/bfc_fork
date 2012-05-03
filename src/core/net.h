@@ -406,7 +406,12 @@ struct Net{
 		else
 		{
 			auto f = from_shared_counter.find(s), t = to_shared_counter.find(s);
-			ret = !(f != from_shared_counter.end() && t != to_shared_counter.end() && f->second == 1 && t->second == 1);
+
+			ret = !(
+				f == from_shared_counter.end() && t == to_shared_counter.end() //no incoming or outgoing edges
+				||
+				f != from_shared_counter.end() && t != to_shared_counter.end() && f->second == 1 && t->second == 1 //exactly one incoming and one outgoing edge
+			);
 		}
 		
 		core_shared_cache[s] = ret;
@@ -454,6 +459,7 @@ struct Net{
 		unsigned max_indegree;
 		unsigned max_outdegree;
 		unsigned max_degree;
+		unsigned core_shared_states;
 	};
 	
 	net_stats_t get_net_stats() const
@@ -504,6 +510,10 @@ struct Net{
 		ret.SCC_num = strong_components(g, &component[0], root_map(&root[0]).color_map(&color[0]).discover_time_map(&discover_time[0]));
 #endif
 
+		ret.core_shared_states = 0; 
+		for(unsigned  i = 0; i < BState::S; ++i) 
+			if(net.core_shared(i)) ++(ret.core_shared_states);
+		
 		return ret;
 	}
 

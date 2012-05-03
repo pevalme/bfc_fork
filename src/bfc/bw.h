@@ -99,16 +99,6 @@ Breached_p_t Pre(const BState& s, Net& n)
 		
 		const BState* cur = work.top(); work.pop();
 
-		//bool porable = false;
-		//foreach(local_t l,cur->bounded_locals)
-		//{
-		//	if(!n.core_local(l))
-		//	{
-		//		porable = true;
-		//		break;
-		//	}
-		//}
-
 		if(cur != &s && n.core_shared(cur->shared)/* && !porable*/)
 		{
 			if(!pres.insert(cur).second)
@@ -122,7 +112,6 @@ Breached_p_t Pre(const BState& s, Net& n)
 		auto predecs_it = n.adjacency_list_tos2.find(cur->shared);
 		if(predecs_it == n.adjacency_list_tos2.end()) 
 		{
-			//preinf << "Ignore: No incoming transition" << "\n";
 			if(cur != &s) 
 				delete cur;
 			
@@ -134,19 +123,13 @@ Breached_p_t Pre(const BState& s, Net& n)
 
 			const Thread_State& u = t->source;
 			const Thread_State& v = t->target; 
-			assert(cur->shared == v.shared);
-
-			//debug_assert(implies(cur != &s && n.core_shared(cur->shared),porable));
-			//if(cur != &s && n.core_shared(cur->shared) && n.core_local(v.local))
-			//	continue; //only execute por-related transitions
+			invariant(cur->shared == v.shared);
 
 			const bool thread_in_u = (cur->bounded_locals.find(u.local) != cur->bounded_locals.end());
 			const bool thread_in_v = (cur->bounded_locals.find(v.local) != cur->bounded_locals.end());
 			const bool horiz_trans = (u.shared == v.shared);
 			const bool diff_locals = (u.local != v.local);
 			const trans_type&	ty = t->type;
-
-			//preinf << *t << "\n";
 
 			debug_assert(!(ty == spawn_transition && !thread_in_u && thread_in_v && !horiz_trans && !diff_locals));
 			debug_assert(!(ty == spawn_transition && thread_in_u && !thread_in_v && !horiz_trans && !diff_locals));
@@ -1090,9 +1073,10 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			swap(nsz_tmp,nsz);
 			swap(msz_tmp,msz);
 
-#else
+#elif 1
 			//if(++update_counter == 30)
 			{
+				//TODO: size() dauert ewig für viele shared states
 				osz = O.size(), nsz = N.size(), msz = M.size(), dsz = D.size(), wsz = W.size();
 				osz_max = max(osz,osz_max), nsz_max = max(nsz,nsz_max), msz_max = max(msz,msz_max), dsz_max = max(dsz,dsz_max), wsz_max = max(wsz,wsz_max);
 				gsz = M.graph_size();

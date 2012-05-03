@@ -41,6 +41,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef TRANS_H
 #define TRANS_H
 
+#include "tstate.h"
+
 enum trans_type
 {
 	thread_transition, 
@@ -63,35 +65,14 @@ struct Transition
 	trans_type		type;
 	int				id;
 	trans_dir_t		dir;
-	Transition(const Thread_State& s = Thread_State(0,0), const Thread_State& t = Thread_State(0,0), const trans_type& ty = dummy, int i = -1, trans_dir_t d = unset)
-		: source(s), target(t), type(ty), id(i), dir(d) { }
+	Transition(const Thread_State& s = Thread_State(0,0), const Thread_State& t = Thread_State(0,0), const trans_type& ty = dummy, int i = -1, trans_dir_t d = unset);
+
+	bool operator < (const Transition&) const;
+	bool operator ==(const Transition&) const;
+
+	std::ostream& extended_print(std::ostream&) const;
 };
 
-bool operator < (const Transition& t1, const Transition& t2) 
-{
-	if(t1.source < t2.source) return 1;
-	if(t2.source < t1.source) return 0;
-	if(t1.target < t2.target) return 1;
-	if(t2.target < t1.target) return 0;
-	return t1.type < t2.type;
-}
-
-bool operator ==(const Transition& t1, const Transition& t2) 
-{
-	return t1.source == t2.source && t1.target == t2.target && t1.type == t2.type;
-}
-
-inline ostream& operator << (ostream& out, const Transition& t) 
-{ 
-	if(!out.rdbuf()) return out;
-	out << "(" << t.source << ")" << (t.type==thread_transition?"->":"~>") << "(" << t.target << ")";
-	return out;
-}
-
-inline ostream& extended_print(ostream& out, const Transition& t) 
-{ 
-	out << "[" << t.id << "]: " << "(" << t.source << ")" << (t.type==thread_transition?"->":"~>") << "(" << t.target << ")";
-	return out;
-}
+std::ostream& operator << (std::ostream&, const Transition& t);
 
 #endif

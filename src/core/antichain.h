@@ -133,7 +133,8 @@ struct vec_antichain_t
 	typedef antichain_t set_t;
 
 	/* ---- Members ---- */	
-	std::vector<set_t> uv;
+	//std::vector<set_t> uv;
+	std::map<shared_t,set_t> uv;
 
 	/* ---- Constructors ---- */
 	vec_antichain_t(bool = false);

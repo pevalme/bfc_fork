@@ -1,5 +1,5 @@
 /******************************************************************************
-  Synopsis		[Thread state object.]
+  Synopsis		[Transition objects.]
 
   Author		[Alexander Kaiser]
 
@@ -37,26 +37,40 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
+#include "trans.h"
 
-#ifndef THREADSTATE_H
-#define THREADSTATE_H
-
-#include "types.h"
 #include <iostream>
 
-class Thread_State {
-public:
-	unsigned shared;
-	unsigned local;
-	Thread_State(unsigned s = -1, unsigned l = -1);
-	
-	unsigned unique_id(shared_t, local_t) const;
+using namespace std;
 
-	bool operator == (const Thread_State&) const;
-	bool operator != (const Thread_State&) const;
-	bool operator <  (const Thread_State&) const;
-};
+Transition::Transition(const Thread_State& s, const Thread_State& t, const trans_type& ty, int i, trans_dir_t d)
+	: source(s), target(t), type(ty), id(i), dir(d)
+{
+}
 
-std::ostream& operator << (std::ostream&, const Thread_State&);
+bool Transition::operator < (const Transition& t2) const
+{
+	if(this->source < t2.source) return 1;
+	if(t2.source < this->source) return 0;
+	if(this->target < t2.target) return 1;
+	if(t2.target < this->target) return 0;
+	return this->type < t2.type;
+}
 
-#endif
+bool Transition::operator ==(const Transition& t2) const
+{
+	return this->source == t2.source && this->target == t2.target && this->type == t2.type;
+}
+
+ostream& operator << (ostream& out, const Transition& r)
+{ 
+	if(!out.rdbuf()) return out;
+	out << "(" << r.source << ")" << (r.type==thread_transition?"->":"~>") << "(" << r.target << ")";
+	return out;
+}
+
+ostream& Transition::extended_print(ostream& out) const
+{ 
+	out << "[" << this->id << "]: " << "(" << this->source << ")" << (this->type==thread_transition?"->":"~>") << "(" << this->target << ")";
+	return out;
+}

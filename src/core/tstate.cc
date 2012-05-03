@@ -37,26 +37,46 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
-
-#ifndef THREADSTATE_H
-#define THREADSTATE_H
+#include "tstate.h"
 
 #include "types.h"
+#include "user_assert.h"
+
 #include <iostream>
+using namespace std;
 
-class Thread_State {
-public:
-	unsigned shared;
-	unsigned local;
-	Thread_State(unsigned s = -1, unsigned l = -1);
+Thread_State::Thread_State(unsigned s, unsigned l): shared(s), local(l)
+{
+}
+
+unsigned Thread_State::unique_id(shared_t S, local_t L) const
+{
+	return (shared * L) + local;
+}
+
+bool Thread_State::operator == (const Thread_State& r) const
+{
+	return (this->shared == r.shared) && (this->local == r.local);
+}
+
+bool Thread_State::operator != (const Thread_State& r) const
+{ 
+	return !(*this==r); 
+}
+
+bool Thread_State::operator < (const Thread_State& r) const
+{
+	if(this->shared != r.shared)
+		return (this->shared < r.shared);
 	
-	unsigned unique_id(shared_t, local_t) const;
+	invariant(this->shared == r.shared);
+	
+	return (this->local < r.local);
+}
 
-	bool operator == (const Thread_State&) const;
-	bool operator != (const Thread_State&) const;
-	bool operator <  (const Thread_State&) const;
-};
-
-std::ostream& operator << (std::ostream&, const Thread_State&);
-
-#endif
+std::ostream& operator << (std::ostream& out, const Thread_State& t)
+{
+	if(!out.rdbuf()) return out;
+	out << t.shared << " " << t.local;
+	return out;
+}

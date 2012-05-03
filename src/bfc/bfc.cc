@@ -7,6 +7,10 @@ known bugs:
 	- regression/hor_por_vs_03 failed sometimes (seg. fault)
 	- sometimes hangs at "Forward trace to target covering state found..."
 
+todo:
+	- add time measurement for i) predecessor computation, ii) global minimal check, and iii) locally minimal check; print them in the statistics
+	- if this might improve the performance significantly, implement a look-up hash table for the backward search and small elements (<3 threads) 
+
 */
 
 /******************************************************************************
@@ -638,6 +642,7 @@ int main(int argc, char* argv[])
 		main_log << "maximum degree                  : " << sts.max_degree << "\n";
 		main_log << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << "\n";
 		main_log << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
+		main_log << "total core shared states        : " << sts.core_shared_states << "\n";
 		main_log << "---------------------------------" << "\n";
 		main_log.flush();
 
@@ -678,8 +683,19 @@ int main(int argc, char* argv[])
 #endif
 
 		//BW data structure
-		complement_vec		U(k, BState::S, BState::L); //note: this causes a memory leak
+
+		main_log << "initializing complement data structure..." << "\n";
+		complement_vec		U(k, 0, BState::L); //complement_vec		U(k, BState::S, BState::L);
+		U.S = BState::S;
+		auto x = complement_set(0,0);
+		for(unsigned i = 0; i < BState::S; ++i)
+			if(net.core_shared(i)) U.luv.push_back(move(complement_set(BState::L,k)));
+			else U.luv.push_back(move(x));
+		main_log << "done" << "\n";
+		
+		main_log << "initializing lowerset data structure..." << "\n";
 		lowerset_vec		D(k, BState::S, net.prj_all);
+		main_log << "done" << "\n";
 
 		if(mode != CON)
 		{

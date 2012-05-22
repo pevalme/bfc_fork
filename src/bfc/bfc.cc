@@ -767,7 +767,7 @@ int main(int argc, char* argv[])
 				U.clear();
 			}
 
-			//start and join threads 
+			//start and join threads
 			start_time = microsec_clock::local_time();
 			
 			boost::thread 

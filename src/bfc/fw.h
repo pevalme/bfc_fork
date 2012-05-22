@@ -464,7 +464,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 	fw_log << "fw while exit" << "\n", fw_log.flush();
 
-	if(!fw_state_blocked){
+	if(!fw_safe || !fw_state_blocked){
 		shared_fw_done = true;
 	
 		fwbw_mutex.lock(), (shared_bw_done) || (shared_fw_finised_first = 1), fwbw_mutex.unlock();

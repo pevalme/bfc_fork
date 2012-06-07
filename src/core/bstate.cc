@@ -80,7 +80,7 @@ bool priority_iterator_comparison::operator() (Bpriority_iterator& lhs, Bpriorit
 }
 
 BState::neighborhood_t::neighborhood_t(bstate_t source, neighborhood_t::pre_set_t predecessor, neighborhood_t::suc_set_t successors, status_t m, bool sleeps)
-	: ini(false), src(source), pre(predecessor), suc(successors), status(m), sleeping(sleeps), depth(0)
+	: ini(false), src(source), pre(predecessor), suc(successors), status(m), sleeping(sleeps), depth(0), gdepth(-1)
 {
 }
 
@@ -222,6 +222,18 @@ ostream& BState::operator << (ostream& out) const
 		}
 	}
 
+	//if(this->nb != nullptr)
+	//{
+	//	switch(this->nb->status)
+	//	{
+	//		case BState::pending: out << "pending" << endl; break;
+	//		case BState::blocked_pending: out << "blocked_pending" << endl; break;
+	//		case BState::processed: out << "processed" << endl; break;
+	//		case BState::blocked_processed: out << "blocked_processed" << endl; break;
+	//	}
+	//	out << "depth: " << this->nb->gdepth << endl;
+	//}
+
 	return out;
 }
 
@@ -230,7 +242,7 @@ string BState::id_str() const
 	string ret = 's' + boost::lexical_cast<string>(this->shared);
 	foreach(local_t l, this->bounded_locals)
 		ret += 'l' + boost::lexical_cast<string>(l);
-	ret += "_d" + boost::lexical_cast<string>(nb->depth);
+	ret += "_d" + boost::lexical_cast<string>(nb->gdepth);
 
 	return ret;
 }

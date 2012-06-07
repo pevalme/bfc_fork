@@ -2,12 +2,17 @@
 Compilation instructions for g++
 -----------------------------------------------
 1. Required:
-* g++ >= 4.6.1 only (available, e.g., in Ubuntu 11.10)
-* boost libraries (tested with version 1.46 and 1.47)
+* g++ >= 4.7 only (available in Ubuntu 12.10; older version compile but are too buggy)
+* boost libraries (tested with version 1.46--1.49; 1.49 is available in Ubuntu 12.10)
   * boost_filesystem
   * boost_system
   * boost_thread
   * boost_program_options
+
+sudo apt-get install libboost-dev
+sudo apt-get install libboost-filesystem-dev
+sudo apt-get install libboost-thread-dev
+sudo apt-get install libboost-program-options-dev
 
 2. Create the target directory: 
 mkdir ./bin/bfc/release

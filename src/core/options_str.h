@@ -8,6 +8,7 @@
 #define OPT_STR_HELP				"help,h"
 #define OPT_STR_VERSION				"version,v"
 #define OPT_STR_STATS				"stats"
+#define OPT_STR_UNSOUND				"unsound"
 #define OPT_STR_MON_INTERV			"interv"
 #define OPT_STR_MON_INTERV_DEFVAL	0
 #define OPT_STR_PRINT_KCOVER		"print-cover"

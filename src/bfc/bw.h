@@ -69,7 +69,9 @@ unordered_priority_set<bstate_t>::keyprio_type keyprio_pair(bstate_t s)
 	case order_width: 
 		return make_pair(s,s->size());
 	case order_depth: 
-		return make_pair(s,s->nb->depth);
+		//return make_pair(s,s->nb->depth);
+		//invariant(s->nb->gdepth != -1);
+		return make_pair(s,s->nb->gdepth);
 	default:	
 		return make_pair(s,0);
 	}
@@ -610,8 +612,12 @@ unsigned
 	;
 
 unsigned
-	ctr_bw_maxdepth = 0,
-	ctr_bw_maxwidth = 0,
+	ctr_bw_maxdepth_la = 0, //max nb->depth of all processed nodes
+	ctr_bw_maxdepth_ga = 0, //max nb->gdepth of all processed nodes
+	ctr_bw_maxdepth_lu = 0, //max nb->depth of unpruned nodes
+	ctr_bw_maxdepth_gu = 0, //max nb->gdepth of unprundes nodes
+	ctr_bw_maxwidth_u = 0, //max width of unpruned nodes
+	ctr_bw_maxwidth_a = 0, //max width of all processed nodes
 	ctr_bw_curdepth = 0,
 	ctr_bw_curwidth = 0
 	;
@@ -640,6 +646,7 @@ unsigned
 
 unsigned
 	update_counter = 0, 
+	ctr_bw_gmins_gu = 0,
 	osz = 0, osz_max = 0,
 	nsz = 0, nsz_max = 0,
 	msz = 0, msz_max = 0,
@@ -722,7 +729,7 @@ bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antic
 #define get_lre(b) ((po_rel_t)((intptr_t)((b)->fl)-1))
 #define unmark_lrel(b) (invariant(get_lre(b) == neq_le || get_lre(b) == neq_nge_nle), const_cast<BState*>(b)->fl = 0)
 
-void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t& M, non_minimals_t& N, pending_t& W, Net& net)
+void clean_replace_and_mark(bstate_t src, bstate_t w, list<bstate_t>& pres, vec_antichain_t& M, non_minimals_t& N, pending_t& W, Net& net)
 {
 
 	ptime start;
@@ -736,7 +743,9 @@ void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t&
 	//compute set with minimal predecessor
 	BState::vec_upperset_t min_predecs;
 	for( ;i != e; ++i) min_predecs.insert(*i);
+#ifdef TIMING
 	compute_minimal_predecessors_duration += microsec_clock::local_time() - start;
+#endif
 
 	//remove all locally non-minimal predecessor
 	i = pres.begin(), e = pres.end();
@@ -789,8 +798,10 @@ void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t&
 
 				if(net.check_target && pre->nb->sleeping) //note: *exist == *pre can occur
 				{
+					invariant(pre->nb->gdepth == -1);
+					pre->nb->gdepth = w->nb->gdepth + 1;
 					pre->nb->sleeping = false, W.push(keyprio_pair(pre));
-					bw_log << "target dependant wake up: " << **exist << "\n";
+					bw_log << "target dependant wake up of (predecessor): " << **exist << "\n";
 				}
 				
 				++i;
@@ -798,8 +809,7 @@ void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t&
 		}
 		else
 		{
-			ctr_state_new++;
-			bw_log << "new state => keep" << "\n";
+			ctr_state_new++; //bw_log << "new state => keep" << "\n";
 			mark_as_new(pre);
 
 			++i;
@@ -811,7 +821,7 @@ void clean_replace_and_mark(bstate_t src, list<bstate_t>& pres, vec_antichain_t&
 }
 
 //check whether there exists a predecessor that is globally minimal; also wake up source nodes covered by any predecessor
-bool check_global_minimal_and_wake_up(list<bstate_t>& pres, vec_antichain_t& M, pending_t& W, Net& net)
+bool check_global_minimal_and_wake_up(bstate_t w, list<bstate_t>& pres, vec_antichain_t& M, pending_t& W, Net& net)
 {
 
 	auto 
@@ -828,29 +838,40 @@ bool check_global_minimal_and_wake_up(list<bstate_t>& pres, vec_antichain_t& M, 
 		if(global_rel == neq_nge_nle || global_rel == neq_le)
 		{
 			bw_log << *pre << " is a global minimal predecessor" << "\n";
-			return true; //break;
+			return true; //the skipped wake ups will are performed in the main loop
 		}
 		else
 		{
 			if(global_rel == neq_ge && net.check_target)
 			{
-				foreach(const bstate_t& other, M.LGE(pre,antichain_t::less_equal))
+
+				auto LGE = M.LGE(pre,antichain_t::less_equal);
+
+				bool skip = false;
+				if(unsound_sat)
 				{
-					if(other->nb->sleeping)
+					foreach(const bstate_t& other, LGE)
+						if(!other->nb->sleeping)
+						{
+							skip = true;
+							break;
+						}
+				}
+
+				foreach(const bstate_t& other, LGE)
+				{
+					if(other->nb->sleeping && !skip)
 					{
-						bw_log << "target dependant wake up: " << *other << "\n";
+						bw_log << "target dependant wake up (predecessor strictly covers): " << *other << "\n";
+						invariant(other->nb->gdepth == -1);
+						other->nb->gdepth = w->nb->gdepth + 1; //the wake-up is in terms of w's predecessor (which have w's depth increased by one)
 						other->nb->sleeping = false, W.push(keyprio_pair(other));
 
-//#define UNSOUND
-#ifdef UNSOUND
-						bw_log << "UNSOUND: potentially unsound due to blocked target dependant wake up" << "\n";
-						break;
-#endif
-
-					}
-					else
-					{
-						bw_log << "(no target dependant wake up of : " << *other << ")" << "\n";
+						if(unsound_sat)
+						{
+							bw_log << "UNSOUND: potentially unsound due to blocked wake up" << "\n";
+							skip = true;
+						}
 					}
 				}
 			}
@@ -893,9 +914,8 @@ void defer_state(bstate_t w, list<bstate_t>& pres, W_deferred_t& W_deferred)
 			bw_log << "old state => keep" << "\n";
 		else
 		{
-			bw_log << "new state => delete predecessor " << *pre << "\n"; bw_log << (pre)->bl << "\n";bw_log << (pre)->nb << "\n";bw_log << (pre)->us << "\n";switch((pre)->type){		case BState::top: bw_log << "top" << "\n"; break;case BState::def: bw_log << "def" << "\n"; break;case BState::bot: bw_log << "bot" << "\n"; break;default: bw_log << (pre)->type << "\n"; ;}
+			bw_log << "new state => delete predecessor " << *pre << "\n";
 			unmark_new(pre), delete pre;
-			bw_log << "deleted successfully" << "\n";
 		}
 	}
 	pres.clear();
@@ -920,8 +940,12 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		ctr_globally_minimal = 0, ctr_globally_minimal__neq_le = 0, ctr_globally_minimal__neq_le__exists_max = 0,
 		ctr_globally_minimal__neq_nge_nle = 0;
 
-	ctr_bw_maxdepth = 0,
-		ctr_bw_maxwidth = 0,
+	ctr_bw_maxdepth_la = 0,
+		ctr_bw_maxdepth_ga = 0,
+		ctr_bw_maxdepth_lu = 0,
+		ctr_bw_maxdepth_gu = 0,
+		ctr_bw_maxwidth_u = 0,
+		ctr_bw_maxwidth_a = 0,
 		ctr_bw_curdepth = 0,
 		ctr_bw_curwidth = 0;
 
@@ -937,7 +961,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		fpcycles = 0,
 		bpcycles = 0; //count the number of workset/pruneset elements that were processed
 
-	osz = 0, osz_max = 0, 
+	ctr_bw_gmins_gu = 0, //globally minimal states (global,unpruned), i.e., before the search terminates
+		osz = 0, osz_max = 0, 
 		nsz = 0, nsz_max = 0,
 		msz = 0, msz_max = 0,
 		dsz = 0, dsz_max = 0,
@@ -1012,6 +1037,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				t = const_cast<bstate_nc_t>(*M.case_insert(net.target).exist_els.begin());
 				delete net.target, net.target = t;
 			}
+			invariant(t->nb->gdepth == -1);
+			t->nb->gdepth = 0;
 			
 			if(M.relation(t) == neq_ge)
 			{
@@ -1022,8 +1049,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				foreach(const bstate_t& other, ins.exist_els)
 				{
 					invariant(other->nb->sleeping);
+					other->nb->gdepth = t->nb->gdepth;
 					other->nb->sleeping = false, W.push(keyprio_pair(other));
-					bw_log << "target dependant wake up: " << *other << "\n";
+					bw_log << "target dependant wake up (target state): " << *other << "\n";
 				}
 			}
 			else if(M.relation(t) == neq_nge_nle)
@@ -1089,7 +1117,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 					W_deferred.clear();
 				}			
 			}
+#ifdef TIMING
 			if(!first) pruning_duration += microsec_clock::local_time() - prunestart;
+#endif
 
 
 			if(W.empty() || (!print_cover && shared_fw_done) || !bw_safe) break;
@@ -1129,7 +1159,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 					dsz = D.size(), dsz_max = max(dsz,dsz_max),
 					gsz = M.graph_size();
 
+#ifdef TIMING
 				livestats_duration += microsec_clock::local_time() - prunestart;
+#endif
 			}
 #endif
 
@@ -1151,12 +1183,18 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				w = *exist, w->nb->status = BState::processed, W.erase(keyprio_pair(*exist));
 			}
 
-			if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,witeration,piteration,"_interm");
+			invariant(w->nb->gdepth != -1);
+
+			//if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,witeration,piteration,"_interm");
 
 			bw_log << "processing " << *w << "\n";
 			witeration++; //increase the number of processed workset elements
 
-			ctr_bw_maxdepth = max(ctr_bw_maxdepth, w->nb->depth), ctr_bw_maxwidth = max(ctr_bw_maxwidth, (unsigned)w->size()), ctr_bw_curdepth = w->nb->depth, ctr_bw_curwidth = w->size();
+			ctr_bw_maxdepth_la = max(ctr_bw_maxdepth_la, w->nb->depth), 
+				ctr_bw_maxdepth_ga = max(ctr_bw_maxdepth_ga, w->nb->gdepth), 
+				ctr_bw_maxwidth_a = max(ctr_bw_maxwidth_a, (unsigned)w->size()), 
+				ctr_bw_curdepth = w->nb->gdepth, 
+				ctr_bw_curwidth = w->size();
 
 			bstate_t src = w->nb->src;
 
@@ -1179,11 +1217,18 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			if(b)
 				continue;
 			
-			{time_and_exe(clean_replace_and_mark(src, pres, M, N, W, net),clean_replace_and_mark_duration);}
+			{time_and_exe(clean_replace_and_mark(src, w, pres, M, N, W, net),clean_replace_and_mark_duration);}
 			bool bb; 
-			{time_and_exe(bb = !check_global_minimal_and_wake_up(pres, M, W, net),check_global_minimal_and_wake_up_duration);}
+			{time_and_exe(bb = !check_global_minimal_and_wake_up(w,pres, M, W, net),check_global_minimal_and_wake_up_duration);}
 			if(defer && bb) //check whether there exists a predecessor that is globally minimal; also wake up source nodes covered by any predecessor
 			{
+				/*
+				w is deferrerd
+				<=> w has no globally minimal predecessor
+				<=> all of w's predecessor are = or >= an existing minimal state
+				==> no predecessor of w is in the workset
+				==> we do not need to allocate an antichain data structure for a local search tree (which is expensive)
+				*/
 				time_and_exe(defer_state(w, pres, W_deferred),defer_state_duration);
 				invariant(pres.empty());
 				bw_log << "state not processed; will be readded during the next pruning step" << "\n";
@@ -1253,6 +1298,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 						{
 							pre->nb->src = w->nb->src; //the source of the new predecessor is the source of the work element
 							pre->nb->depth = 1 + w->nb->depth;
+							invariant(pre->nb->gdepth == -1);
+							pre->nb->gdepth = 1 + w->nb->gdepth;
 
 							time_and_exe(global_insert = M.case_insert(pre), global_insert_duration);
 							invariant(global_insert.case_type != eq);
@@ -1270,16 +1317,33 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 								if(net.check_target)
 								{
+
+									bool skip = false;
+									if(unsound_sat)
+									{
+										foreach(const bstate_t& other, global_insert.exist_els)
+											if(!other->nb->sleeping)
+											{
+												skip = true;
+												break;
+											}
+									}
+
 									foreach(const bstate_t& other, global_insert.exist_els)
 									{
-										if(other->nb->sleeping)
+										if(other->nb->sleeping && !skip)
 										{
-											bw_log << "target dependant wake up: " << *other << "\n";
+											invariant(other->nb->gdepth == -1);
+											other->nb->gdepth = w->nb->gdepth + 1;
+											bw_log << "target dependant wake up (predecessor strictly covers-2): " << *other << "\n";
 											other->nb->sleeping = false, W.push(keyprio_pair(other));
-										}
-										else
-										{
-											bw_log << "(no target dependant wake up of : " << *other << ")" << "\n";
+
+											if(unsound_sat)
+											{
+												bw_log << "UNSOUND: potentially unsound due to blocked wake up" << "\n";
+												skip = true;
+											}
+
 										}
 									}
 									bw_log << "existing elements processed" << "\n";
@@ -1333,6 +1397,23 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		}
 
 		if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,witeration,piteration,"_final");
+
+		//compute statistics
+		for(shared_t s = 0; s < BState::S; ++s) foreach(bstate_t m,M.uv[s].M) 
+			if(!m->nb->sleeping && (m->nb->status == BState::blocked_processed || m->nb->status == BState::processed))
+				invariant(m->nb->gdepth != -1),
+				ctr_bw_maxdepth_lu = max(ctr_bw_maxdepth_lu,m->nb->depth),ctr_bw_maxdepth_gu = max(ctr_bw_maxdepth_gu,m->nb->gdepth),ctr_bw_maxwidth_u = max(ctr_bw_maxwidth_u,(unsigned)m->size()),
+				++ctr_bw_gmins_gu;
+
+		foreach(bstate_t m, W_deferred)
+			invariant(m->nb->gdepth != -1),
+			ctr_bw_maxdepth_lu = max(ctr_bw_maxdepth_lu,m->nb->depth),ctr_bw_maxdepth_gu = max(ctr_bw_maxdepth_gu,m->nb->gdepth),ctr_bw_maxwidth_u = max(ctr_bw_maxwidth_u,(unsigned)m->size()),
+			++ctr_bw_gmins_gu;
+
+		foreach(bstate_t m, N) 
+			if(!m->nb->sleeping && (m->nb->status == BState::blocked_processed || m->nb->status == BState::processed))
+				invariant(m->nb->gdepth != -1),
+				ctr_bw_maxdepth_lu = max(ctr_bw_maxdepth_lu,m->nb->depth),ctr_bw_maxdepth_gu = max(ctr_bw_maxdepth_gu,m->nb->gdepth),ctr_bw_maxwidth_u = max(ctr_bw_maxwidth_u,(unsigned)m->size());
 
 		//clean-up non-minimal elements
 		foreach(bstate_t b, N)
@@ -1406,9 +1487,14 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_stats << "- lowerset_intersect            : " << ctr_lowerset_intersect << "\n";
 		bw_stats << "\n";
 		bw_stats << "locally_pruned                  : " << ctr_locally_pruned << "\n";
-		bw_stats << "---------------------------------" << "\n";
-		bw_stats << "max. backward depth checked     : " << ctr_bw_maxdepth << "\n";
-		bw_stats << "max. backward width checked     : " << ctr_bw_maxwidth << "\n";
+		bw_stats << "---------------------------------" << "\n";		
+		bw_stats << "max bdepth local all            : " << ctr_bw_maxdepth_la << "\n";
+		bw_stats << "max bdepth local unpruned       : " << ctr_bw_maxdepth_lu << "\n";
+		bw_stats << "max bdepth global all           : " << ctr_bw_maxdepth_ga << "\n";
+		bw_stats << "max bdepth global unpruned      : " << ctr_bw_maxdepth_gu << "\n";
+		bw_stats << "max bwidth all                  : " << ctr_bw_maxwidth_a << "\n";
+		bw_stats << "max bwidth unpruned             : " << ctr_bw_maxwidth_u << "\n";
+		bw_stats << "global minimals unpruned        : " << ctr_bw_gmins_gu << "\n";
 		bw_stats << "---------------------------------" << "\n";
 		bw_stats << "osz_max                         : " << osz_max << "\n";
 		bw_stats << "nsz_max                         : " << nsz_max << "\n";

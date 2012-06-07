@@ -1,5 +1,8 @@
 //#define PUBLIC_RELEASE
 //#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
+//#define TIMING
+//#define EAGER_ALLOC
+#define VERSION "1.0"
 
 /*
 
@@ -73,9 +76,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if !defined WIN32 && GCC_VERSION < 40601
 #error need g++ >= 4.6.1
 #endif
-
-//#define EAGER_ALLOC
-#define VERSION "1.0"
 
 #include <iostream>
 #include <fstream>
@@ -161,8 +161,6 @@ enum weigth_t
 	order_random
 } bw_weight, fw_weight;
 
-#define TIMING
-
 #ifdef TIMING
 #define time_and_exe(e, duration) ptime start = microsec_clock::local_time(); e; duration += microsec_clock::local_time() - start
 #else
@@ -174,6 +172,7 @@ int kfw = -1;
 #include "fw.h"
 bool defer = false;
 bool fw_blocks_bw = false;
+bool unsound_sat = false;
 #include "bw.h"
 
 void print_bw_stats(unsigned sleep_msec)
@@ -224,8 +223,8 @@ void print_bw_stats(unsigned sleep_msec)
 			//bw
 			<< setw(sdst) << ctr_bw_curdepth << /*' ' << */sep
 			<< setw(sdst) << ctr_bw_curwidth << /*' ' << */sep
-			<< setw(sdst) << ctr_bw_maxdepth << /*' ' << */sep
-			<< setw(sdst) << ctr_bw_maxwidth << /*' ' << */sep
+			<< setw(sdst) << ctr_bw_maxdepth_la << /*' ' << */sep
+			<< setw(sdst) << ctr_bw_maxwidth_a << /*' ' << */sep
 			<< setw(ldst) << witeration << /*' ' << */sep
 			<< setw(ldst) << piteration << /*' ' << */sep
 			<< setw(sdst) << fpcycles << /*' ' << */sep
@@ -337,6 +336,7 @@ int main(int argc, char* argv[])
 			(OPT_STR_PRINT_KCOVER,	bool_switch(&print_cover), "print k-cover elements")
 #endif
 			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
+			(OPT_STR_UNSOUND,		bool_switch(&unsound_sat), "only add one candidate node (unsound if pruning occurs)")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")
 			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main info")
@@ -613,7 +613,8 @@ int main(int argc, char* argv[])
 		else if(bweight_str == OPT_STR_WEIGHT_WIDTH) bw_weight = order_width;
 		else throw logic_error("invalid weight argument");
 
-		if(mode == CON && (writetrace || readtrace)) throw logic_error("reading/writing traces not supported in concurrent mode");
+
+		if(mode == CON && !fw_blocks_bw && (writetrace || readtrace)) throw logic_error((string("reading/writing traces not supported in concurrent mode without option ") + OPT_STR_BW_WAITFORFW).c_str());
 		else if(writetrace && readtrace) throw logic_error("cannot read and write trace at the same time"); //OPT_STR_WRITE_BW_TRACE, OPT_STR_READ_BW_TRACE
 		else if(readtrace) work_sequence = read_trace(net.filename + ".trace");
 		else if(writetrace) {

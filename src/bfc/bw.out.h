@@ -98,9 +98,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 		throw logic_error(string("cannot write to ") + out_fn);
 	out << "digraph BDD {" << "\n";
 
-	//foreach(const antichain_t& s, M.uv){
 	foreachit(u,M.uv){
-		//foreach(const bstate_t& q, s.M_cref()){
 		foreach(const bstate_t& q, u->second.M_cref()){
 
 			if(q->nb->sleeping)

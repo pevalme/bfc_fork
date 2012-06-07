@@ -123,7 +123,7 @@ struct BState{
 		status_t				status; //this should go somewhere else
 		bool					sleeping; //this should go somewhere else
 
-		unsigned				depth;
+		unsigned				depth,gdepth; //depth in local tree/global depth
 
 #ifdef USE_SETS
 		neighborhood_t(bstate_t = nullptr, pre_set_t = pre_set_t(), suc_set_t = suc_set_t(), status_t m = unset, bool sleeps = false);

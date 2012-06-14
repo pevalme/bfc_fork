@@ -452,9 +452,7 @@ struct Net{
 		unsigned S,L,T;
 		map<trans_type,unsigned> trans_type_counters;
 		map<trans_dir_t,unsigned> trans_dir_counters;
-#ifdef DETAILED_TTS_STATS
 		unsigned SCC_num; //total number of strongly connected components
-#endif
 		unsigned discond; //number of thread states that have no incoming or outgoing edge
 		unsigned max_indegree;
 		unsigned max_outdegree;
@@ -462,7 +460,7 @@ struct Net{
 		unsigned core_shared_states;
 	};
 	
-	net_stats_t get_net_stats()
+	net_stats_t get_net_stats(bool sccnetstats)
 	{
 		net_stats_t ret;
 
@@ -494,21 +492,22 @@ struct Net{
 
 		ret.discond = (OState::S * OState::L) - seen.size();
 
-#ifdef DETAILED_TTS_STATS
-		//build Graph
-		using namespace boost;
-		typedef boost::adjacency_list<vecS, vecS, bidirectionalS> Graph;
-		
-		Graph g(this->init.L * this->init.S); //argument specified number of vertexes
-		foreach(Transition t, trans_list)
-			add_edge(t.source.unique_id(OState::S,OState::L),t.target.unique_id(OState::S,OState::L),g);
+		if(sccnetstats)
+		{
+			//build Graph
+			using namespace boost;
+			typedef boost::adjacency_list<vecS, vecS, bidirectionalS> Graph;
 
-		//boost::print_graph(g, boost::get(boost::vertex_index, g));
-		std::vector<int> component(num_vertices(g)), discover_time(num_vertices(g));
-		std::vector<default_color_type> color(num_vertices(g));
-		std::vector<unsigned> root(num_vertices(g));
-		ret.SCC_num = strong_components(g, &component[0], root_map(&root[0]).color_map(&color[0]).discover_time_map(&discover_time[0]));
-#endif
+			Graph g(this->init.L * this->init.S); //argument specified number of vertexes
+			foreach(Transition t, trans_list)
+				add_edge(t.source.unique_id(OState::S,OState::L),t.target.unique_id(OState::S,OState::L),g);
+
+			//boost::print_graph(g, boost::get(boost::vertex_index, g));
+			std::vector<int> component(num_vertices(g)), discover_time(num_vertices(g));
+			std::vector<default_color_type> color(num_vertices(g));
+			std::vector<unsigned> root(num_vertices(g));
+			ret.SCC_num = strong_components(g, &component[0], root_map(&root[0]).color_map(&color[0]).discover_time_map(&discover_time[0]));
+		}
 
 		ret.core_shared_states = 0; 
 		for(unsigned  i = 0; i < BState::S; ++i) 

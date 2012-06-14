@@ -217,7 +217,7 @@ ostream& BState::operator << (ostream& out) const
 		}
 	case BState::bot:
 		{
-			out << "bot";
+			out << "invalid";
 			break;
 		}
 	}

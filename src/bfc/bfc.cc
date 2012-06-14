@@ -321,7 +321,8 @@ int main(int argc, char* argv[])
 		shared_t init_shared;
 		local_t init_local, init_local2(-1);
 		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), ignore_target(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0);
+		bool h(0), v(0), ignore_target(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), nocoverability(0), netstats(0), sccnetstats(0);
+
 #ifndef WIN32
 		unsigned to,mo;
 #endif
@@ -337,6 +338,10 @@ int main(int argc, char* argv[])
 #endif
 			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
 			(OPT_STR_UNSOUND,		bool_switch(&unsound_sat), "only add one candidate node (unsound if pruning occurs)")
+
+			(OPT_STR_NOCOV,			bool_switch(&nocoverability), "stop after processing program options")
+			(OPT_STR_NETSTATS,		bool_switch(&netstats), "compute and print net statistics")
+			(OPT_STR_SCCNETSTATS,	bool_switch(&sccnetstats), "compute strongly connected components net statistics (slow)")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")
 			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main info")
@@ -623,37 +628,43 @@ int main(int argc, char* argv[])
 			w.close();
 		}
 
-		Net::net_stats_t sts = net.get_net_stats();
-		main_log << "---------------------------------" << "\n";
-		main_log << "Statistics for " << net.filename << "\n";
-		main_log << "---------------------------------" << "\n";
-		main_log << "local states                    : " << sts.L << "\n";
-		main_log << "shared states                   : " << sts.S << "\n";
-		main_log << "transitions                     : " << sts.T << "\n";
-		main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
-		//main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
-		main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
-		//main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
-		main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
-		//main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
-		main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
-		//main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
-		main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
-		//main_log << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
-		main_log << "disconnected thread states      : " << sts.discond << "\n";
-		//main_log << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
-#ifdef DETAILED_TTS_STATS
-		main_log << "strongly connected components   : " << sts.SCC_num << "\n";
-		main_log << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
-#endif
-		main_log << "maximum indegree                : " << sts.max_indegree << "\n";
-		main_log << "maximum outdegree               : " << sts.max_outdegree << "\n";
-		main_log << "maximum degree                  : " << sts.max_degree << "\n";
-		main_log << "target state                    : " << ((net.target==nullptr)?("none"):(net.target->str_latex())) << "\n";
-		main_log << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
-		main_log << "total core shared states        : " << sts.core_shared_states << "\n";
-		main_log << "---------------------------------" << "\n";
-		main_log.flush();
+		if(netstats){
+			Net::net_stats_t sts = net.get_net_stats(sccnetstats);
+			main_log << "---------------------------------" << "\n";
+			main_log << "Statistics for " << net.filename << "\n";
+			main_log << "---------------------------------" << "\n";
+			main_log << "local states                    : " << sts.L << "\n";
+			main_log << "shared states                   : " << sts.S << "\n";
+			main_log << "transitions                     : " << sts.T << "\n";
+			main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
+			//main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
+			main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
+			//main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
+			main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
+			//main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
+			main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
+			//main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
+			main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
+			//main_log << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
+			main_log << "disconnected thread states      : " << sts.discond << "\n";
+			//main_log << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
+			if(sccnetstats)
+			{
+				main_log << "strongly connected components   : " << sts.SCC_num << "\n";
+				main_log << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
+			}
+			main_log << "maximum indegree                : " << sts.max_indegree << "\n";
+			main_log << "maximum outdegree               : " << sts.max_outdegree << "\n";
+			main_log << "maximum degree                  : " << sts.max_degree << "\n";
+			main_log << "target state                    : " << ((net.target==nullptr)?(BState(0,0,BState::bot)):(*net.target)) << "\n";
+			main_log << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
+			main_log << "total core shared states        : " << sts.core_shared_states << "\n";
+			main_log << "---------------------------------" << "\n";
+			main_log.flush();
+		}
+
+		if(nocoverability)
+			throw logic_error("no coverability engine requested"); 
 
 	}
 	catch(std::exception& e)			{ cerr << "INPUT ERROR: " << e.what() << "\n"; main_res << "type " << argv[0] << " -h for instructions" << "\n"; return EXIT_FAILURE; }

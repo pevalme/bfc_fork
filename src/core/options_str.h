@@ -8,6 +8,11 @@
 #define OPT_STR_HELP				"help,h"
 #define OPT_STR_VERSION				"version,v"
 #define OPT_STR_STATS				"stats"
+
+#define OPT_STR_NOCOV				"no-cov"
+#define OPT_STR_NETSTATS			"net-stats"
+#define OPT_STR_SCCNETSTATS			"scc-stats"
+
 #define OPT_STR_UNSOUND				"unsound"
 #define OPT_STR_MON_INTERV			"interv"
 #define OPT_STR_MON_INTERV_DEFVAL	0

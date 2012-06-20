@@ -168,7 +168,6 @@ enum weigth_t
 #endif
 
 bool fw_state_blocked = false;
-int kfw = -1;
 #include "fw.h"
 bool defer = false;
 bool fw_blocks_bw = false;
@@ -389,18 +388,19 @@ int main(int argc, char* argv[])
 #endif
 			(OPT_STR_MODE,			value<string>(&mode_str)->default_value(CON_OPTION_STR), (string("exploration mode: \n") 
 			+ "- " + '"' + CON_OPTION_STR + '"'		+ " (concurrent forward/backward), \n"
+			+ "- " + '"' + CON2_OPTION_STR + '"'		+ " (concurrent forward/backward with pessimistic exploration), \n"
 #ifndef PUBLIC_RELEASE
 			+ "- " + '"' + FW_CON_OPTION_STR + '"'	+ " (forward, then concurrent forward/backward; for cross-check), \n"
 			+ "- " + '"' + FWBW_OPTION_STR + '"'	+ " (forward, then backward; for cross-check), \n"
 #endif
 			+ "- " + '"' + FW_OPTION_STR + "'"		+ " (forward only), or \n" 
+			+ "- " + '"' + BC_OPTION_STR + "'"		+ " (standard backward search), or \n" 
 			+ "- " + '"' + BW_OPTION_STR + "'"		+ " (backward only)"
 			).c_str());
 
 		//FW options
 		options_description fw_exploration("Forward exploration");
 		fw_exploration.add_options()
-			(OPT_STR_SATBOUND_FW,	value<int>(&kfw), "forward projection bound/bound for the k-cover")
 			(OPT_STR_ACCEL_BOUND,	value<unsigned>(&ab)->default_value(OPT_STR_ACCEL_BOUND_DEFVAL), "acceleration bound")
 			(OPT_STR_FW_INFO,		bool_switch(&print_fwinf), "print info during forward exploration")
 			(OPT_STR_PRINT_HASH_INFO,	bool_switch(&print_hash_info), "print info during forward exploration (slow, req. stats option)")
@@ -422,7 +422,7 @@ int main(int argc, char* argv[])
 		options_description bw_exploration("Backward exploration");
 		bw_exploration.add_options()
 			(OPT_STR_SATBOUND_BW,	value<unsigned>(&k)->default_value(OPT_STR_SATBOUND_BW_DEFVAL), "backward saturation bound/bound for the k-cover")
-			("defer", bool_switch(&defer), "defer states with only non-global predecessors (optimistic exploration)")
+			//(OPT_STR_BW_DEFER,		bool_switch(&defer), "defer states with only non-global predecessors (optimistic exploration)")
 			(OPT_STR_BW_INFO,		bool_switch(&print_bwinf), "print info during backward exloration")
 			(OPT_STR_BW_WAITFORFW,	bool_switch(&fw_blocks_bw), "backward exloration is blocked until foward exploration reaches the threshold")
 			(OPT_STR_BW_ORDER,		value<string>(&border_str)->default_value(OPT_STR_BW_ORDER_DEFVAL), (string("order of the backward workset:\n")
@@ -454,9 +454,6 @@ int main(int argc, char* argv[])
 
 		variables_map vm;
 		store(command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), vm), notify(vm);
-
-		if(kfw == -1)
-			kfw = k;
 
 		if(h || v)
 		{ 
@@ -568,16 +565,32 @@ int main(int argc, char* argv[])
 #endif
 
 		if      (mode_str == FW_OPTION_STR)		mode = FW, forward_projections = 0; //OPT_STR_MODE
-		else if (mode_str == BW_OPTION_STR)		mode = BW;
-		else if (mode_str == CON_OPTION_STR)	mode = CON, forward_projections = 1;
+		else if (mode_str == BW_OPTION_STR)
+			mode = BW,
+			defer = false;
+		else if (mode_str == BC_OPTION_STR)		mode = BW, k = 0, main_log << info("saturation deactivated") << "\n";
+		else if (mode_str == CON_OPTION_STR)	
+			mode = CON, 
+			defer = true, //use defer-mode whenever fw is used, otherwise the memory consumption is too high
+			forward_projections = 1;
+		else if (mode_str == CON2_OPTION_STR) //defer deactivated (use for correct statistics)
+			mode = CON, 
+			defer = false,
+			forward_projections = 1;
 		else if (mode_str == FWBW_OPTION_STR)	mode = FWBW, forward_projections = 0;
 		else if (mode_str == FW_CON_OPTION_STR)	mode = FW_CON, forward_projections = 1;
 		else throw logic_error("Invalid mode"); 
+
+		if(defer) main_log << info("performing optimistic backward exploration") << "\n";
+		else main_log << info("performing pessimistic backward exploration") << "\n";
 
 		if(print_cover && (mode == CON || mode == FW_CON))
 			main_log << warning("printing cover information slows down concurrent mode") << "\n";
 		if(print_cover && (mode == FW))
 			throw logic_error("printing cover information not supported in this mode");
+
+		if(k != 0 && mode == FW)
+			k = 0, main_log << info("saturation deactivated") << "\n";
 
 		if(print_hash_info && !stats_info) throw logic_error("hash info requires stats argument");
 
@@ -711,11 +724,9 @@ int main(int argc, char* argv[])
 		for(unsigned i = 0; i < BState::S; ++i)
 			if(net.core_shared(i)) U.luv.push_back(move(complement_set(BState::L,k)));
 			else U.luv.push_back(move(x));
-		main_log << "done" << "\n";
 		
 		main_log << "initializing lowerset data structure..." << "\n";
 		lowerset_vec		D(k, BState::S, net.prj_all);
-		main_log << "done" << "\n";
 
 		if(mode != CON)
 		{

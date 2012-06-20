@@ -325,11 +325,9 @@ void lowerset_vec::clear()
 }
 
 //note: this is currently copied from the class complement_vec
-unsigned lowerset_vec::project_and_insert(const OState& g, shared_cmb_deque_t& shared_cmb_deque, bool forward_projections, int k_arg)
+unsigned lowerset_vec::project_and_insert(const OState& g, shared_cmb_deque_t& shared_cmb_deque, bool forward_projections)
 {
-	unsigned 
-		new_projections = 0,
-		k = (k_arg==-1)?this->K:k_arg;
+	unsigned new_projections = 0;
 
 	//note: these can be reused for all calls
 	static vector<cmb_node> prj; //one for each differen k to prevent reallocation
@@ -337,18 +335,18 @@ unsigned lowerset_vec::project_and_insert(const OState& g, shared_cmb_deque_t& s
 
 	unsigned gg2_n;
 
-	gg2_n = g.bounded_locals.size() + k * g.unbounded_locals.size();
+	gg2_n = g.bounded_locals.size() + K * g.unbounded_locals.size();
 	if(gg2_n == 0) return false;
 
 	if(gg2.size() < gg2_n) gg2.resize(gg2_n, invalid_local);
-	merge_mult(g.bounded_locals.begin(), g.bounded_locals.end(), g.unbounded_locals.begin(), g.unbounded_locals.end(), k, gg2.begin());
+	merge_mult(g.bounded_locals.begin(), g.bounded_locals.end(), g.unbounded_locals.begin(), g.unbounded_locals.end(), K, gg2.begin());
 
-	for(unsigned i = prj.size() + 1; i <= k; ++i) //for a give k, this loop is executed only once
+	for(unsigned i = prj.size() + 1; i <= K; ++i) //for a give k, this loop is executed only once
 		prj.push_back(cmb_node(i)); 
 
 	list<pair<shared_t,cmb_node_p> > projections;
 
-	for(unsigned r = 1; r <= min(k,gg2_n); ++r){ //the latter loop condition catches the case when we try to project a state that has less components than k: (0|0) cannot be projected with k=2
+	for(unsigned r = 1; r <= min(K,gg2_n); ++r){ //the latter loop condition catches the case when we try to project a state that has less components than k: (0|0) cannot be projected with k=2
 		do {
 			invariant(is_sorted(gg2.begin(), gg2.begin() + r));
 			copy(gg2.begin(), gg2.begin() + r, prj[r-1].c.begin());

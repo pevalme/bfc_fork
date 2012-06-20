@@ -36,9 +36,11 @@
 #define OPT_STR_MODE				"mode,d"
 #define FW_CON_OPTION_STR			"FC"
 #define CON_OPTION_STR				"C"
+#define CON2_OPTION_STR				"CND"
 #define FWBW_OPTION_STR				"FB"
 #define FW_OPTION_STR				"F"
 #define BW_OPTION_STR				"B"
+#define BC_OPTION_STR				"A"
 #define OPT_STR_ACCEL_BOUND			"acc-bound"
 #define OPT_STR_ACCEL_BOUND_DEFVAL	500
 #define OPT_STR_FW_INFO				"fw-info"
@@ -54,7 +56,6 @@
 #define ORDER_RANDOM_OPTION_STR		"R"
 #define OPT_STR_FW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
 
-#define OPT_STR_SATBOUND_FW			"fw-sat-bound"
 #define OPT_STR_SATBOUND_BW			"sat-bound,k"
 #define OPT_STR_SATBOUND_BW_DEFVAL	2
 

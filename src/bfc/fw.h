@@ -206,12 +206,12 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				if(n.core_shared(succ->shared))
 				{
 					succs.insert(succ); //add to return set
-					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections, kfw); //project
+					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project
 					//fw_log << c << " ";
 				}
 				else
 				{
-					if(net.prj_all) c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections, kfw); //project if requested
+					if(net.prj_all) c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project if requested
 					work.push(succ); //add to work list
 				}
 
@@ -511,6 +511,8 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 	foreach(ostate_t p, Q) //contains init_p
 		delete p;
+
+	main_log << "fw clean up done " << "\n";
 	
 	return;
 }

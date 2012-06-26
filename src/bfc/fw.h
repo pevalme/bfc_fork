@@ -511,8 +511,6 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 	foreach(ostate_t p, Q) //contains init_p
 		delete p;
-
-	main_log << "fw clean up done " << "\n";
 	
 	return;
 }

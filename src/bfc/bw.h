@@ -70,7 +70,7 @@ unordered_priority_set<bstate_t>::keyprio_type keyprio_pair(bstate_t s)
 		return make_pair(s,s->size());
 	case order_depth: 
 		//return make_pair(s,s->nb->depth);
-		//invariant(s->nb->gdepth != -1);
+		invariant(s->nb->gdepth != -1);
 		return make_pair(s,s->nb->gdepth);
 	default:	
 		return make_pair(s,0);
@@ -416,6 +416,7 @@ unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_
 #endif
 						bool blocks_non_sleeping = enqueue(p,O.LGE(t,vec_antichain_t::set_t::greater_equal),t);
 						t->nb->sleeping = !(target == nullptr || *t <= *target) && !blocks_non_sleeping;
+						t->nb->gdepth = 0;
 					}
 					else
 					{
@@ -432,6 +433,7 @@ unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_
 							local_capture(t);
 						}
 					}
+					invariant(t->nb->gdepth != -1);
 				}
 			}
 
@@ -1012,6 +1014,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 #ifdef EAGER_ALLOC
 				add->us = new BState::vec_upperset_t, add->us->insert(add); //every source state has an associated upperset (called "local") that initially only contains this state
 #endif
+				invariant(add->nb->gdepth == -1);
+				add->nb->gdepth = 0;
+
 				add->nb->status = BState::pending, net.check_target?add->nb->sleeping = true:W.push(keyprio_pair(add));
 				//M.insert(add); //every source state is a minimal element of the "global" upperset
 				M.insert_incomparable(add);

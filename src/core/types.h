@@ -72,9 +72,12 @@ public:
 	~FullExpressionAccumulator();
 	void flush();
 	void weak_flush();
+	void set_force_flush(bool);
 
     std::stringstream ss;
 	std::ostream os;
+
+	static bool force_flush;
 private:
 	boost::mutex shared_cout_mutex;
 };
@@ -83,9 +86,7 @@ template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulat
 	if(p.os.rdbuf()) 
 	{
 		p.ss << t; // accumulate into a non-shared stringstream, no threading issues
-#ifdef _DEBUG
-		p.flush();
-#endif
+		if(p.force_flush) p.flush();
 	}
 	return p;
 }

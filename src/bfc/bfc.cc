@@ -360,6 +360,7 @@ int main(int argc, char* argv[])
 			).c_str())
 			(OPT_STR_FW_TREE,		value<string>(&tree_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), ("write fw search tree (same arguments as above)"))
 			(OPT_STR_OUTPUT_FILE,	value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "monitor output file (\"stdout\" for console)")
+			("force-flush",	bool_switch(&FullExpressionAccumulator::force_flush), "force output to flush (thread output may interleave)")
 #endif
 			;
 

@@ -91,12 +91,14 @@ typedef vector<pair<Net::adj_t::const_iterator, trans_type> > tt_list_t;
 
 Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque, bool forward_projections)
 { 
+	
 	Oreached_t succs;
 
 	stack<OState*> work;
 
 	work.push(const_cast<OState*>(ag));
 
+	fw_log << "computing successors" << "\n";
 	while(!work.empty())
 	{
 		OState* g = work.top(); work.pop();
@@ -108,12 +110,16 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		tt_list_t tt_list;
 		
 		Net::adj_t::const_iterator tc;
-		for(auto l = g->bounded_locals.begin(), le = g->bounded_locals.end(); l != le; ++l)
+		
+		for(auto l = g->bounded_locals.begin(), le = g->bounded_locals.end();l != le;)
 		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
 				tt_list.push_back(make_pair(tc, thread_transition));
 			if((tc = n.spawn_adjacency_list.find(Thread_State(g->shared, *l))) != n.spawn_adjacency_list.end()) 
 				tt_list.push_back(make_pair(tc, spawn_transition));
+
+			local_t last = *l;
+			while(++l != le && last == *l); //skip same locals
 		}
 		for(auto l = g->unbounded_locals.begin(), le = g->unbounded_locals.end(); l != le; ++l)
 		{
@@ -156,14 +162,14 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				//if((!thread_in_u && (ty == thread_transition || horiz_trans)))
 				if((!thread_in_u && (ty == thread_transition || ty == spawn_transition || horiz_trans)))
 				{
-					//fw_log << "Ignore: No/no incomparable successors" << "\n";
+					fw_log << "Ignore: No/no incomparable successors" << "\n";
 					continue;
 				}
 
 				OState* succ;
 				if(!g_in_use && ++(ttnex = tt) == tte && ++(tsbnex = tsb) == tse)
 				{
-					//fw_log << "Reuse existing state " << *g << "\n";
+					fw_log << "Reuse existing state " << *g << "\n";
 					succ = g, g_in_use = true;
 				}
 				else
@@ -205,12 +211,16 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				unsigned c = 0;
 				if(n.core_shared(succ->shared))
 				{
+					fw_log << "Found core successor: " << *succ << "\n";
+
 					succs.insert(succ); //add to return set
 					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project
 					//fw_log << c << " ";
 				}
 				else
 				{
+					fw_log << "Found intermediate successor: " << *succ << "\n";
+
 					if(net.prj_all) c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project if requested
 					work.push(succ); //add to work list
 				}
@@ -230,6 +240,8 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 	invariant_foreach(ostate_t s, succs, implies(resolve_omegas && resolved_once,s->unbounded_locals.empty()));
 	if(resolve_omegas && !resolved_once)
 	{
+		fw_log << "resolving successors" << "\n";
+
 		Oreached_t succs_resolved;
 		
 		foreach(ostate_t p_c, succs)
@@ -353,6 +365,20 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		ostate_t cur, walker;
 		unsigned depth;
 
+		
+		
+		multiset<local_t> lll;
+		//lll.insert(0);
+		//lll.insert(0);
+		lll.insert(0);
+		lll.insert(0);
+		lll.insert(61);
+		//cur = new OState("0|0,0,0,61");
+		cur = new OState(0,lll.begin(),lll.end());
+		Post(cur, *n, *D, *shared_cmb_deque, forward_projections);
+
+
+
 		while(execution_state == RUNNING && fw_safe && (!shared_bw_done || !bw_safe) && W.try_get(cur)) //retrieve the next working element
 		{
 
@@ -364,7 +390,8 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			fw_qsz = Q.size();
 			fw_wsz = W.size();
 
-			if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL && f_its%1000==0) //just do this from time to time
+			//if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL/* && f_its%1000==0*/) //just do this from time to time
+			if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL && f_its > 4) //just do this from time to time
 			{
 				auto diff = (boost::posix_time::microsec_clock::local_time() - last_new_prj_found);
 				if((diff.hours() * 3600 + 60 * diff.minutes() + diff.seconds()) > fw_threshold)
@@ -388,7 +415,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				OState* p = const_cast<OState*>(p_c); invariant(p->accel == nullptr);
 
-				//fw_log << "Checking successor " << *p << "\n";
+				fw_log << "checking successor " << *p << "\n";
 
 				if(n->check_target && n->Otarget <= *p)
 				{
@@ -440,7 +467,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				p->prede = cur, p->depth = 1 + cur->depth; 
 				if(Q.insert(p).second)
-					W.push(keyprio_pair(p));/*, fw_log << "added" << "\n";*/
+					W.push(keyprio_pair(p)); // fw_log << "added" << "\n";
 				else
 					delete p;
 
@@ -485,10 +512,11 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		fw_stats << "Forward statistics:" << "\n";
 		fw_stats << "---------------------------------" << "\n";
 		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
-		fw_stats << "execution state                 : "; 
+		fw_stats << "fw execution state              : "; 
 		switch(execution_state){
 		case TIMEOUT: fw_stats << "TIMEOUT" << "\n"; break;
 		case MEMOUT: fw_stats << "MEMOUT" << "\n"; break;
+		case RUNNING: bw_stats << "RUNNING" << "\n"; break;
 		case INTERRUPTED: fw_stats << "INTERRUPTED" << "\n"; break;}
 		fw_stats << "\n";
 		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";

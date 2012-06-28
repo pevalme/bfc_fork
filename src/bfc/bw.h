@@ -865,7 +865,7 @@ bool check_global_minimal_and_wake_up(bstate_t w, list<bstate_t>& pres, vec_anti
 					if(other->nb->sleeping && !skip)
 					{
 						bw_log << "target dependant wake up (predecessor strictly covers): " << *other << "\n";
-						invariant(other->nb->gdepth == -1);
+						invariant(other->nb->gdepth == 0);
 						other->nb->gdepth = w->nb->gdepth + 1; //the wake-up is in terms of w's predecessor (which have w's depth increased by one)
 						other->nb->sleeping = false, W.push(keyprio_pair(other));
 
@@ -1454,10 +1454,11 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_stats << "Backward statistics:" << "\n";
 		bw_stats << "---------------------------------" << "\n";
 		bw_stats << "bw finished first               : " << (shared_bw_finised_first?"yes":"no") << "\n";
-		bw_stats << "execution state                 : "; 
+		bw_stats << "bw execution state              : "; 
 		switch(execution_state){
 		case TIMEOUT: bw_stats << "TIMEOUT" << "\n"; break;
 		case MEMOUT: bw_stats << "MEMOUT" << "\n"; break;
+		case RUNNING: bw_stats << "RUNNING" << "\n"; break;
 		case INTERRUPTED: bw_stats << "INTERRUPTED" << "\n"; break;}
 		bw_stats << "\n";
 		bw_stats << "iterations                      : " << witeration + piteration << "\n";

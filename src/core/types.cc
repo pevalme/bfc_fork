@@ -25,6 +25,8 @@ graph_type_t graph_type, tree_type;
 
 interrupt_t execution_state = RUNNING;
 
+bool FullExpressionAccumulator::force_flush = false;
+
 streambuf * FullExpressionAccumulator::rdbuf(streambuf * a){
 	return os.rdbuf(a);
 }
@@ -61,3 +63,10 @@ void FullExpressionAccumulator::flush(){
 		}
 	}
 }
+
+void FullExpressionAccumulator::set_force_flush(bool b)
+{
+	force_flush = b;
+}
+
+

@@ -208,27 +208,16 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				}
 				invariant(succ->consistent());
 				
-				unsigned c = 0;
 				if(n.core_shared(succ->shared))
 				{
 					fw_log << "Found core successor: " << *succ << "\n";
-
 					succs.insert(succ); //add to return set
-					c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project
-					//fw_log << c << " ";
 				}
 				else
 				{
 					fw_log << "Found intermediate successor: " << *succ << "\n";
-
-					if(net.prj_all) c = D.project_and_insert(*succ, shared_cmb_deque, forward_projections); //project if requested
 					work.push(succ); //add to work list
-				}
-
-				if(c) 
-					last_new_prj_found = boost::posix_time::microsec_clock::local_time(), 
-					fw_prj_found += c, 
-					fw_last_prj_width = succ->size();
+				}			
 			}
 		}
 
@@ -249,7 +238,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 			if(p_c->unbounded_locals.empty()) succs_resolved.insert(p_c);
 			else
 			{
-				Oreached_t resolved_state(p_c->resolve_omegas(max_fw_width-1)); //all states with width max_fw_width are blocked anyway
+				Oreached_t resolved_state(p_c->resolve_omegas(max_fw_width)); //all states with width max_fw_width are blocked anyway
 				succs_resolved.insert(resolved_state.begin(),resolved_state.end());
 
 				fw_log << "resolved " << *p_c << " to "; copy_deref_range(succs_resolved.begin(), succs_resolved.end(), fw_log); fw_log << "\n";
@@ -365,20 +354,6 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		ostate_t cur, walker;
 		unsigned depth;
 
-		
-		
-		multiset<local_t> lll;
-		//lll.insert(0);
-		//lll.insert(0);
-		lll.insert(0);
-		lll.insert(0);
-		lll.insert(61);
-		//cur = new OState("0|0,0,0,61");
-		cur = new OState(0,lll.begin(),lll.end());
-		Post(cur, *n, *D, *shared_cmb_deque, forward_projections);
-
-
-
 		while(execution_state == RUNNING && fw_safe && (!shared_bw_done || !bw_safe) && W.try_get(cur)) //retrieve the next working element
 		{
 
@@ -390,13 +365,22 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			fw_qsz = Q.size();
 			fw_wsz = W.size();
 
-			//if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL/* && f_its%1000==0*/) //just do this from time to time
-			if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL && f_its > 4) //just do this from time to time
+			if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL && f_its%1000==0) //just do this from time to time
 			{
 				auto diff = (boost::posix_time::microsec_clock::local_time() - last_new_prj_found);
 				if((diff.hours() * 3600 + 60 * diff.minutes() + diff.seconds()) > fw_threshold)
 					threshold_reached = true;
 			}
+
+			//project
+			unsigned c = D->project_and_insert(*cur, *shared_cmb_deque, forward_projections); //project if requested
+			if(c)
+				last_new_prj_found = boost::posix_time::microsec_clock::local_time(), 
+				fw_prj_found += c, 
+				fw_last_prj_width = cur->size(),
+				fw_last_prj_states = Q.size(),
+				fw_log << "found " << c << " projections" << "\n"
+				;
 			
 			static bool first = true;
 			if(first && threshold_reached)
@@ -405,7 +389,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque, forward_projections)) //allocates objects in "successors"
 			{
 				
-				if((threshold_reached) || (max_fw_width != OPT_STR_FW_WIDTH_DEFVAL && p_c->size() >= max_fw_width)) //TEST
+				if((threshold_reached) || (max_fw_width != OPT_STR_FW_WIDTH_DEFVAL && p_c->size() > max_fw_width)) //TEST
 				{
 					fw_log << *p_c << " blocked" << "\n";
 					fw_state_blocked = true;
@@ -473,8 +457,6 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 			}
 
-			fw_log.flush();
-
 		}
 
 		threshold_reached = true;
@@ -516,13 +498,17 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		switch(execution_state){
 		case TIMEOUT: fw_stats << "TIMEOUT" << "\n"; break;
 		case MEMOUT: fw_stats << "MEMOUT" << "\n"; break;
-		case RUNNING: bw_stats << "RUNNING" << "\n"; break;
-		case INTERRUPTED: fw_stats << "INTERRUPTED" << "\n"; break;}
+		case RUNNING: fw_stats << "RUNNING" << "\n"; break;
+		case INTERRUPTED: fw_stats << "INTERRUPTED" << "\n"; break;
+		}
 		fw_stats << "\n";
+		fw_stats << "forward-reachable global states : " << Q.size() << "\n";
+		fw_stats << "total forward time              : " << (((float)(boost::posix_time::microsec_clock::local_time() - fw_start_time).total_microseconds())/1000000) << "\n";
+		fw_stats << "\n";
+		fw_stats << "projections found               : " << D->size() << "\n";
 		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";
 		fw_stats << "width of last projections       : " << fw_last_prj_width << "\n";
-		fw_stats << "forward-reachable global states : " << Q.size() << "\n";
-		fw_stats << "projections found               : " << D->size() << "\n";
+		fw_stats << "states at last projections      : " << fw_last_prj_states << "\n";
 		fw_stats << "\n";
 		fw_stats << "accelerations                   : " << accelerations << "\n";
 		fw_stats << "max acceleration depth checked  : " << max_depth_checked << "\n";

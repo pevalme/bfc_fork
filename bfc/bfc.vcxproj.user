@@ -1,15 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|Win32'">
-    <LocalDebuggerCommandArguments>--fw-blocks-bw --fw-threshold 45 --mode C --ignore-target --bw-order S --bw-weight D --fw-no-omegas --max_fw_width 30 main.tts</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--target main.prop --stats --interv 2000 --sat-bound 1 --fw-blocks-bw --ignore-target main.tts --max_fw_width 13 --fw-no-omegas</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|Win32'">
-    <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\abp_vs_sm</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\experiments\diss\bfc_eval\benchmarks_wtsrcutoff\PN027_mesh3x2_vs</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>--target main.prop --sat-bound 2 --stats --mode F --bw-order S --bw-weight W queued.tts --bw-info --fw-info --force-flush</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--target main.prop --max_fw_width 13 --stats --interv 2000 --sat-bound 1 --fw-blocks-bw --mode C --ignore-target --fw-no-omegas main.tts</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>$(SolutionDir)\regression\_test</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\experiments\diss\bfc_eval\benchmarks_wtsrcutoff\PN027_mesh3x2_vs</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

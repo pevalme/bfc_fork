@@ -973,6 +973,11 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 	ctr_locally_pruned = 0;
 
 	ptime bwstart, prunestart;
+	time_duration zero_width_duration;
+
+	unsigned 
+		last_width = 0, //to measure time spent in states with 0 or 1 thread
+		candidate_num = 0; //to measure candidates used in the CAV'10 paper
 
 	work_pq				W(worder); //working set with priority "greater", "less" or "random"
 	W_deferred_t		W_deferred; //state that must be readded to W up on pruning
@@ -1077,19 +1082,31 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_log.flush();
 		bwstart = microsec_clock::local_time();
 
-		if(fw_blocks_bw && fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL)
-		{
-			while(!threshold_reached)
-			{
-				boost::this_thread::sleep(boost::posix_time::seconds(2)); 
-				bw_log << "backward search waits (fw threshold not yet reached)..." << "\n", bw_log.flush();
-			}
-			bw_log << "backward search unblocked (fw threshold reached)..." << "\n", bw_log.flush();
-		}
-
 		bw_log << "Starting backward main loop..." << "\n", bw_log.flush();
 		while((print_cover || !shared_fw_done) && execution_state == RUNNING)
 		{
+
+			if(++update_counter%30==0)
+			{
+
+#ifdef TIMING
+				prunestart = microsec_clock::local_time();
+#endif
+				//TODO: size() dauert ewig für viele shared states
+				nsz = N.size(), nsz_max = max(nsz,nsz_max), 
+					wsz = W.size(), wsz_max = max(wsz,wsz_max), 
+					wdsz = W_deferred.size();
+
+				//TODO: This takes quite long
+				osz = O.size(), osz_max = max(osz,osz_max), 
+					msz = M.size(), msz_max = max(msz,msz_max),
+					dsz = D.size(), dsz_max = max(dsz,dsz_max),
+					gsz = M.graph_size();
+
+#ifdef TIMING
+				livestats_duration += microsec_clock::local_time() - prunestart;
+#endif
+			}
 
 			invariant_foreach(bstate_t b, W_deferred, !W.contains(keyprio_pair(b)));
 
@@ -1126,49 +1143,21 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			if(!first) pruning_duration += microsec_clock::local_time() - prunestart;
 #endif
 
+			//wait here so states are pruned as they are reported
+			if(fw_blocks_bw && !threshold_reached)
+			{
+				boost::this_thread::sleep(boost::posix_time::seconds(2));
+				bw_log << "backward search waits (fw threshold not yet reached)..." << "\n", bw_log.flush();
+				continue;
+			}
+			else
+			{
+				bw_log << "backward search unblocked (fw threshold reached)..." << "\n", bw_log.flush();
+			}
 
 			if(W.empty() || (!print_cover && shared_fw_done) || !bw_safe) break;
 
 			bw_log << "+++++++++++++++ Work set iteration " << witeration << " +++++++++++++++" << "\n";
-
-#if 0
-			//this was just for testing whether counters were correct; not yet sure whether this is the case or not
-			osz = O.size(), dsz = D.size();
-
-			unsigned nsz_tmp = 0, msz_tmp = 0;
-			//count queries
-			//foreach(bstate_t n, N) if(n->us != nullptr) ++nsz;
-			//for(shared_t s = 0; s < BState::S; ++s) foreach(bstate_t m,M.uv[s].M) if(m->us != nullptr) ++msz;
-
-			foreach(bstate_t n, N) if(!n->nb->sleeping) ++nsz_tmp;
-			for(shared_t s = 0; s < BState::S; ++s) foreach(bstate_t m,M.uv[s].M) if(!m->nb->sleeping) ++msz_tmp;
-			swap(nsz_tmp,nsz);
-			swap(msz_tmp,msz);
-
-#elif 1
-			if(++update_counter == 30)
-			{
-
-				prunestart = microsec_clock::local_time();
-
-				update_counter = 0;
-
-				//TODO: size() dauert ewig für viele shared states
-				nsz = N.size(), nsz_max = max(nsz,nsz_max), 
-					wsz = W.size(), wsz_max = max(wsz,wsz_max), 
-					wdsz = W_deferred.size();
-
-				//TODO: This takes quite long
-				osz = O.size(), osz_max = max(osz,osz_max), 
-					msz = M.size(), msz_max = max(msz,msz_max),
-					dsz = D.size(), dsz_max = max(dsz,dsz_max),
-					gsz = M.graph_size();
-
-#ifdef TIMING
-				livestats_duration += microsec_clock::local_time() - prunestart;
-#endif
-			}
-#endif
 
 			if(witeration >= work_seq.size())
 			{
@@ -1200,6 +1189,12 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				ctr_bw_maxwidth_a = max(ctr_bw_maxwidth_a, (unsigned)w->size()), 
 				ctr_bw_curdepth = w->nb->gdepth, 
 				ctr_bw_curwidth = w->size();
+
+			if(last_width <= k && w->size() > k)
+				zero_width_duration += microsec_clock::local_time() - bwstart,
+				last_width = w->size(),
+				candidate_num = W.size() + 1 //this state but no deferred states (as they have no minimal predecessor with >= 2 threads)
+				;
 
 			bstate_t src = w->nb->src;
 
@@ -1522,8 +1517,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bw_stats << "check g-minimal/wake up duration: " << to_simple_string(check_global_minimal_and_wake_up_duration) << "\n";
 		bw_stats << "defer state duration            : " << to_simple_string(defer_state_duration) << "\n";
 		bw_stats << "global insert duration          : " << to_simple_string(global_insert_duration) << "\n";
-		
 #endif
+		bw_stats << "k-width duration                : " << to_simple_string(zero_width_duration) << "\n";
+		bw_stats << "work elements after k-width     : " << candidate_num << "\n";
 		bw_stats << "---------------------------------" << "\n";
 
 		bw_stats.flush();

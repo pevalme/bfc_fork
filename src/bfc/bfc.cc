@@ -4,6 +4,8 @@
 //#define EAGER_ALLOC
 #define VERSION "1.0"
 
+//$(SolutionDir)\regression\abp_vs_sm
+
 /*
 
 known bugs: 
@@ -132,7 +134,8 @@ boost::posix_time::ptime
 	;
 
 unsigned fw_prj_found = 0,
-	fw_last_prj_width = 0
+	fw_last_prj_width = 0,
+	fw_last_prj_states = 0
 	;
 
 shared_cmb_deque_t 
@@ -360,7 +363,7 @@ int main(int argc, char* argv[])
 			).c_str())
 			(OPT_STR_FW_TREE,		value<string>(&tree_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), ("write fw search tree (same arguments as above)"))
 			(OPT_STR_OUTPUT_FILE,	value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "monitor output file (\"stdout\" for console)")
-			("force-flush",	bool_switch(&FullExpressionAccumulator::force_flush), "force output to flush (thread output may interleave)")
+			(OPT_STR_FORCE_FLUSH,	bool_switch(&FullExpressionAccumulator::force_flush), "force output to flush (thread output may interleave)")
 #endif
 			;
 

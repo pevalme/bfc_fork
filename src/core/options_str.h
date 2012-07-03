@@ -18,6 +18,8 @@
 #define OPT_STR_MON_INTERV_DEFVAL	0
 #define OPT_STR_PRINT_KCOVER		"print-cover"
 #define OPT_STR_CROSS_CHECK			"cross-check"
+#define OPT_STR_FORCE_FLUSH			"force-flush"
+
 #ifndef WIN32
 #define OPT_STR_TIMEOUT				"time-limit,t"
 #define OPT_STR_MEMOUT				"mem-limit,m"

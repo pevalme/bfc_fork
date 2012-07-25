@@ -65,14 +65,20 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define EXIT_VERIFICATION_FAILED			10
 #define EXIT_VERIFICATION_FAILED_STR		"VERIFICATION FAILED"
 
-#define EXIT_UNKNOWN_RESULT					EXIT_FAILURE
+#define EXIT_UNKNOWN_RESULT					1
 #define EXIT_UNKNOWN_RESULT_STR				"VERIFICATION UNKNOWN"
 
 #define EXIT_KCOVERCOMPUTED_SUCCESSFUL		EXIT_VERIFICATION_SUCCESSFUL
 #define EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR	EXIT_VERIFICATION_SUCCESSFUL_STR
 
-#define EXIT_ERROR_RESULT					EXIT_FAILURE
-#define EXIT_ERROR_RESULT_STR				"ERROR"
+#define EXIT_TIMEOUT_RESULT					2
+#define EXIT_TIMEOUT_RESULT_STR				"TIMEOUT"
+
+#define EXIT_MEMOUT_RESULT					3
+#define EXIT_MEMOUT_RESULT_STR				"MEMOUT"
+
+#define EXIT_OTHER_RESULT					4
+#define EXIT_OTHER_RESULT_STR				"ERROR"
 
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #if !defined WIN32 && GCC_VERSION < 40601
@@ -843,8 +849,10 @@ int main(int argc, char* argv[])
 
 		invariant(implies(fw_state_blocked,!shared_fw_done)); //"shared_fw_done" means "fw done and sound"
 
-		if(execution_state == RUNNING)
+		invariant(execution_state == RUNNING || execution_state == TIMEOUT || execution_state == MEMOUT || execution_state == INTERRUPTED);
+		switch(execution_state)
 		{
+		case RUNNING:
 			if(!shared_fw_done && !shared_bw_done)
 				return_value = EXIT_UNKNOWN_RESULT, main_res << EXIT_UNKNOWN_RESULT_STR << "\n";
 			else if(!net.check_target)
@@ -853,11 +861,16 @@ int main(int argc, char* argv[])
 				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << EXIT_VERIFICATION_SUCCESSFUL_STR << "\n";
 			else 
 				return_value = EXIT_VERIFICATION_FAILED, main_res << EXIT_VERIFICATION_FAILED_STR << "\n";
-		}
-		else
-		{
-			invariant(execution_state == TIMEOUT || execution_state == MEMOUT || execution_state == INTERRUPTED);
-			return_value = EXIT_ERROR_RESULT, main_res << EXIT_ERROR_RESULT_STR << "\n";
+			break;
+		case TIMEOUT:
+			return_value = EXIT_TIMEOUT_RESULT, main_res << EXIT_TIMEOUT_RESULT_STR << "\n";
+			break;
+		case MEMOUT:
+			return_value = EXIT_MEMOUT_RESULT, main_res << EXIT_MEMOUT_RESULT_STR << "\n";
+			break;
+		case INTERRUPTED:
+			return_value = EXIT_OTHER_RESULT, main_res << EXIT_OTHER_RESULT_STR << "\n";
+			break;
 		}
 
 	}

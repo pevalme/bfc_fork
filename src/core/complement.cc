@@ -60,7 +60,7 @@ complement_set::~complement_set()
 		delete l;
 }
 
-complement_set::complement_set(unsigned l, unsigned k): L(l), K(k), u_nodes(), m_nodes(), l_nodes() 
+complement_set::complement_set(unsigned l, unsigned k, bool f): L(l), K(k), full_sat(f), u_nodes(), m_nodes(), l_nodes() 
 { 
 	if(k==0) return;
 	
@@ -73,6 +73,7 @@ complement_set::complement_set(unsigned l, unsigned k): L(l), K(k), u_nodes(), m
 
 complement_set::complement_set(complement_set&& other)
 {
+	full_sat = other.full_sat;
 	L = other.L, other.L = 0;
 	K = other.K, other.K = 0;
 	u_nodes.swap(other.u_nodes);
@@ -146,7 +147,9 @@ void complement_set::try_expand_remove(cmb_node_p f)
 	cmb_node* new_node;
 
 	static stack<cmb_node*> work_set;
-	for(l = 0; l < L; ++l){
+	
+	local_t lp = *f->c.begin();
+	for(l = full_sat?0:lp; l < (full_sat?L:lp+1); ++l){ //for(l = 0; l < L; ++l){
 		new_node = new cmb_node(), new_node->c = f->c, new_node->c.push_back(l);
 		sort(new_node->c.begin(), new_node->c.end()); //keep new_node->c sorted
 		if(m_nodes.insert(new_node).second) work_set.push(new_node); //add new [c.push_back(l)] to the work list
@@ -183,7 +186,9 @@ void complement_set::diff_try_expand_remove(cmb_node_p f,us_cmb_node_p_t& u_node
 	static unsigned nex_sz;
 
 	static stack<cmb_node*> work_set;
-	for(l = 0; l < L; ++l){
+
+	local_t lp = *f->c.begin();
+	for(l = full_sat?0:lp; l < (full_sat?L:lp+1); ++l){ //for(l = 0; l < L; ++l){
 		new_node = new cmb_node(), new_node->c = f->c, new_node->c.push_back(l);
 		sort(new_node->c.begin(), new_node->c.end()); //keep new_node->c sorted
 		if(m_nodes.insert(new_node).second) work_set.push(new_node); //add new [c.push_back(l)] to the work list
@@ -209,10 +214,10 @@ void complement_set::diff_try_expand_remove(cmb_node_p f,us_cmb_node_p_t& u_node
 	return;
 }
 
-complement_vec::complement_vec(unsigned k, unsigned s, unsigned l): K(k), S(s), L(l) //note: luv(s, complement_set(l,k)) in the initializer list does not work, since all shared states will then get the same nodes
+complement_vec::complement_vec(unsigned k, unsigned s, unsigned l, bool f): K(k), S(s), L(l), full_sat(f) //note: luv(s, complement_set(l,k)) in the initializer list does not work, since all shared states will then get the same nodes
 { 
 	for(unsigned i = 0; i < s; ++i)
-		luv.push_back(move(complement_set(l,k)));
+		luv.push_back(move(complement_set(l,k,f)));
 }
 
 //complement_vec::complement_vec(complement_vec&& other)
@@ -232,7 +237,7 @@ void complement_vec::clear()
 {
 	luv.clear();
 	for(unsigned i = 0; i < S; ++i)
-		luv.push_back(move(complement_set(L,K)));
+		luv.push_back(move(complement_set(L,K,full_sat)));
 }
 
 size_t complement_vec::lower_size()
@@ -306,7 +311,7 @@ unsigned complement_vec::project_and_insert(const OState& g)
 	return new_projections;
 }
 
-lowerset_vec::lowerset_vec(unsigned k, unsigned s, bool prj_all): K(k), lv(s)
+lowerset_vec::lowerset_vec(unsigned k, unsigned s, bool prj_all, bool f): K(k), lv(s), full_sat(f)
 {
 }
 

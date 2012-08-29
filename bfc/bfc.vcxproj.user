@@ -1,15 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|Win32'">
-    <LocalDebuggerCommandArguments>--target main.prop --stats --interv 2000 --sat-bound 1 --fw-blocks-bw --ignore-target main.tts --max_fw_width 13 --fw-no-omegas</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>./man.tts --target "161|36" -s 5 -l 1 --fw-threshold 5 -k3 --stats  --fw-blocks-bw --bw-info --force-flush --mode CND --write-graph dot --unsound</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|Win32'">
-    <LocalDebuggerWorkingDirectory>D:\Lehre\experiments\diss\bfc_eval\benchmarks_wtsrcutoff\PN027_mesh3x2_vs</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\tmp\ttssatabstest\lin</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>--target main.prop --max_fw_width 13 --stats --interv 2000 --sat-bound 1 --fw-blocks-bw --mode C --ignore-target --fw-no-omegas main.tts</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>main.tts -k5 --bw-info --acc-bound 0 --prj-all --print-cover</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\experiments\diss\bfc_eval\benchmarks_wtsrcutoff\PN027_mesh3x2_vs</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\tmp</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

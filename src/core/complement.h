@@ -57,6 +57,7 @@ struct complement_set
 	/* ---- Members and types ---- */	
 	unsigned L; //vectors range over elements from 0...L-1
 	unsigned K; //vectors range over at most K elements
+	bool full_sat; //flag whether we traverse the precise complement or only states of the form l then l,l then l,l,l etc.
 	us_cmb_node_p_t u_nodes; //pointer to nodes of the upper set
 	us_cmb_node_p_t m_nodes; //pointer to nodes that are neither in the upper nor in the lower set, temporary nodes
 	us_cmb_node_p_t l_nodes; //pointer to nodes of the lower set
@@ -65,7 +66,7 @@ struct complement_set
 	~complement_set();
 	
 	/* ---- Constructors ---- */
-	complement_set(unsigned l, unsigned k);
+	complement_set(unsigned l, unsigned k, bool f);
 	complement_set(complement_set&&);
 
 	/* ---- Manipulation ---- */
@@ -89,10 +90,11 @@ struct complement_vec
 	unsigned K;
 	unsigned S;
 	unsigned L;
+	bool full_sat;
 	std::vector<complement_set> luv;
 
 	/* ---- Constructors ---- */
-	complement_vec(unsigned k, unsigned s, unsigned l);
+	complement_vec(unsigned k, unsigned s, unsigned l,bool full_sat);
 	//complement_vec(complement_vec&&);
 	std::pair<bool,us_cmb_node_p_t> diff_insert(shared_t s, const cmb_node& c);
 	
@@ -114,10 +116,11 @@ struct lowerset_vec
 {
 	/* ---- Members and types ---- */	
 	const unsigned K;
+	bool full_sat;
 	std::vector<us_cmb_node_p_t> lv;
 
 	/* ---- Constructors ---- */
-	lowerset_vec(unsigned k, unsigned s, bool prj_all = true);
+	lowerset_vec(unsigned k, unsigned s, bool prj_all = true, bool full_sat = true);
 	~lowerset_vec();
 
 	/* ---- Constructors ---- */

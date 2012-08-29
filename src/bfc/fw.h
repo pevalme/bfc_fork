@@ -473,6 +473,12 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 	fw_log << "fw while exit" << "\n", fw_log.flush();
 
+	while(!net.target && !shared_bw_done && print_cover)
+	{
+		fw_log << "waiting for bw\n";
+		boost::this_thread::sleep(milliseconds(100));
+	}
+
 	if(!fw_safe || !fw_state_blocked){
 		shared_fw_done = true;
 	

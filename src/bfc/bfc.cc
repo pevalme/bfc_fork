@@ -103,7 +103,8 @@ FullExpressionAccumulator
 	main_log(cerr.rdbuf()), 
 	main_res(cout.rdbuf()), //result: (VERIFICATION SUCCEEDED / VERIFICATION FAILED / ERROR)
 	main_inf(cout.rdbuf()), //trace
-	main_tme(cout.rdbuf()) //time and memory info
+	main_tme(cout.rdbuf()), //time and memory info
+	main_cov(cout.rdbuf()) //state found to be coverable/uncoverable
 	;
 
 ofstream main_livestats_ofstream; //must have the same storage duration as main_livestats
@@ -156,6 +157,7 @@ volatile bool
 	;
 
 bool 
+	print_cover(0),
 	writetrace(0),
 	readtrace(0),
 	bw_safe(1), //false, if bw found a viol. conf
@@ -312,7 +314,6 @@ vector<BState> read_trace(string trace_fn)
 
 int main(int argc, char* argv[]) 
 {
-
 	int return_value = EXIT_SUCCESS;
 
 	srand((unsigned)microsec_clock::local_time().time_of_day().total_microseconds());
@@ -322,7 +323,7 @@ int main(int argc, char* argv[])
 	unordered_priority_set<bstate_t>::order_t border;
 	unordered_priority_set<ostate_t>::order_t forder;
 	vector<BState> work_sequence;
-	bool forward_projections(0), cross_check(0), print_cover(0);
+	bool forward_projections(0), cross_check(0), local_sat(0);
 	string o = OPT_STR_OUTPUT_FILE_DEFVAL;
 
 	try {
@@ -342,7 +343,7 @@ int main(int argc, char* argv[])
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
 #ifndef PUBLIC_RELEASE
 			(OPT_STR_CROSS_CHECK,	bool_switch(&cross_check), "compare results obtained with forward and backward")
-			(OPT_STR_PRINT_KCOVER,	bool_switch(&print_cover), "print k-cover elements")
+			(OPT_STR_PRINT_KCOVER,	bool_switch(&print_cover), "print uncovered elements")
 #endif
 			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
 			(OPT_STR_UNSOUND,		bool_switch(&unsound_sat), "only add one candidate node (unsound if pruning occurs)")
@@ -446,6 +447,7 @@ int main(int argc, char* argv[])
 			).c_str())
 			(OPT_STR_WRITE_BW_TRACE,bool_switch(&writetrace), "write exploration sequence to file (extension .trace)")
 			(OPT_STR_READ_BW_TRACE,	bool_switch(&readtrace), "read exploration sequence from file (extension .trace)")
+			(OPT_STR_LOCAL_SAT,		bool_switch(&local_sat), "only saturate with state consisting of multiple occurences of the same local")
 			;
 
 		options_description cmdline_options;
@@ -501,6 +503,8 @@ int main(int argc, char* argv[])
 		if(noressource_info){ main_tme.rdbuf(0); }
 
 		if(no_main_log){ main_log.rdbuf(0); }
+
+		if(!print_cover){ main_cov.rdbuf(0); }
 
 #ifndef WIN32
 		if(to != 0)
@@ -706,6 +710,7 @@ int main(int argc, char* argv[])
 	main_inf << "Additional info:" << "\n";
 	main_res << "Result: " << "\n";
 	main_tme << "Ressources: " << "\n";
+	main_cov << "Coverability info:" << "\n";
 
 	ptime start_time;
 
@@ -728,15 +733,15 @@ int main(int argc, char* argv[])
 		//BW data structure
 
 		main_log << "initializing complement data structure..." << "\n";
-		complement_vec		U(k, 0, BState::L); //complement_vec		U(k, BState::S, BState::L);
+		complement_vec		U(k, 0, BState::L,!local_sat); //complement_vec		U(k, BState::S, BState::L);
 		U.S = BState::S;
-		auto x = complement_set(0,0);
+		auto x = complement_set(0,0,!local_sat);
 		for(unsigned i = 0; i < BState::S; ++i)
-			if(net.core_shared(i)) U.luv.push_back(move(complement_set(BState::L,k)));
+			if(net.core_shared(i)) U.luv.push_back(move(complement_set(BState::L,k,!local_sat)));
 			else U.luv.push_back(move(x));
 		
 		main_log << "initializing lowerset data structure..." << "\n";
-		lowerset_vec		D(k, BState::S, net.prj_all);
+		lowerset_vec		D(k, BState::S, net.prj_all, !local_sat);
 
 		if(mode != CON)
 		{
@@ -837,12 +842,19 @@ int main(int argc, char* argv[])
 
 		if(!net.check_target && print_cover)
 		{
+			for(unsigned i = 0; i < BState::S; ++i)
+			{
+				if(!net.core_shared(i)) continue;
+				foreach(auto p, U.luv[i].u_nodes)
+					main_cov << BState(i,p->c.begin(),p->c.end()) << "\n";
+			}
+
 #ifdef PRINT_KCOVER_ELEMENTS
-			main_log << "coverable                       : " << "\n", U.print_upper_set(main_log), main_log << "\n";
-			main_log << "uncoverable                     : " << "\n", U.print_lower_set(main_log), main_log << "\n";
+			main_cov << "coverable                       : " << "\n", U.print_upper_set(main_log), main_log << "\n";
+			main_cov << "uncoverable                     : " << "\n", U.print_lower_set(main_log), main_log << "\n";
 #endif
-			main_inf << "coverable elements (all)        : " << U.lower_size() << "\n";
-			main_inf <<	"uncoverable elements (min)      : " << U.upper_size() << "\n";
+			main_cov << "coverable elements (all)        : " << U.lower_size() << "\n";
+			main_cov <<	"uncoverable elements (min)      : " << U.upper_size() << "\n";
 		}
 
 		//TODO??: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold

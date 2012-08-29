@@ -80,6 +80,7 @@
 #define OPT_STR_BW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
 
 #define OPT_STR_BW_WAITFORFW		"fw-blocks-bw"
+#define OPT_STR_LOCAL_SAT			"local-sat"
 
 #define OPT_STR_BW_WEIGHT			"bw-weight"
 #define OPT_STR_WEIGHT_DEPTH		"D"

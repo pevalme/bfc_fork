@@ -18,7 +18,7 @@ sudo apt-get install libboost-program-options-dev
 mkdir ./bin/bfc/release
 
 3. Compile with
-g++ -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc -o./bin/bfc/release/bfc -lboost_filesystem -lboost_system -std=gnu++0x -pthread -lboost_thread -lboost_program_options --static
+g++-4.7 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options --static
 
 -----------------------------------------------
 Compilation instructions for Visual Studio 2010

@@ -26,6 +26,7 @@ graph_type_t graph_type, tree_type;
 interrupt_t execution_state = RUNNING;
 
 bool FullExpressionAccumulator::force_flush = false;
+boost::mutex FullExpressionAccumulator::shared_cout_mutex;
 
 streambuf * FullExpressionAccumulator::rdbuf(streambuf * a){
 	return os.rdbuf(a);
@@ -43,6 +44,11 @@ FullExpressionAccumulator::~FullExpressionAccumulator() {
 		invariant(os.rdbuf() && ss.rdbuf() && ss.good());
 		os << ss.rdbuf() << std::flush; // write the whole shebang in one go
 	}
+}
+
+FullExpressionAccumulator& operator<<(FullExpressionAccumulator& os, ostream_manipulator pf)
+{
+   return operator<< <ostream_manipulator> (os, pf);
 }
 
 void FullExpressionAccumulator::weak_flush(){
@@ -69,4 +75,10 @@ void FullExpressionAccumulator::set_force_flush(bool b)
 	force_flush = b;
 }
 
-
+void FullExpressionAccumulator::swap(FullExpressionAccumulator& other)
+{
+	os.rdbuf(other.os.rdbuf());
+#ifdef WIN32
+	ss.swap(other.ss);
+#endif
+}

@@ -45,10 +45,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/functional/hash.hpp>
 #include <boost/foreach.hpp>
-#include <boost/tokenizer.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
 using namespace std;
+using namespace boost;
 
 std::size_t vec_husher::operator()(const vector<local_t>& v) const 
 {
@@ -116,23 +117,11 @@ BState::BState(string str, bool alloc)
 
 	try
 	{
-		boost::tokenizer<boost::char_separator<char> > tok(str, boost::char_separator<char>("|"));
-		boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
-
-		if(i == tok.end()){
-			type = invalid;
-			return;
-		}
-
-		(i != tok.end()) || (throw,1);
-		shared = boost::lexical_cast<shared_t>(*(i++));
-
-		(i != tok.end()) || (throw,1);
-		boost::tokenizer<boost::char_separator<char> > tok_locs(*i, boost::char_separator<char>(","));
-		boost::tokenizer<boost::char_separator<char> >::iterator li = tok_locs.begin();
-		while(li != tok_locs.end())
-			this->bounded_locals.insert(boost::lexical_cast<shared_t>(*(li++)));
-
+		vector<string> SL, B;
+		split( SL, str, is_any_of("|"));
+		if(SL.size() != 2) throw logic_error("separator missing");
+		this->shared = lexical_cast<shared_t>(SL[0]);
+		split(B, SL[1], is_any_of(",") ), for_each(B.begin(), B.end(), [this](string b){ bounded_locals.insert(lexical_cast<local_t>(b)); });
 		type = def;
 	}
 	catch(...)

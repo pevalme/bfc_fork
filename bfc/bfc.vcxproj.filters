@@ -17,6 +17,7 @@
     <ClCompile Include="..\src\core\vstate.cc" />
     <ClCompile Include="..\src\core\tstate.cc" />
     <ClCompile Include="..\src\core\trans.cc" />
+    <ClCompile Include="..\src\core\net.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\bfc\bfc.interrupts.h">

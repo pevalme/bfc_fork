@@ -1,6 +1,6 @@
 CORE
 main.tts
---mode B --target main.prop --sat-bound 5
+--target main.prop --sat-bound 5
 ^EXIT=0$
 ^SIGNAL=0$
 ^VERIFICATION SUCCESSFUL$

@@ -311,7 +311,7 @@ unsigned complement_vec::project_and_insert(const OState& g)
 	return new_projections;
 }
 
-lowerset_vec::lowerset_vec(unsigned k, unsigned s, bool prj_all, bool f): K(k), lv(s), full_sat(f)
+lowerset_vec::lowerset_vec(unsigned k, unsigned s, bool f): K(k), lv(s), full_sat(f)
 {
 }
 

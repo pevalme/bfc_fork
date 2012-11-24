@@ -41,6 +41,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef TRANS_H
 #define TRANS_H
 
+#include <map>
+#include <set>
+
 #include "tstate.h"
 
 enum trans_type
@@ -58,14 +61,14 @@ enum trans_dir_t
 	nonhor
 };
 
+typedef std::map<local_t,std::set<local_t> > transfers_t; //TODO: this should be a multimap
+
 struct Transition
 {	
 	Thread_State	source;
 	Thread_State	target;
-	trans_type		type;
-	int				id;
-	trans_dir_t		dir;
-	Transition(const Thread_State& s = Thread_State(0,0), const Thread_State& t = Thread_State(0,0), const trans_type& ty = dummy, int i = -1, trans_dir_t d = unset);
+	transfers_t		bcs;
+	Transition(const Thread_State& s = Thread_State(0,0), const Thread_State& t = Thread_State(0,0), transfers_t trns = transfers_t());
 
 	bool operator < (const Transition&) const;
 	bool operator ==(const Transition&) const;

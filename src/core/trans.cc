@@ -43,8 +43,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace std;
 
-Transition::Transition(const Thread_State& s, const Thread_State& t, const trans_type& ty, int i, trans_dir_t d)
-	: source(s), target(t), type(ty), id(i), dir(d)
+Transition::Transition(const Thread_State& s, const Thread_State& t, transfers_t b)
+	: source(s), target(t), bcs(b)
 {
 }
 
@@ -54,23 +54,24 @@ bool Transition::operator < (const Transition& t2) const
 	if(t2.source < this->source) return 0;
 	if(this->target < t2.target) return 1;
 	if(t2.target < this->target) return 0;
-	return this->type < t2.type;
+
+	return this->bcs < t2.bcs;
 }
 
 bool Transition::operator ==(const Transition& t2) const
 {
-	return this->source == t2.source && this->target == t2.target && this->type == t2.type;
+	return this->source == t2.source && this->target == t2.target && this->bcs == t2.bcs;
 }
 
 ostream& operator << (ostream& out, const Transition& r)
 { 
 	if(!out.rdbuf()) return out;
-	out << "(" << r.source << ")" << (r.type==thread_transition?"->":"~>") << "(" << r.target << ")";
+	out << "(" << r.source << ")" << " -> " << "(" << r.target << ")";
 	return out;
 }
 
 ostream& Transition::extended_print(ostream& out) const
 { 
-	out << "[" << this->id << "]: " << "(" << this->source << ")" << (this->type==thread_transition?"->":"~>") << "(" << this->target << ")";
+	out << "(" << this->source << ")" << " -> " << "(" << this->target << ")";
 	return out;
 }

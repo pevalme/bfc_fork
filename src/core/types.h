@@ -33,6 +33,10 @@ const local_t invalid_local = (local_t)-2;
 typedef std::multiset<local_t> bounded_t;
 typedef std::set<local_t> unbounded_t;
 
+#include <map>
+#include <string>
+typedef std::map<std::string,unsigned> scmap_t;
+
 #ifdef ICPC
 #include <boost/unordered_set.hpp>
 using boost::unordered_set;
@@ -49,6 +53,8 @@ using std::unordered_map;
 std::string info(std::string);
 std::string fatal(std::string);
 std::string warning(std::string);
+
+#define COUNT_IF(c,i,b) ((b && ++c[i]),b)
 
 //shared data
 #include <iostream>
@@ -73,16 +79,18 @@ public:
 	void flush();
 	void weak_flush();
 	void set_force_flush(bool);
+	void swap(FullExpressionAccumulator&);
 
     std::stringstream ss;
 	std::ostream os;
 
 	static bool force_flush;
 private:
-	boost::mutex shared_cout_mutex;
+	static boost::mutex shared_cout_mutex;
 };
 
-template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulator& p, T const& t) {
+template <class T> 
+FullExpressionAccumulator& operator<<(FullExpressionAccumulator& p, T const& t) {
 	if(p.os.rdbuf()) 
 	{
 		p.ss << t; // accumulate into a non-shared stringstream, no threading issues
@@ -90,6 +98,9 @@ template <class T> FullExpressionAccumulator& operator<<(FullExpressionAccumulat
 	}
 	return p;
 }
+
+typedef std::ostream& (*ostream_manipulator)(std::ostream&);
+FullExpressionAccumulator& operator<<(FullExpressionAccumulator& os, ostream_manipulator pf);
 
 template<typename Ty, typename Os>
 void copy_deref_range(Ty first, Ty last, Os& out, char dbeg = '{', char delim = ',', char dend = '}'){

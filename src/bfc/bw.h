@@ -107,93 +107,128 @@ time_duration
 /********************************************************
 Pre image
 ********************************************************/
+//scmap_t V;
+//for_each(V.begin(),V.end(),[](scmap_t::value_type& c){ cout << c.first << " " << c.second << " "; }); cout << endl;
 Breached_p_t Pre(const BState& s, Net& n)
 {
+
 	Breached_p_t pres; //set of successors discovered for s so far (a set is used to avoid reprocessing)
 
+	
+	
+	static pair<Net::vv_adjs_t,Net::vvl_adjs_t> T = n.get_backward_adj_2();
+	Net::vv_adjs_t& X = T.first;
+	Net::vvl_adjs_t& Y = T.second;
+
+	
+	
 	stack<const BState*> work; work.push(&s); //todo: allocate nb and bl here already?
 
 	while(!work.empty())
 	{
-		
+
 		const BState* cur = work.top(); work.pop();
 
-		if(cur != &s && n.core_shared(cur->shared)/* && !porable*/)
+		if(cur != &s && core_shared[cur->shared])
 		{
 			if(!pres.insert(cur).second)
 				delete cur;
-			
+
 			continue;
 		}
 
-		invariant(iff(cur == &s, n.core_shared(cur->shared)));
+		invariant(iff(cur == &s, core_shared[cur->shared]));
 
-		auto predecs_it = n.adjacency_list_tos2.find(cur->shared);
-		if(predecs_it == n.adjacency_list_tos2.end()) 
+		vector<pair<vector<Transition>::const_iterator,vector<Transition>::const_iterator> > tranges;
+		tranges.push_back(make_pair(X[cur->shared].begin(),X[cur->shared].end()));
+		for_each(cur->bounded_locals.begin(),cur->bounded_locals.end(),[&tranges,&cur,&X,&Y](const bounded_t::value_type& b){tranges.push_back(make_pair(Y[cur->shared][b].begin(),Y[cur->shared][b].end()));});
+
+		for( auto& r : tranges )
 		{
-			if(cur != &s) 
-				delete cur;
-			
-			continue; //no incoming transitions
-		}
-		
-		for(auto t = predecs_it->second.begin(), te = predecs_it->second.end(); t != te; ++t)
-		{
-
-			const Thread_State& u = t->source;
-			const Thread_State& v = t->target; 
-			invariant(cur->shared == v.shared);
-
-			const bool thread_in_u = (cur->bounded_locals.find(u.local) != cur->bounded_locals.end());
-			const bool thread_in_v = (cur->bounded_locals.find(v.local) != cur->bounded_locals.end());
-			const bool horiz_trans = (u.shared == v.shared);
-			const bool diff_locals = (u.local != v.local);
-			const trans_type&	ty = t->type;
-
-			invariant(!(ty == spawn_transition && !thread_in_u && thread_in_v && !horiz_trans && !diff_locals));
-			invariant(!(ty == spawn_transition && thread_in_u && !thread_in_v && !horiz_trans && !diff_locals));
-			invariant(!(ty == spawn_transition && !thread_in_u && thread_in_v && horiz_trans && !diff_locals));
-			invariant(!(ty == spawn_transition && thread_in_u && !thread_in_v && horiz_trans && !diff_locals));
-
-			if((horiz_trans && !thread_in_v) || (thread_in_u && diff_locals && ty == transfer_transition) || (horiz_trans && !diff_locals && thread_in_u)) //last condition encodes self-loops
+			for( ;r.first != r.second; ++r.first)
 			{
-				//preinf << "Ignore: not smaller/incomparable predecessor resp. no predecessor" << "\n";
-				continue;
-			}
+				const Transition&	t = *r.first;
+				const Thread_State& u = t.source;
+				const Thread_State& v = t.target; 
+				const transfers_t&	p = t.bcs; //inverse transfer
 
-			BState* pre = new BState(horiz_trans?cur->shared:u.shared,cur->bounded_locals.begin(),cur->bounded_locals.end(),false); //allocation
+				invariant(cur->shared == v.shared);
 
-			if(thread_in_v && diff_locals)
-			{
-				if(ty == thread_transition || ty == spawn_transition)
-				{ //replace one
-					pre->bounded_locals.erase(pre->bounded_locals.find(v.local));
-					if(ty == thread_transition || !thread_in_u)
-						pre->bounded_locals.insert(u.local);
-				}
-				else
-				{ //replace all
-					bounded_t::const_iterator v_local;
-					while((v_local = pre->bounded_locals.find(v.local)) != pre->bounded_locals.end())
+				const bool thread_in_u = (cur->bounded_locals.find(u.local) != cur->bounded_locals.end());
+				const bool thread_in_v = (cur->bounded_locals.find(v.local) != cur->bounded_locals.end());
+				const bool horiz_trans = (u.shared == v.shared);
+				const bool diff_locals = (u.local != v.local);
+
+				invariant(!horiz_trans || thread_in_v || !p.empty());
+
+				if(horiz_trans && !thread_in_v && cur->bounded_locals.empty())
+					continue;
+
+				BState* pre = new BState(horiz_trans?cur->shared:u.shared,cur->bounded_locals.begin(),cur->bounded_locals.end(),false); //allocation
+
+				if(thread_in_v) pre->bounded_locals.erase(pre->bounded_locals.find(v.local)); //remove one
+
+				//create, for all passive updates combinations c_i in bounded local states, a state s_i = s+c_i (check for duplicates, and ignoring those entering an "omega"-value)
+				typedef pair<bounded_t,bounded_t> local_tp; //unprocessed and processed local states
+				typedef set<local_tp> comb_t;
+				if(!p.empty() && !pre->bounded_locals.empty()) //if there are passive updates and at least one passive thread exists
+				{
+					comb_t combs_interm; 
+					stack<comb_t::const_iterator> cwork;
+					cwork.push(combs_interm.insert(make_pair(pre->bounded_locals,bounded_t())).first); //inserte pair (locals,{})
+
+					bool first = true;
+					while(!cwork.empty())
 					{
-						bstate_t n = new BState(*pre); //allocation
-						work.push(n); 
-						pre->bounded_locals.erase(v_local); //remove exaclty one
-						pre->bounded_locals.insert(u.local);
+						comb_t::const_iterator w = cwork.top(); cwork.pop();
+						invariant(w->first.size()); //work shall only contain states with unprocessed local states
+
+						//remove one local and create a new pair for all predecessor combinations
+						local_t passive_source = *w->first.begin();
+						auto x = p.find(passive_source); //transfer destinations
+
+						local_t passive_target;
+						set<local_t>::const_iterator pi;
+
+						if(x == p.end()) passive_target = passive_source;
+						else pi = x->second.begin(), passive_target = *pi;
+
+						do
+						{
+							local_tp ne(*w);
+							ne.second.insert(passive_target);
+							invariant(*ne.first.begin() == passive_source);
+							ne.first.erase(ne.first.find(passive_source));
+
+							if(ne.first.empty())
+							{
+								//create new states for all but the first one; the first one is added in the remainder of this function
+								if(first)
+									//do not readd active thread (done below)
+										pre->bounded_locals = ne.second, first = false;
+								else
+								{
+									ne.second.insert(u.local);
+									BState* prep = new BState(pre->shared,ne.second.begin(),ne.second.end(),false); //allocation
+									invariant(prep->consistent());
+									work.push(prep);
+								}
+							}
+							else
+							{
+								auto a = combs_interm.insert(ne);
+								if(a.second) cwork.push(a.first);
+							}
+						}
+						while(x != p.end() && ++pi != x->second.end() && (passive_target = *pi,1));
+
 					}
 				}
-			}
-			else if(!thread_in_u && ty == spawn_transition)
-			{
+
 				pre->bounded_locals.insert(u.local);
-			}
-			else if(!thread_in_v && ty == thread_transition)
-			{ //add u.l
-				pre->bounded_locals.insert(u.local); //note: transfer transitions are non-blocking, why no u.local must be added
-			}
 
-			work.push(pre);
-
+				work.push(pre);
+			}
 		}
 
 		if(cur != &s) 
@@ -215,10 +250,10 @@ void global_clean_up(bstate_t& s, vec_antichain_t& M, non_minimals_t& N, vec_ant
 	precondition(iff(s->nb->status == BState::pending || s->nb->status == BState::processed, M.manages(s))); //pending and processed states are minimal
 	precondition(iff(s->nb->status == BState::blocked_pending || s->nb->status == BState::blocked_processed, N.find(s) != N.end())); //blocked states are not minimal
 	precondition(iff(s->bl->blocks.empty() && (s->nb->status == BState::blocked_pending || s->nb->status == BState::blocked_processed), O.manages(s))); //blocked states that do not block others are maximal
-	
+
 	//not checked
 	precondition(implies(!s->nb->sleeping,iff(s->nb->status == BState::pending && !W.contains(keyprio_pair(s)), W_deferred.find(s) != W_deferred.end())));
-	
+
 	if(s->nb->status == BState::pending && !s->nb->sleeping)
 	{
 		if(W.contains(keyprio_pair(s)))
@@ -270,9 +305,9 @@ void wake_up(bstate_t& s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t
 
 	for(;i != e;)
 	{
-		bstate_t b = *i++;
+		bstate_t b = *i;
 
-		s->bl->blocks.erase(b), b->bl->blocked_by.erase(s); //remove blocking edges between s and b
+		i = s->bl->blocks.erase(i), b->bl->blocked_by.erase(s); //remove blocking edges between s and b
 
 		if(b->bl->blocked_by.empty()) //check whether b is still blocked by other states
 		{
@@ -367,11 +402,17 @@ unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_
 
 		for(;i != e;)
 		{
+			bstate_t suc = *i;
+			if((suc)->nb->src == p->nb->src) Q.push(suc); //only remember direct successors
+			else p->nb->src->us->erase(suc); //but locally erase indirect successors
+			suc->nb->pre.erase(p), i = p->nb->suc.erase(i); //erase also indirect successors
+
+			/*
 			bstate_t suc = *i++;
 			if(suc->nb->src == p->nb->src) Q.push(suc); //only remember direct successors
 			else p->nb->src->us->erase(suc); //but locally erase indirect successors
-
 			p->nb->suc.erase(suc), suc->nb->pre.erase(p); //erase also indirect successors
+			*/
 		}
 
 #ifdef EAGER_ALLOC
@@ -400,7 +441,7 @@ unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_
 			//without C.K != 0 regression\spawn_vf_02 fails with option -k0 --mode B
 			//the target is a source with potentially more threads than parameter k
 
-			if(C.K != 0 && p->size() <= C.K && p->nb->ini) //in case a source with width <k is removed, new source states need to be added
+			if(s != target && C.K != 0 && p->size() <= C.K && p->nb->ini) //in case a source with width <k is removed, new source states need to be added
 			{
 				foreach(const cmb_node_p n, C.diff_insert(p->shared,cmb_node(p->bounded_locals.begin(),p->bounded_locals.end(),0,nullptr)).second) //traverse all new minimal elements
 				{
@@ -689,7 +730,7 @@ bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antic
 
 		if (!try_prune(w,M,N,O,W,*C,D,t,piteration, ctr_prune_dequeues,W_deferred))
 		{
-			bw_log << "Backward trace to coverable state found; target " << *net.target << " is coverable" << "\n";
+			bw_log << "Backward trace to coverable state found; target " << net.target << " is coverable" << "\n";
 			bw_safe = false;
 		}
 		else
@@ -798,9 +839,10 @@ void clean_replace_and_mark(bstate_t src, bstate_t w, list<bstate_t>& pres, vec_
 				pre = *exist;
 				*i = pre;
 
-				if(net.check_target && pre->nb->sleeping) //note: *exist == *pre can occur
+				if(net.target.type != BState::invalid && pre->nb->sleeping) //note: *exist == *pre can occur
 				{
-					invariant(pre->nb->gdepth == -1);
+					//invariant(pre->nb->gdepth == -1);
+					invariant(pre->nb->gdepth == 0);
 					pre->nb->gdepth = w->nb->gdepth + 1;
 					pre->nb->sleeping = false, W.push(keyprio_pair(pre));
 					bw_log << "target dependant wake up of (predecessor): " << **exist << "\n";
@@ -844,7 +886,7 @@ bool check_global_minimal_and_wake_up(bstate_t w, list<bstate_t>& pres, vec_anti
 		}
 		else
 		{
-			if(global_rel == neq_ge && net.check_target)
+			if(global_rel == neq_ge && net.target.type != BState::invalid)
 			{
 
 				auto LGE = M.LGE(pre,antichain_t::less_equal);
@@ -932,6 +974,8 @@ Greedy backward search
 void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C, const vector<BState>& work_seq, bool print_cover)
 {
 
+	BState* target = new BState(n->target);
+
 	//statistics
 	ctr_state_new = 0, ctr_state_not_new = 0, 
 		ctr_locally_non_minimal = 0, ctr_locally_non_minimal__neq_ge = 0, ctr_locally_non_minimal__neq_ge__exists_max = 0, 
@@ -1000,7 +1044,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		for(shared_t s = 0; s < BState::S && (print_cover || !shared_fw_done) && execution_state == RUNNING; ++s)
 		{
 
-			if(!net.core_shared(s))
+			if(!core_shared[s])
 				continue;
 
 			bw_log << "shared state " << s << " about to be initialized... " << "\n";
@@ -1022,7 +1066,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				invariant(add->nb->gdepth == -1);
 				add->nb->gdepth = 0;
 
-				add->nb->status = BState::pending, net.check_target?add->nb->sleeping = true:W.push(keyprio_pair(add));
+				add->nb->status = BState::pending, target->type != BState::invalid?add->nb->sleeping = true:W.push(keyprio_pair(add));
 				//M.insert(add); //every source state is a minimal element of the "global" upperset
 				M.insert_incomparable(add);
 			}
@@ -1033,22 +1077,23 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 		}
 
-		if(net.check_target && (print_cover || !shared_fw_done) && execution_state == RUNNING)
+		if(target->type != BState::invalid && (print_cover || !shared_fw_done) && execution_state == RUNNING)
 		{
 
-			if(!M.manages(net.target))
+			if(!M.manages(target))
 			{
-				t = new BState(net.target->shared,net.target->bounded_locals.begin(),net.target->bounded_locals.end(),true); 
+				t = new BState(target->shared,target->bounded_locals.begin(),target->bounded_locals.end(),true); 
 				t->nb->src = t, t->nb->ini = true; //the source field of a source state points to itself and its ini flag is set to true
 				t->us = new BState::vec_upperset_t, t->us->insert(t); //every source state has an associated upperset (called "local") that initially only contains this state
+				invariant(t->nb->gdepth == -1);
+				t->nb->gdepth = 0;
 			}
 			else
 			{
-				t = const_cast<bstate_nc_t>(*M.case_insert(net.target).exist_els.begin());
-				delete net.target, net.target = t;
+				t = const_cast<bstate_nc_t>(*M.case_insert(target).exist_els.begin());
+				delete target, target = t;
+				invariant(t->nb->gdepth == 0);
 			}
-			invariant(t->nb->gdepth == -1);
-			t->nb->gdepth = 0;
 			
 			if(M.relation(t) == neq_ge)
 			{
@@ -1315,7 +1360,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 								N.insert(pre), enqueue(global_insert.exist_els,O.LGE(pre, vec_antichain_t::set_t::greater_equal),pre), O.max_insert(pre), pre->nb->status = BState::blocked_pending; //the predecessor is locally, but not globally minimal; it is added to the set of non-minimal elements, its blocking edged are adjusted wrt. to existing states and its status is set to blocked_pending
 
-								if(net.check_target)
+								if(target->type != BState::invalid)
 								{
 
 									bool skip = false;

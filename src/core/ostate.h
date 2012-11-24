@@ -175,8 +175,7 @@ typedef unordered_priority_set<ostate_t> OState_priority_queue_t;
 struct OState
 {
 	/* ---- Members and types ---- */	
-	static size_t L, S; //state dimension
-
+	
 	//hash-function sensitive data
 	shared_t		shared;
 	bounded_t		bounded_locals;
@@ -194,9 +193,8 @@ struct OState
 	OState(shared_t = invalid_shared);
 	template<class Iter> OState(shared_t, Iter, Iter);
 	template<class Iter1,class Iter2> OState(shared_t, Iter1, Iter1, Iter2, Iter2);
-	OState(std::istream& cin);
+	OState(string);
 	static OState get_rand(unsigned, unsigned = 0, bool = false);
-	//std::vector<OState> resolve_omegas(size_t) const;
 	Oreached_t resolve_omegas(size_t) const;
 
 	/* ---- Order operators ---- */

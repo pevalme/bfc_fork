@@ -459,21 +459,13 @@ antichain_t::s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
 }
 
 #include "net.h"
-extern Net net;
+extern vector<bool> core_shared;
 
 vec_antichain_t::vec_antichain_t(bool ownership)//: uv(0)
 {
 	for(unsigned i = 0; i < BState::S; ++i)
-		if(net.core_shared(i))
-			//uv.insert(move(antichain_t(ownership)));
+		if(core_shared[i])
 			uv[i] = move(antichain_t(ownership));
-
-	//auto garabge = antichain_t(ownership);
-	//for(unsigned i = 0; i < BState::S; ++i)
-	//	if(net.core_shared(i))
-	//		uv.push_back(move(antichain_t(ownership)));
-	//	else
-	//		uv.push_back(move(garabge));
 }
 
 vec_antichain_t::~vec_antichain_t()

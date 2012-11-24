@@ -87,13 +87,49 @@ void print_dot_search_graph(const Oreached_t& Q)
 
 }
 
+
+enum core_state_t{
+	SHARED,
+	LOCAL,
+	FULL };
+
+//bool is_core_state(ostate_t s, Net& n, core_state_t t = FULL)
+//{
+//	bool ret = true;
+//
+//	if(t!=LOCAL) 
+//		ret &= core_shared[s->shared];
+//
+//#ifndef NO_LOCAL_POR
+//	if(t!=SHARED){
+//		for(const local_t& l : s->bounded_locals)
+//			ret &= n.core_local(l);
+//		for(const local_t& l : s->unbounded_locals)
+//			ret &= n.core_local(l);
+//	}
+//#endif
+//
+//	return ret;
+//}
+
 typedef vector<pair<Net::adj_t::const_iterator, trans_type> > tt_list_t;
 
-Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque, bool forward_projections)
+Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque)
 { 
 	
 	Oreached_t succs;
 
+	/*
+	//TODO: remove
+	const_cast<OState*>(ag)->unbounded_locals.clear();
+	//const_cast<OState*>(ag)->unbounded_locals.insert(0);
+	//const_cast<OState*>(ag)->bounded_locals.insert(2);
+	const_cast<OState*>(ag)->bounded_locals.insert(0);
+	const_cast<OState*>(ag)->bounded_locals.insert(0);
+	const_cast<OState*>(ag)->bounded_locals.insert(1);
+	fw_log << "computing successor of " << *ag << "\n"; //TODO: remove
+	*/
+	
 	stack<OState*> work;
 
 	work.push(const_cast<OState*>(ag));
@@ -104,7 +140,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		OState* g = work.top(); work.pop();
 		bool g_in_use = g == ag;
 
-		invariant(iff(g == ag,n.core_shared(g->shared)));
+		invariant(iff(g == ag,core_shared[g->shared]));
 
 		//collect all relevant transitions
 		tt_list_t tt_list;
@@ -115,8 +151,6 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
 				tt_list.push_back(make_pair(tc, thread_transition));
-			if((tc = n.spawn_adjacency_list.find(Thread_State(g->shared, *l))) != n.spawn_adjacency_list.end()) 
-				tt_list.push_back(make_pair(tc, spawn_transition));
 
 			local_t last = *l;
 			while(++l != le && last == *l); //skip same locals
@@ -125,13 +159,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
 				tt_list.push_back(make_pair(tc, thread_transition));
-			if((tc = n.spawn_adjacency_list.find(Thread_State(g->shared, *l))) != n.spawn_adjacency_list.end()) 
-				tt_list.push_back(make_pair(tc, spawn_transition));
 		}
-		auto t_transfers = n.transfer_adjacency_list_froms.find(g->shared);
-		if(t_transfers != n.transfer_adjacency_list_froms.end())
-			for(auto tc = t_transfers->second.begin(), te = t_transfers->second.end(); tc!=te; ++tc)
-				tt_list.push_back(make_pair(tc,transfer_transition));
 
 		//compute successors
 		auto tt = tt_list.begin(), 
@@ -149,18 +177,20 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 
 			for(;tsb != tse; ++tsb)
 			{
-				const Thread_State& v = *tsb;
-				const bool bounded_in_u = g->bounded_locals.find(u.local) != g->bounded_locals.end();
-				const bool unbounded_in_u = g->unbounded_locals.find(u.local) != g->unbounded_locals.end(); 
-				invariant(!bounded_in_u || !unbounded_in_u);
-				const bool bounded_in_v = g->bounded_locals.find(v.local) != g->bounded_locals.end();
-				const bool unbounded_in_v = g->unbounded_locals.find(v.local) != g->unbounded_locals.end();
-				const bool thread_in_u = bounded_in_u || unbounded_in_u;
-				const bool horiz_trans = (u.shared == v.shared);
-				const bool diff_locals = (u.local != v.local);
+				const Thread_State& v = tsb->first;
+				const transfers_t& p = tsb->second;
 
-				//if((!thread_in_u && (ty == thread_transition || horiz_trans)))
-				if((!thread_in_u && (ty == thread_transition || ty == spawn_transition || horiz_trans)))
+				const bool	bounded_in_u = g->bounded_locals.find(u.local) != g->bounded_locals.end();
+				const bool	unbounded_in_u = g->unbounded_locals.find(u.local) != g->unbounded_locals.end(); 
+				const bool	bounded_in_v = g->bounded_locals.find(v.local) != g->bounded_locals.end();
+				bool		unbounded_in_v = g->unbounded_locals.find(v.local) != g->unbounded_locals.end();
+				const bool	thread_in_u = bounded_in_u || unbounded_in_u;
+				const bool	horiz_trans = (u.shared == v.shared);
+				const bool	diff_locals = (u.local != v.local);
+
+				invariant(!bounded_in_u || !unbounded_in_u);
+
+				if((!thread_in_u && (ty == thread_transition || horiz_trans)))
 				{
 					fw_log << "Ignore: No/no incomparable successors" << "\n";
 					continue;
@@ -180,35 +210,109 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				if(!horiz_trans) 
 					succ->shared = v.shared;
 
-				//if(diff_locals && thread_in_u && !(ty == thread_transition && unbounded_in_u && unbounded_in_v))
-				if(diff_locals && thread_in_u && !((ty == spawn_transition || ty == thread_transition) && unbounded_in_u && unbounded_in_v))
+				if(!p.empty() || (diff_locals && thread_in_u && !(ty == thread_transition && unbounded_in_u && unbounded_in_v)))
 				{
-					if(ty == thread_transition || ty == spawn_transition)
+					//remove one bounded occurence of u.local
+					if(ty == thread_transition && bounded_in_u) succ->bounded_locals.erase(succ->bounded_locals.find(u.local)); 
+
+					if(!p.empty())
 					{
-						//replace one bounded occurence of u.local by v.local resp. add one bounded occurence of v.local
-						if(ty == thread_transition && bounded_in_u) succ->bounded_locals.erase(succ->bounded_locals.find(u.local)); 
-						if(!unbounded_in_v) succ->bounded_locals.insert(v.local);
-					}
-					else
-					{
-						if(bounded_in_u)
+						//distribute omegas (this yields the maximal obtainable state)
+						set<local_t> distibute;
+						for(const local_t &passive_source : succ->unbounded_locals)
 						{
-							//remove all occurences of u.local and, if necessary, add v.local for each
-							size_t removed = succ->bounded_locals.erase(u.local); 
-							if(!unbounded_in_v) while(removed--) succ->bounded_locals.insert(v.local);
+							auto x = p.find(passive_source);
+							if(x == p.end()) continue;
+							unbounded_in_v |= x->second.find(v.local) != x->second.end();
+							distibute.insert(x->second.begin(),x->second.end());
 						}
+						succ->unbounded_locals.insert(distibute.begin(),distibute.end());
+
+						//create, for all passive updates combinations c_i in bounded local states, a state s_i = s+c_i (check for duplicates, and ignoring those entering an "omega"-value)
+						typedef pair<bounded_t,bounded_t> local_tp; //unprocessed and processed local states
+						typedef set<local_tp> comb_t;
+						if(!succ->bounded_locals.empty())
+						{
+							comb_t combs_interm; 
+							stack<comb_t::const_iterator> cwork;
+							cwork.push(combs_interm.insert(make_pair(succ->bounded_locals,bounded_t())).first); //inserte pair (locals,{})
+
+							bool first = true;
+							while(!cwork.empty())
+							{
+								comb_t::const_iterator w = cwork.top(); cwork.pop();
+								invariant(w->first.size()); //work shall only contain states with unprocessed local states
+
+								//remove one local and create a new pair for all successor combinations
+								local_t passive_source = *w->first.begin();
+								auto x = p.find(passive_source); //transfer destinations
+
+								local_t passive_target;
+								set<local_t>::const_iterator pi;
+
+								if(x == p.end()) passive_target = passive_source;
+								else pi = x->second.begin(), passive_target = *pi;
+
+								do
+								{
+									local_tp ne(*w);
+									if(succ->unbounded_locals.find(passive_target) == succ->unbounded_locals.end()) //ignore target locals that are unbounded in the target state
+										ne.second.insert(passive_target);
+									invariant(*ne.first.begin() == passive_source);
+									ne.first.erase(ne.first.find(passive_source));
+
+									if(ne.first.empty())
+									{
+
+										//create new states for all but the first one; the first one is added in the remainder of this function
+										if(first)
+											//do not readd active thread (done below)
+												succ->bounded_locals = ne.second, first = false;
+										else
+										{
+											OState* succp = new OState(succ->shared,ne.second.begin(),ne.second.end(),succ->unbounded_locals.begin(),succ->unbounded_locals.end());
+											//readd active thread
+											if(!unbounded_in_v) 
+												if(unbounded_in_u && horiz_trans)
+													succp->unbounded_locals.insert(v.local);
+												else
+													succp->bounded_locals.insert(v.local);
+
+											invariant(succp->consistent());
+
+											if(core_shared[succp->shared])
+											{
+												fw_log << "Found passive core successor: " << *succp << "\n";
+												succs.insert(succp); //add to return set
+											}
+											else
+											{
+												fw_log << "Found passive intermediate successor: " << *succp << "\n";
+												work.push(succp); //add to work list
+											}			
+										}
+									}
+									else
+									{
+										auto a = combs_interm.insert(ne);
+										if(a.second) cwork.push(a.first);
+									}
+								}
+								while(x != p.end() && ++pi != x->second.end() && (passive_target = *pi,1));
+							}
+						}
+					}
+
+					//add one/unbounded v.local's if an unbounded number do not yet exist
+					if(!unbounded_in_v) 
+						if(unbounded_in_u && horiz_trans)
+							succ->unbounded_locals.insert(v.local);
 						else
-						{
-							//remove the unbounded occurence of u.local and, if necessary, add v.local instead
-							succ->unbounded_locals.erase(succ->unbounded_locals.find(u.local)); 
-							if(!unbounded_in_v) succ->unbounded_locals.insert(v.local);
-							if(bounded_in_v) succ->bounded_locals.erase(v.local);
-						}
-					}
+							succ->bounded_locals.insert(v.local);
 				}
 				invariant(succ->consistent());
 				
-				if(n.core_shared(succ->shared))
+				if(core_shared[succ->shared])
 				{
 					fw_log << "Found core successor: " << *succ << "\n";
 					succs.insert(succ); //add to return set
@@ -337,6 +441,7 @@ unordered_priority_set<ostate_t>::keyprio_type keyprio_pair(ostate_t s)
 
 void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_cmb_deque, bool forward_projections, unordered_priority_set<ostate_t>::order_t forder)
 {
+
 	const bool plain_km = false;
 	fw_start_time = boost::posix_time::microsec_clock::local_time();
 
@@ -368,12 +473,16 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			if(fw_threshold != OPT_STR_FW_THRESHOLD_DEFVAL && f_its%1000==0) //just do this from time to time
 			{
 				auto diff = (boost::posix_time::microsec_clock::local_time() - last_new_prj_found);
-				if((diff.hours() * 3600 + 60 * diff.minutes() + diff.seconds()) > fw_threshold)
+				if((unsigned)(diff.hours() * 3600 + 60 * diff.minutes() + diff.seconds()) > fw_threshold)
 					threshold_reached = true;
 			}
 
 			//project
-			unsigned c = D->project_and_insert(*cur, *shared_cmb_deque, forward_projections); //project if requested
+
+			unsigned c = 0;
+			//if(is_core_state(cur,net,FULL))
+				c = D->project_and_insert(*cur, *shared_cmb_deque, forward_projections); //project if requested
+			
 			if(c)
 				last_new_prj_found = boost::posix_time::microsec_clock::local_time(), 
 				fw_prj_found += c, 
@@ -386,7 +495,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 			if(first && threshold_reached)
 				fw_log << "threshold reached" << "\n", first = false;
 
-			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque, forward_projections)) //allocates objects in "successors"
+			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque)) //allocates objects in "successors"
 			{
 				
 				if((threshold_reached) || (max_fw_width != OPT_STR_FW_WIDTH_DEFVAL && p_c->size() > max_fw_width)) //TEST
@@ -401,7 +510,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				fw_log << "checking successor " << *p << "\n";
 
-				if(n->check_target && n->Otarget <= *p)
+				if(net.target.type != BState::invalid && n->target <= *p)
 				{
 					fw_safe = false;
 					fw_log << "Forward trace to target covering state found" << "\n";
@@ -409,19 +518,19 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 					//print trace
 					ostate_t walker = cur;
 					
-					OState tmp(*p); tmp.unbounded_locals.erase(net.local_thread_pool);
+					OState tmp(*p); if(net.S != net.S_input) tmp.unbounded_locals.erase(net.S_input);
 					main_inf << "counterexample" << "\n";
 					main_inf << tmp << "\n";
 
 					if(walker->shared < net.S_input){
-						OState tmp(*walker); tmp.unbounded_locals.erase(net.local_thread_pool);
+						OState tmp(*walker); if(net.S != net.S_input) tmp.unbounded_locals.erase(net.S_input);
 						main_inf << tmp << "\n";
 					}
 					while(walker->prede != nullptr)
 					{
 						if(walker->prede->shared < net.S_input) 
 						{
-							OState tmp(*walker->prede); tmp.unbounded_locals.erase(net.local_thread_pool);
+							OState tmp(*walker->prede); if(net.S != net.S_input) tmp.unbounded_locals.erase(net.S_input);
 							main_inf << tmp << "\n";
 						}
 						walker = walker->prede;
@@ -473,7 +582,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 	fw_log << "fw while exit" << "\n", fw_log.flush();
 
-	while(!net.target && !shared_bw_done && print_cover)
+	while(net.target.type != BState::invalid && !shared_bw_done && print_cover)
 	{
 		fw_log << "waiting for bw\n";
 		boost::this_thread::sleep(milliseconds(100));

@@ -39,19 +39,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
 #include "ostate.h"
+#include "bstate.h"
 
 #include <iostream>
 
 #include "multiset_adapt.h"
 
 #include <boost/foreach.hpp>
-#include <boost/tokenizer.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include "combination.hpp"
 
 using namespace std;
+using namespace boost;
 
 bool Opriority_iterator_comparison_less::operator() (Opriority_iterator& lhs, Opriority_iterator& rhs) const
 {
@@ -63,52 +65,32 @@ bool Opriority_iterator_comparison_greater::operator() (Opriority_iterator& lhs,
 	return (lhs.second > rhs.second);
 }
 
-size_t OState::L;
-size_t OState::S;
-
 /* ---- Constructors ---- */
 OState::OState(shared_t s): shared(s), accel(nullptr), prede(nullptr), tsucc(false), depth(0)
 {
 }
 
-OState::OState(istream& cin): accel(nullptr), prede(nullptr), tsucc(false), depth(0)
+OState::OState(string str)
+	: accel(nullptr), prede(nullptr), tsucc(false), depth(0)
 {
-	cout << "Enter shared initial: "; cin >> shared;
-
-	string blocals, ulocals;
-	cout << "Enter bounded locals (comma sep.) or 'none': "; cin >> blocals;
-	if(blocals != "none"){
-		boost::tokenizer<boost::char_separator<char> > tok(blocals, boost::char_separator<char>(","));
-		for(boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin(); i != tok.end(); ++i) 
-			bounded_locals.insert(boost::lexical_cast<local_t>(*i));
+	try
+	{
+		vector<string> SL, BU, B, U;
+		split( SL, str, is_any_of("|"));
+		if(SL.size() != 2) throw;
+		this->shared = lexical_cast<shared_t>(SL[0]);
+		split( BU, SL[1], is_any_of("/") );
+		if(SL.size() != 1 && SL.size() != 2) throw;
+		if(!BU[0].empty()) 
+			split( B, BU[0], is_any_of(",") ), for_each(B.begin(), B.end(), [this](string b){ bounded_locals.insert(lexical_cast<local_t>(b)); });
+		if(BU.size()!=1 && !BU[1].empty()) 
+			split( U, BU[1], boost::is_any_of(",") ), for_each(U.begin(), U.end(), [this](string u){ unbounded_locals.insert(lexical_cast<local_t>(u)); });
 	}
-
-	cout << "Enter unbounded locals (comma sep.) or 'none': "; cin >> ulocals;
-	if(ulocals != "none"){
-		boost::tokenizer<boost::char_separator<char> > tok2(ulocals, boost::char_separator<char>(","));
-		for(boost::tokenizer<boost::char_separator<char> >::iterator i = tok2.begin(); i != tok2.end(); ++i) 
-			unbounded_locals.insert(boost::lexical_cast<local_t>(*i));
+	catch(...)
+	{
+		throw runtime_error((string("invalid state string: ") + str).c_str()); 
 	}
 }
-
-//vector<OState> OState::resolve_omegas(size_t max_width) const
-//{
-//	vector<OState> ret;
-//
-//	vector<local_t> bench(max_width*unbounded_locals.size());
-//	merge_mult(bounded_locals.begin(), bounded_locals.begin(), unbounded_locals.begin(), unbounded_locals.end(), max_width, bench.begin());
-//
-//	for(unsigned r = 1; r <= max_width; ++r){
-//		do {
-//			//vector<local_t> prj(bench.begin(), bench.begin() + r);
-//			OState t(shared,bounded_locals.begin(),bounded_locals.end()); //ignore unbounded components
-//			t.bounded_locals.insert(bench.begin(), bench.begin() + r);
-//			ret.push_back(t);
-//		} while (boost::next_combination(bench.begin(), bench.begin() + r, bench.begin() + bench.size()));
-//	}
-//
-//	return ret;
-//}
 
 Oreached_t OState::resolve_omegas(size_t max_width) const
 {
@@ -182,9 +164,9 @@ size_t OState::size() const
 
 bool OState::consistent() const
 {
-	if(S == 0 || (shared >= S && shared != invalid_shared) ) return 0;
-	foreach(const local_t& l, bounded_locals) if(l >= L || unbounded_locals.find(l) != unbounded_locals.end()) return 0;
-	foreach(const local_t& l, unbounded_locals) if(l >= L || bounded_locals.find(l) != bounded_locals.end()) return 0;
+	if(BState::S == 0 || (shared >= BState::S && shared != invalid_shared) ) return 0;
+	foreach(const local_t& l, bounded_locals) if(l >= BState::L || unbounded_locals.find(l) != unbounded_locals.end()) return 0;
+	foreach(const local_t& l, unbounded_locals) if(l >= BState::L || bounded_locals.find(l) != bounded_locals.end()) return 0;
 	return 1;
 }
 

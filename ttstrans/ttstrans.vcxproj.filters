@@ -7,5 +7,7 @@
     <ClCompile Include="..\src\core\ostate.cc" />
     <ClCompile Include="..\src\ttstrans\ttstrans.cc" />
     <ClCompile Include="..\src\core\types.cc" />
+    <ClCompile Include="..\src\core\trans.cc" />
+    <ClCompile Include="..\src\core\tstate.cc" />
   </ItemGroup>
 </Project>

@@ -11,6 +11,7 @@ using namespace boost::program_options;
 using namespace std;
 
 #include "net.h"
+Net net;
 
 void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n_ty, ostream& out, Net& net)
 {
@@ -74,28 +75,34 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 	for (Net::adj_t::const_iterator pair = adj.begin(), end = adj.end(); pair != end; ++pair) //print transisitons
 	{
 		const Thread_State&      t          = pair->first;
-		const set<Thread_State>& successors = pair->second;
-		for (set<Thread_State>::const_iterator succ = successors.begin(), end = successors.end(); succ != end; ++succ)
+		const set<std::pair<Thread_State, transfers_t > >& successors = pair->second;
+		for (set<std::pair<Thread_State, transfers_t > >::const_iterator succt = successors.begin(), end = successors.end(); succt != end; ++succt)
 		{
+
+			const Thread_State& succ = succt->first;
+			const transfers_t& p = succt->second;
+
+			if(!p.empty()) throw runtime_error("translation of broadcast transitions not supported");
+
 			switch(n_ty){
 			case Net::TTS:
 				switch(t_ty){
-				case thread_transition: out << t << " -> " << (*succ) << endl; break;
-				case transfer_transition: out << t << " ~> " << (*succ) << endl; break;
-				case spawn_transition: out << t << " +> " << (*succ) << endl; break;
+				case thread_transition: out << t << " -> " << (succ) << endl; break;
+				case transfer_transition: out << t << " ~> " << (succ) << endl; break;
+				case spawn_transition: out << t << " +> " << (succ) << endl; break;
 				default: assert(0);}
 				break;
 			
 			case Net::MIST:
 				out << "l" << t.local << ">=1, " << "s" << t.shared << ">=1 -> " << endl;
-				if(t.shared != succ->shared) out << "\ts" << t.shared << "'=s" << t.shared << "-1," << endl << "\ts" << succ->shared << "'=s" << succ->shared << "+1";
-				if(t.local != succ->local)
+				if(t.shared != succ.shared) out << "\ts" << t.shared << "'=s" << t.shared << "-1," << endl << "\ts" << succ.shared << "'=s" << succ.shared << "+1";
+				if(t.local != succ.local)
 				{
-					if(t.shared != succ->shared) out << "," << endl;
+					if(t.shared != succ.shared) out << "," << endl;
 					switch(t_ty){
-					case transfer_transition: out << "\tl" << t.local << "'=0," << endl << "\tl" << succ->local << "'=l" << succ->local << "+l" << t.local << ";"; break;
-					case thread_transition: out << "\tl" << t.local << "'=l" << t.local << "-1," << endl << "\tl" << succ->local << "'=l" << succ->local << "+1;"; break;
-					case spawn_transition: out << "\tl" << succ->local << "'=l" << succ->local << "+1;"; break;
+					case transfer_transition: out << "\tl" << t.local << "'=0," << endl << "\tl" << succ.local << "'=l" << succ.local << "+l" << t.local << ";"; break;
+					case thread_transition: out << "\tl" << t.local << "'=l" << t.local << "-1," << endl << "\tl" << succ.local << "'=l" << succ.local << "+1;"; break;
+					case spawn_transition: out << "\tl" << succ.local << "'=l" << succ.local << "+1;"; break;
 					default: assert(0);}
 				}
 				else out << ";";
@@ -109,7 +116,7 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 					case thread_transition: out << "thread_trans"; break;
 					case spawn_transition: out << "spawn_trans"; break;
 					default: assert(0);}
-				out << "] (" << t.local << "+0.5," << BState::S-t.shared-1 << "+0.5) to (" << succ->local << "+0.5," << BState::S-succ->shared-1 << "+0.5);" << endl; 
+				out << "] (" << t.local << "+0.5," << BState::S-t.shared-1 << "+0.5) to (" << succ.local << "+0.5," << BState::S-succ.shared-1 << "+0.5);" << endl; 
 				break;
 
 			case Net::LOLA: 
@@ -137,8 +144,8 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 				//PRODUCE x0:1,x27:1;
 				out << "PRODUCE ";
 				switch(t_ty){
-				case thread_transition: out << "s" << succ->shared << ":1," << "l" << succ->local << ":1;" << endl; break; 
-				case spawn_transition: out << "s" << succ->shared << ":1," << "l" << succ->local << ":1," << "l" << t.local << ":1;" << endl; break; 
+				case thread_transition: out << "s" << succ.shared << ":1," << "l" << succ.local << ":1;" << endl; break; 
+				case spawn_transition: out << "s" << succ.shared << ":1," << "l" << succ.local << ":1," << "l" << t.local << ":1;" << endl; break; 
 				default: assert(0);}
 				break;
 
@@ -160,7 +167,6 @@ int main(int argc, char* argv[])
 	string i,o;
 	ofstream fout;
 
-	Net net;
 	Net::net_format_t format;
 
 	//parse and check arguments
@@ -253,7 +259,7 @@ int main(int argc, char* argv[])
 	//write output
 	if(format == Net::CLASSIFY)
 	{
-		Net::net_stats_t sts = net.get_net_stats();
+		Net::net_stats_t sts = net.get_net_stats(true);
 		cout << "---------------------------------" << endl;
 		cout << "Statistics for " << net.filename << endl;
 		cout << "---------------------------------" << endl;

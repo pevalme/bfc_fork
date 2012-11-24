@@ -2,7 +2,7 @@
 Consistency
 ********************************************************/
 
-//#define USE_INVARIANTS
+#define USE_INVARIANTS
 
 bool intersection_free(const vec_antichain_t& D, const vec_antichain_t& M)
 {
@@ -16,7 +16,7 @@ bool intersection_free(const vec_antichain_t& D, const vec_antichain_t& M)
 	//for(shared_t s = 0; s < BState::S; ++s)
 	//	foreach(bstate_t b,M.uv[s].M) BBs1.insert(b);
 
-	foreachit(u,M.uv)
+	foreachit(u,D.uv)
 		foreach(bstate_t b,u->second.M){
 	//for(shared_t s = 0; s < BState::S; ++s)
 	//	foreach(bstate_t b,D.uv[s].M){

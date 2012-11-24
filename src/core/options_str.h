@@ -26,13 +26,8 @@
 #endif
 #define OPT_STR_INPUT_FILE			"input-file"
 #define OPT_STR_TARGET				"target,a"
+#define OPT_STR_INIT				"initial,i"
 #define OPT_STR_IGN_TARGET			"ignore-target"
-#define OPT_STR_INI_SHARED			"i-shared,s"
-#define OPT_STR_INI_SHARED_DEFVAL	0
-#define OPT_STR_INI_LOCAL			"i-local,l"
-#define OPT_STR_INI_LOCAL2			"i-local2"
-#define OPT_STR_INI_LOCAL_DEFVAL	0
-#define OPT_STR_SINGLE_INITIAL		"i-single,i"
 
 #define OPT_STR_NO_POR				"prj-all"
 #define OPT_STR_MODE				"mode,d"

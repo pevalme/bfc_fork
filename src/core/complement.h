@@ -120,7 +120,7 @@ struct lowerset_vec
 	std::vector<us_cmb_node_p_t> lv;
 
 	/* ---- Constructors ---- */
-	lowerset_vec(unsigned k, unsigned s, bool prj_all = true, bool full_sat = true);
+	lowerset_vec(unsigned k, unsigned s, bool full_sat = true);
 	~lowerset_vec();
 
 	/* ---- Constructors ---- */

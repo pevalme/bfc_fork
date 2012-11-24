@@ -2,6 +2,8 @@
 //#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
 //#define TIMING
 //#define EAGER_ALLOC
+#define SATABS_ENCODING //for net reduction
+
 #define VERSION "1.0"
 
 //$(SolutionDir)\regression\abp_vs_sm
@@ -178,6 +180,8 @@ enum weigth_t
 #define time_and_exe(e, duration) e
 #endif
 
+vector<bool> core_shared;
+
 bool fw_state_blocked = false;
 #include "fw.h"
 bool defer = false;
@@ -311,9 +315,30 @@ vector<BState> read_trace(string trace_fn)
 	return work_sequence;
 }
 
+void test()
+{
+	cout << "sdsad" << endl;
+
+	BState::L = 4;
+	antichain_t X(1);
+	
+	list<bstate_t> states;
+	states.push_back(new BState("0|0,0,1,2"));
+	states.push_back(new BState("0|0,1,1,1"));
+	states.push_back(new BState("0|0,1,2,2"));
+	states.push_back(new BState("0|0,2,2,2"));
+	
+	foreach(bstate_t s,states)
+		X.insert(s);
+
+	cout << "test-end" << endl;
+
+}
+
 
 int main(int argc, char* argv[]) 
 {
+
 	int return_value = EXIT_SUCCESS;
 
 	srand((unsigned)microsec_clock::local_time().time_of_day().total_microseconds());
@@ -327,10 +352,8 @@ int main(int argc, char* argv[])
 	string o = OPT_STR_OUTPUT_FILE_DEFVAL;
 
 	try {
-		shared_t init_shared;
-		local_t init_local, init_local2(-1);
-		string filename, target_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), ignore_target(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), nocoverability(0), netstats(0), sccnetstats(0);
+		string filename, target_fn, init_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
+		bool __por(0),h(0), v(0), ignore_target(0), prj_all(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), nocoverability(0), netstats(0), sccnetstats(0);
 
 #ifndef WIN32
 		unsigned to,mo;
@@ -339,6 +362,8 @@ int main(int argc, char* argv[])
 		//Misc
 		options_description misc;
 		misc.add_options()
+			("por",	bool_switch(&__por), "----")
+
 			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
 #ifndef PUBLIC_RELEASE
@@ -379,23 +404,15 @@ int main(int argc, char* argv[])
 		problem.add_options()
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
 			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
+			(OPT_STR_INIT,			value<string>(&init_fn), "initial state file (e.g. 1|0,1,1/2)")
 			(OPT_STR_IGN_TARGET,	bool_switch(&ignore_target), "ignore the target")
-			;
-
-		//Initial state
-		options_description istate("Initial state");
-		istate.add_options()
-			(OPT_STR_INI_SHARED,	value<shared_t>(&init_shared)->default_value(OPT_STR_INI_SHARED_DEFVAL), "initial shared state")
-			(OPT_STR_INI_LOCAL,		value<local_t>(&init_local)->default_value(OPT_STR_INI_LOCAL_DEFVAL), "initial local state")
-			(OPT_STR_INI_LOCAL2,	value<local_t>(&init_local2), "second initial local state")
-			(OPT_STR_SINGLE_INITIAL,bool_switch(&single_initial), "do not parametrize the local initial state")
 			;
 
 		//Exploration mode
 		options_description exploration_mode("Exploration mode");
 		exploration_mode.add_options()
 #ifndef PUBLIC_RELEASE
-			(OPT_STR_NO_POR,		bool_switch(&net.prj_all), "do not use partial order reduction")
+			(OPT_STR_NO_POR,		bool_switch(&prj_all), "do not use partial order reduction")
 #endif
 			(OPT_STR_MODE,			value<string>(&mode_str)->default_value(CON_OPTION_STR), (string("exploration mode: \n") 
 			+ "- " + '"' + CON_OPTION_STR + '"'		+ " (concurrent forward/backward), \n"
@@ -454,7 +471,6 @@ int main(int argc, char* argv[])
 		cmdline_options
 			.add(misc)
 			.add(problem)
-			.add(istate)
 			.add(exploration_mode)
 #ifndef PUBLIC_RELEASE
 			.add(fw_exploration)
@@ -526,57 +542,30 @@ int main(int argc, char* argv[])
 		}
 #endif
 
-		//(filename == string())?throw logic_error("No input file specified"):net.read_net_from_file(filename); //OPT_STR_INPUT_FILE
-		net.read_net_from_file(filename);
+		if(ignore_target) target_fn = "";
 
-		if(BState::S == 0 || BState::L == 0) throw logic_error("Input file has invalid dimensions");
+		if(target_fn != string()) main_log << "Problem to solve: check target" << "\n"; 
+		else main_log << "Problem to solve: compute cover" << "\n"; 
 
-		if(ignore_target)
-			target_fn = "";
+		//read problem instance
+		Net(filename,target_fn,init_fn).swap(net);
 
-		if(target_fn != string())
+		//cout << net << endl;
+
+		if(__por) 
 		{
-			try{ 
-				net.target = new BState(target_fn,true); 
-			}catch(...){
-				ifstream target_in(target_fn.c_str());
-				if(!target_in.good()) throw logic_error("cannot read from target input file");
-				try{ string tmp; target_in >> tmp; net.target = new BState(tmp,true); }
-				catch(...){ throw logic_error("invalid target file (only one target in the first line supported)"); }
-			}
-
-			if(!net.target->consistent()) throw logic_error("invalid target");
-			net.Otarget = OState(net.target->shared,net.target->bounded_locals.begin(),net.target->bounded_locals.end());
-			net.check_target = true;
-
-			main_log << "Problem to solve: check target" << "\n"; 
+			net.reduce();
+			//cout << net << endl;
 		}
-		else
-		{
-#if 0
-			throw logic_error("no target specified");
-#endif 
-			main_log << "Problem to solve: compute cover" << "\n"; 
-		}
+		
+		BState::S = net.S, BState::L = net.L;
 
-		net.init = OState(init_shared), net.local_init = init_local, net.init_local2 = init_local2; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
-		if(single_initial) 
-		{
-			if(init_local2 != -1)
-				net.init.bounded_locals.insert(init_local2);
-			net.init.bounded_locals.insert(init_local);
-		}
-		else
-		{
-			if(init_local2 != -1)
-				net.init.unbounded_locals.insert(init_local2);
-			net.init.unbounded_locals.insert(init_local);
-		}
+		invariant(implies(target_fn == string(),net.target.type = BState::invalid));
+		if(target_fn != string() && !net.target.consistent()) throw logic_error("invalid target state");
+		if(!net.init.consistent()) throw logic_error("invalid initial state");
 
-#ifndef NOSPAWN_REWRITE
-		if(net.has_spawns)
-			net.init.unbounded_locals.insert(net.local_thread_pool);
-#endif
+		//determine shared core states
+		core_shared = net.get_core_shared(prj_all);
 
 		if      (mode_str == FW_OPTION_STR)		mode = FW, forward_projections = 0; //OPT_STR_MODE
 		else if (mode_str == BW_OPTION_STR)
@@ -656,35 +645,37 @@ int main(int argc, char* argv[])
 		}
 
 		if(netstats){
-			Net::net_stats_t sts = net.get_net_stats(sccnetstats);
+			Net::stats_t sts = net.get_stats(sccnetstats);
 			main_log << "---------------------------------" << "\n";
 			main_log << "Statistics for " << net.filename << "\n";
 			main_log << "---------------------------------" << "\n";
 			main_log << "local states                    : " << sts.L << "\n";
 			main_log << "shared states                   : " << sts.S << "\n";
 			main_log << "transitions                     : " << sts.T << "\n";
-			main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
-			//main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
-			main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
-			//main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
-			main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
-			//main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
-			main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
-			//main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
-			main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
+			//main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
+			////main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
+			//main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
+			////main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
+			//main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
+			////main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
+			//main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
+			////main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
+			//main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
 			//main_log << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
 			main_log << "disconnected thread states      : " << sts.discond << "\n";
 			//main_log << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
+#ifdef USE_STRONG_COMPONENT
 			if(sccnetstats)
 			{
 				main_log << "strongly connected components   : " << sts.SCC_num << "\n";
 				main_log << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
 			}
+#endif
 			main_log << "maximum indegree                : " << sts.max_indegree << "\n";
 			main_log << "maximum outdegree               : " << sts.max_outdegree << "\n";
 			main_log << "maximum degree                  : " << sts.max_degree << "\n";
-			main_log << "target state                    : " << ((net.target==nullptr)?(BState(0,0,BState::bot)):(*net.target)) << "\n";
-			main_log << "dimension of target state       : " << ((net.target==nullptr)?("invalid"):(boost::lexical_cast<string>(net.target->bounded_locals.size()))) << "\n";
+			main_log << "target state                    : " << ((net.target.type==BState::invalid)?(BState(0,0,BState::bot)):(net.target)) << "\n";
+			main_log << "dimension of target state       : " << ((net.target.type==BState::invalid)?("invalid"):(boost::lexical_cast<string>(net.target.bounded_locals.size()))) << "\n";
 			main_log << "total core shared states        : " << sts.core_shared_states << "\n";
 			main_log << "---------------------------------" << "\n";
 			main_log.flush();
@@ -737,11 +728,11 @@ int main(int argc, char* argv[])
 		U.S = BState::S;
 		auto x = complement_set(0,0,!local_sat);
 		for(unsigned i = 0; i < BState::S; ++i)
-			if(net.core_shared(i)) U.luv.push_back(move(complement_set(BState::L,k,!local_sat)));
+			if(core_shared[i]) U.luv.push_back(move(complement_set(BState::L,k,!local_sat)));
 			else U.luv.push_back(move(x));
 		
 		main_log << "initializing lowerset data structure..." << "\n";
-		lowerset_vec		D(k, BState::S, net.prj_all, !local_sat);
+		lowerset_vec		D(k, BState::S, !local_sat);
 
 		if(mode != CON)
 		{
@@ -770,7 +761,7 @@ int main(int argc, char* argv[])
 			if(cross_check && mode == FWBW)
 			{
 
-				if(!net.check_target)
+				if(net.target.type == BState::invalid)
 				{
 					for(unsigned s = 0; s < BState::S; ++s)
 					{
@@ -823,7 +814,7 @@ int main(int argc, char* argv[])
 			
 			if(mode == FW_CON && cross_check)
 			{
-				if(net.check_target)
+				if(net.target.type != BState::invalid)
 				{
 					if(!implies(fw_safe && bw_safe, fw_safe_seq) || !implies(!fw_safe || !bw_safe, !fw_safe_seq)) 
 						throw logic_error("inconclusive results (conc. vs. seq. forward)");
@@ -840,11 +831,11 @@ int main(int argc, char* argv[])
 		main_tme << "max. virt. memory usage (mb): " << max_mem_used << "\n";
 #endif
 
-		if(!net.check_target && print_cover)
+		if(net.target.type == BState::invalid && print_cover)
 		{
 			for(unsigned i = 0; i < BState::S; ++i)
 			{
-				if(!net.core_shared(i)) continue;
+				if(!core_shared[i]) continue;
 				foreach(auto p, U.luv[i].u_nodes)
 					main_cov << BState(i,p->c.begin(),p->c.end()) << "\n";
 			}
@@ -867,7 +858,7 @@ int main(int argc, char* argv[])
 		case RUNNING:
 			if(!shared_fw_done && !shared_bw_done)
 				return_value = EXIT_UNKNOWN_RESULT, main_res << EXIT_UNKNOWN_RESULT_STR << "\n";
-			else if(!net.check_target)
+			else if(net.target.type == BState::invalid)
 				return_value = EXIT_KCOVERCOMPUTED_SUCCESSFUL, main_res << EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR << "\n";
 			else if(bw_safe && fw_safe) 
 				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << EXIT_VERIFICATION_SUCCESSFUL_STR << "\n";

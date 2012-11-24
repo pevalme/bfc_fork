@@ -46,9 +46,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 class Thread_State {
 public:
-	unsigned shared;
-	unsigned local;
-	Thread_State(unsigned s = -1, unsigned l = -1);
+	shared_t shared;
+	local_t local;
+	Thread_State(shared_t s = -1, local_t l = -1);
 	
 	unsigned unique_id(shared_t, local_t) const;
 

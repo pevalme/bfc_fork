@@ -1,6 +1,6 @@
 CORE
 main.tts
---i-single --target main.prop
+--target main.prop --init "0|0"
 ^EXIT=0$
 ^SIGNAL=0$
 ^VERIFICATION SUCCESSFUL$

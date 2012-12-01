@@ -175,8 +175,6 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 				source(s1, l1), 
 				target(s2, l2);
 
-			if(!implies(s1 == s2,l1 != l2)) throw logic_error("self-loops not allowed");
-
 			//decode passive transfer (optional)
 			transfers_t transfers, transfers_inv;
 			while(i != tok.end())
@@ -193,6 +191,12 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 				lp = boost::lexical_cast<local_t>(*(i++));
 
 				transfers[l].insert(lp), transfers_inv[lp].insert(l);
+			}
+
+			if(s1 == s2 && l1 == l2)
+			{
+				if(transfers == transfers_t()) reduce_log << "self-loop ignored" << endl;
+				else throw logic_error("self-loops with side-effects on passive threads not allowed");
 			}
 
 			if(source.local >= L_input || source.shared >= S_input || target.local >= L_input || target.shared >= S_input)

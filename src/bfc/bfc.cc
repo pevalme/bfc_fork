@@ -448,7 +448,7 @@ int main(int argc, char* argv[])
 
 		BState::S = net.S, BState::L = net.L;
 
-		invariant(implies(target_fn == string(),net.target.type = BState::invalid));
+		invariant(implies(target_fn == string(),net.target.type == BState::invalid));
 		if(target_fn != string() && !net.target.consistent()) throw logic_error("invalid target state");
 		if(!net.init.consistent()) throw logic_error("invalid initial state");
 
@@ -547,8 +547,14 @@ int main(int argc, char* argv[])
 		}
 
 	}
-	catch(std::exception& e)			{ cerr << "INPUT ERROR: " << e.what() << endl; main_res << "type " << argv[0] << " -h for instructions" << endl; return EXIT_FAILURE; }
-	catch (...)                         { cerr << "unknown error while checking program arguments" << endl; return EXIT_FAILURE; }
+	catch(std::exception& e)
+	{ 
+		cerr << "INPUT ERROR: " << e.what() << endl; main_res << "type " << argv[0] << " -h for instructions" << endl; return EXIT_FAILURE; 
+	}
+	catch (...)
+	{
+		cerr << "unknown error while checking program arguments" << endl; return EXIT_FAILURE; 
+	}
 
 #ifndef WIN32
 	installSignalHandler();
@@ -636,7 +642,7 @@ int main(int argc, char* argv[])
 			shared_fw_finised_first = 0, shared_bw_finised_first = 0;
 
 			//clean up data structures
-			if(1 || mode == BW || mode == FW || mode == FWBW) //todo: remove first 1
+			if(1) //todo: remove first 1 // || mode == BW || mode == FW || mode == FWBW
 			{
 				D.clear();
 				U.clear();

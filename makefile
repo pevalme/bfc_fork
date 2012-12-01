@@ -11,7 +11,7 @@ OBJS=$(subst .cc,.o,$(SRCS))
 all: bfc
 
 bfc: $(OBJS)
-	$(CXX) $(LDFLAGS) -o ./bin/bfc/release/bfc2 $(OBJS) $(LDLIBS) 
+	$(CXX) $(LDFLAGS) -o ./bin/bfc/release/bfc $(OBJS) $(LDLIBS) 
 
 depend: .depend
 

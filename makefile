@@ -1,17 +1,17 @@
 CC=gcc
 CXX=g++-4.7
 RM=rm -f
-CPPFLAGS=-O3 -I./src/core -std=gnu++0x
+CPPFLAGS=-O3 -I./src/core -std=c++11
 LDFLAGS=--static
-LDLIBS=-lboost_filesystem -lboost_system -std=gnu++0x -pthread -lboost_thread -lboost_program_options
+LDLIBS=-lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options
 
-SRCS=./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc
+SRCS=./src/core/net.cc ./src/core/trans.cc ./src/core/tstate.cc ./src/core/antichain.cc ./src/core/antichain_comb.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/bfc/minbw.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc
 OBJS=$(subst .cc,.o,$(SRCS))
 
 all: bfc
 
 bfc: $(OBJS)
-	$(CXX) $(LDFLAGS) -o bfc $(OBJS) $(LDLIBS) 
+	$(CXX) $(LDFLAGS) -o ./bin/bfc/release/bfc2 $(OBJS) $(LDLIBS) 
 
 depend: .depend
 

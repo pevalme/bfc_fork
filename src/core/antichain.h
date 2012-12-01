@@ -54,8 +54,6 @@ struct antichain_t
 {
 	
 	/* ---- Members and types ---- */	
-	typedef std::set<bstate_t>	s_scpc_t;
-	
 	struct CG_t
 	{
 		us_VState_t	nodes;
@@ -70,17 +68,6 @@ struct antichain_t
 		void swap(CG_t&);
 		
 		CG_t& operator=(const CG_t& rhs);
-	};
-
-	struct insert_t
-	{
-		po_rel_t	case_type;
-		bstate_t	new_el; //pointer to element from M
-		s_scpc_t	exist_els; //pointers to elements from states (neq_ge) or suspended_states (neq_le)
-		
-		insert_t(po_rel_t c, bstate_t i, s_scpc_t il);
-		insert_t(po_rel_t c, bstate_t i, bstate_t il);
-		insert_t();
 	};
 
 	enum order_t{less_equal,greater_equal};
@@ -147,14 +134,14 @@ struct vec_antichain_t
 	size_t graph_size() const;
 
 	/* ---- Access ---- */
-	antichain_t::insert_t case_insert(bstate_t s);
+	insert_t case_insert(bstate_t s);
 	std::pair<bstate_t, bool> insert(BState const * s, bool safe_free = false);
-	antichain_t::insert_t max_case_insert(bstate_t s);
+	insert_t max_case_insert(bstate_t s);
 	std::pair<bstate_t, bool> max_insert(BState const * s, bool safe_free = false);
 	std::set<bstate_t> LGE(BState const * s, antichain_t::order_t order);
 
 	void insert_incomparable(BState const * s);
-	antichain_t::s_scpc_t insert_neq_le(BState const * s);
+	s_scpc_t insert_neq_le(BState const * s);
 	void erase(BState const * s);
 	bool manages(BState const * s);
 	const Breached_p_t& M_cref(shared_t shared) const;

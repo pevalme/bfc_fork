@@ -97,14 +97,16 @@ struct Net{
 	string filename, targetname, initname;
 	adj_t adjacency_list, adjacency_list_inv;
 
+	vector<bool> core_shared;
+
 	/* Output */	
-	FullExpressionAccumulator reduce_log; //reduction
+	ostream_sync reduce_log; //reduction
 
 	/* ---- Constructors ---- */
 	Net(const Net &);
 	Net();
-	Net(shared_t, local_t, OState, BState, adj_t, adj_t);
-	Net(string, string, string);
+	Net(shared_t, local_t, OState, BState, adj_t, adj_t, bool);
+	Net(string, string, string, bool);
 	
 	/* ---- Access ---- */	
 	s_adjs_t get_backward_adj() const;
@@ -113,8 +115,8 @@ struct Net{
 	stats_t get_stats(bool sccnetstats) const;
 
 	/* ---- Reduction ---- */	
-	void reduce();
-	std::vector<bool> get_core_shared(bool = false) const;
+	void reduce(bool);
+	std::vector<bool> get_core_shared(bool = false, bool = false) const;
 
 	/* ---- Misc ---- */	
 	void swap(Net&);

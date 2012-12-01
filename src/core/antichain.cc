@@ -116,20 +116,7 @@ antichain_t& antichain_t::operator=(const antichain_t &rhs)
 	return *this;
 }
 
-antichain_t::insert_t::insert_t(po_rel_t c, bstate_t i, s_scpc_t il): case_type(c), new_el(i), exist_els(il)
-{
-}
-
-antichain_t::insert_t::insert_t(po_rel_t c, bstate_t i, bstate_t il): case_type(c), new_el(i), exist_els()
-{
-	exist_els.insert(il); 
-}
-
-antichain_t::insert_t::insert_t()
-{
-}
-
-antichain_t::insert_t antichain_t::case_insert(bstate_t s)
+insert_t antichain_t::case_insert(bstate_t s)
 {
 	//note: s must be globally accessible, as it is only referenced in M
 	invariant(s->consistent());
@@ -157,7 +144,7 @@ antichain_t::insert_t antichain_t::case_insert(bstate_t s)
 	return insert_t((lg.empty()?(neq_nge_nle):(neq_le)), s, lg);
 }
 
-antichain_t::insert_t antichain_t::max_case_insert(bstate_t s)
+insert_t antichain_t::max_case_insert(bstate_t s)
 {
 	//note: s must be globally accessible, as it is only referenced in M
 	invariant(s->consistent());
@@ -165,12 +152,12 @@ antichain_t::insert_t antichain_t::max_case_insert(bstate_t s)
 	Breached_p_t::iterator f = M.find(s);
 	if(f != M.end())
 		//case: eq -- s is exactly contained in M ("match")
-		return antichain_t::insert_t(eq,nullptr,*f); //note: return f, not s here!
+		return insert_t(eq,nullptr,*f); //note: return f, not s here!
 
 	s_scpc_t lg = LGE(s,greater_equal);
 	if(!lg.empty())
 		//case: neq_le -- s is already contained in ls(M), though not exactly ("undercut")
-		return antichain_t::insert_t(neq_le,nullptr,lg);
+		return insert_t(neq_le,nullptr,lg);
 
 	s_scpc_t le = LGE(s,less_equal);
 	//clean look-up table and M set (non-maximal elements are removed)
@@ -180,7 +167,7 @@ antichain_t::insert_t antichain_t::max_case_insert(bstate_t s)
 	integrate(s);
 
 	//cases: neq_le, neq_nge_nle
-	return antichain_t::insert_t((lg.empty()?(neq_nge_nle):(neq_ge)), s, le);
+	return insert_t((lg.empty()?(neq_nge_nle):(neq_ge)), s, le);
 }
 
 po_rel_t antichain_t::relation(BState const * s)
@@ -205,7 +192,7 @@ void antichain_t::insert_incomparable(BState const * s)
 	integrate(s);
 }
 
-antichain_t::s_scpc_t antichain_t::insert_neq_le(BState const * s)
+s_scpc_t antichain_t::insert_neq_le(BState const * s)
 {
 	invariant(M.find(s) == M.end()); //the element does not yet exist
 	invariant(LGE(s,less_equal).empty()); //no smaller elements exists
@@ -220,38 +207,6 @@ antichain_t::s_scpc_t antichain_t::insert_neq_le(BState const * s)
 
 	return lg;
 }
-/*
-antichain_t::insert_t antichain_t::case_insert(bstate_t s)
-{
-	//note: s must be globally accessible, as it is only referenced in M
-	invariant(s->consistent());
-	invariant(s->bounded_locals.size() != 0);
-
-	Breached_p_t::iterator f = M.find(s);
-	if(f != M.end()) 
-		//case: eq -- s is exactly contained in M ("match")
-		return insert_t(eq,nullptr,*f); //note: return f, not s here!
-
-	s_scpc_t le = LGE(s,less_equal);
-	if(!le.empty())
-		//case: neq_ge -- s is already contained in us(M), though not exactly ("overcut")
-		return insert_t(neq_ge,nullptr,le);
-
-	s_scpc_t lg = LGE(s,greater_equal);
-	//clean look-up table and M set (non-minimal elements are removed)
-	invariant(M.find(s) == M.end());
-	foreach(bstate_t const& x, lg) erase(x);
-
-	//update look-up table and M set
-	integrate(s);
-
-	//cases: neq_le, neq_nge_nle
-	return insert_t((lg.empty()?(neq_nge_nle):(neq_le)), s, lg);
-}
-*/
-
-
-
 
 pair<bstate_t, bool> antichain_t::insert(BState const * s)
 {
@@ -335,7 +290,7 @@ VState antichain_t::decompose(bstate_t p) const
 	return VState(p->bounded_locals.begin(),p->bounded_locals.end());
 }
 
-antichain_t::s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
+s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
 {
 
 	//decompose s
@@ -458,14 +413,11 @@ antichain_t::s_scpc_t antichain_t::LGE(bstate_t p, const order_t order)
 
 }
 
-#include "net.h"
-extern vector<bool> core_shared;
-
 vec_antichain_t::vec_antichain_t(bool ownership)//: uv(0)
 {
 	for(unsigned i = 0; i < BState::S; ++i)
-		if(core_shared[i])
-			uv[i] = move(antichain_t(ownership));
+		//if(core_shared[i])
+			assert(0),uv[i] = move(antichain_t(ownership)); //TODO: make core_shared accessible
 }
 
 vec_antichain_t::~vec_antichain_t()
@@ -494,7 +446,7 @@ size_t vec_antichain_t::graph_size() const
 	return sz;
 }
 
-antichain_t::insert_t vec_antichain_t::case_insert(bstate_t s)
+insert_t vec_antichain_t::case_insert(bstate_t s)
 { 
 	return uv[s->shared].case_insert(s); 
 }
@@ -504,7 +456,7 @@ pair<bstate_t, bool> vec_antichain_t::insert(BState const * s, bool safe_free)
 	return uv[s->shared].insert(s); 
 }
 
-antichain_t::insert_t vec_antichain_t::max_case_insert(bstate_t s)
+insert_t vec_antichain_t::max_case_insert(bstate_t s)
 { 
 	return uv[s->shared].max_case_insert(s); 
 }
@@ -523,7 +475,7 @@ void vec_antichain_t::insert_incomparable(BState const * s)
 	uv[s->shared].insert_incomparable(s); 
 }
 
-antichain_t::s_scpc_t vec_antichain_t::insert_neq_le(BState const * s)
+s_scpc_t vec_antichain_t::insert_neq_le(BState const * s)
 { 
 	return uv[s->shared].insert_neq_le(s); 
 }

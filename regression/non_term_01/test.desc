@@ -1,6 +1,6 @@
 CORE
 main.tts
---sat-bound 1 --fw-no-omegas --max_fw_width 4 --target main.prop
+--fw-no-omegas --max_fw_width 4 --target main.prop
 ^EXIT=10$
 ^SIGNAL=0$
 ^VERIFICATION FAILED$

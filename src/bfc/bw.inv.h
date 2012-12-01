@@ -228,7 +228,7 @@ bool no_unconnected_local_U_references(vec_antichain_t& M)
 	return true;
 }
 
-bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_pq& W, complement_vec_t& C)
+bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_pq& W, complement_vec& C)
 {
 #ifndef USE_INVARIANTS
 	return true;
@@ -375,7 +375,7 @@ bool consistent(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, work_
 	return true;
 }
 
-bool before_prune(bstate_t p, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C)
+bool before_prune(bstate_t p, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec& C)
 {
 #ifndef USE_INVARIANTS
 	return true;

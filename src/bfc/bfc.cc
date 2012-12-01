@@ -2,23 +2,11 @@
 //#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
 //#define TIMING
 //#define EAGER_ALLOC
-#define SATABS_ENCODING //for net reduction
+#define MINBW
 
-#define VERSION "1.0"
+#define VERSION "2.0"
 
 //$(SolutionDir)\regression\abp_vs_sm
-
-/*
-
-known bugs: 
-	- regression/hor_por_vs_03 failed sometimes (seg. fault)
-	- sometimes hangs at "Forward trace to target covering state found..."
-
-todo:
-	- add time measurement for i) predecessor computation, ii) global minimal check, and iii) locally minimal check; print them in the statistics
-	- if this might improve the performance significantly, implement a look-up hash table for the backward search and small elements (<3 threads) 
-
-*/
 
 /******************************************************************************
   Synopsis		[Bfc - Greedy Analysis of Multi-Threaded Programs with 
@@ -94,13 +82,9 @@ using namespace std;
 #include "types.h"
 
 //ostream
-FullExpressionAccumulator
+ostream_sync
 	fw_log(cerr.rdbuf()), //optional fw info
 	fw_stats(cerr.rdbuf()), //fw stats
-
-	bw_log(cerr.rdbuf()), //optional bw info
-	bw_stats(cerr.rdbuf()), //bw stats
-
 	main_livestats(cerr.rdbuf()), 
 	main_log(cerr.rdbuf()), 
 	main_res(cout.rdbuf()), //result: (VERIFICATION SUCCEEDED / VERIFICATION FAILED / ERROR)
@@ -155,16 +139,14 @@ volatile bool
 	shared_fw_done(0),
 	shared_bw_done(0),
 	shared_fw_finised_first(0),
-	shared_bw_finised_first(0)
+	shared_bw_finised_first(0),
+	need_stats(0)
 	;
 
 bool 
 	print_cover(0),
-	writetrace(0),
-	readtrace(0),
 	bw_safe(1), //false, if bw found a viol. conf
-	fw_safe(1), //false, if fw found a viol. conf
-	print_hash_info(0)
+	fw_safe(1) //false, if fw found a viol. conf
 	;
 
 enum weigth_t
@@ -180,14 +162,12 @@ enum weigth_t
 #define time_and_exe(e, duration) e
 #endif
 
-vector<bool> core_shared;
-
 bool fw_state_blocked = false;
 #include "fw.h"
 bool defer = false;
 bool fw_blocks_bw = false;
-bool unsound_sat = false;
-#include "bw.h"
+//#include "bw.h"
+#include "minbw.h"
 
 void print_bw_stats(unsigned sleep_msec)
 {
@@ -197,35 +177,24 @@ void print_bw_stats(unsigned sleep_msec)
 	const unsigned ldst = 7;
 	const string sep = ",";
 
-	main_livestats
-		<< "BCDep" << sep
-		<< "BCWid" << sep
-		<< "BDept" << sep
-		<< "BWidt" << sep
-		<< "BItrs__" << sep//ldist 5
-		<< "BPrun__" << sep//ldist 6
-		<< "BCycF" << sep
-		<< "BCycB" << sep
-		<< "BNode__" << sep//ldist 9
-		<< "osz____" << sep//ldist 9
-		<< "dsz____" << sep//ldist 9
-		<< "wdsz___" << sep//ldist 9
-		<< "WNode__" << sep//ldist 10
-		<< "GNode__" << sep//ldist 10
-		<< "LMin___" << sep//ldist 10
-		<< "GMin___" << sep//ldist 10
-		<< "FDept" << sep
-		<< "FWidt" << sep
-		<< "FItrs__" << sep//ldist 13
-		<< "FAccs__" << sep//ldist 14
-		<< "FNode__" << sep//ldist 15
-		<< "FWNod__" << sep//ldist 15
-		<< "FWPrj__" << sep
+	main_livestats << endl
+		<< setw(sdst) << "BCDep" << sep
+		<< setw(sdst) << "BCWid" << sep
+		<< setw(ldst) << "BItrs" << sep
+		<< setw(ldst) << "BPrun" << sep
+		<< setw(ldst) << "BNode" << sep
+		<< setw(ldst) << "WNode" << sep
+		<< setw(sdst) << "FDept" << sep
+		
+		<< setw(sdst) << "FWidt" << sep
+		<< setw(ldst) << "FItrs" << sep
+		<< setw(ldst) << "FNode" << sep
+		<< setw(ldst) << "FWNod" << sep
+		<< setw(ldst) << "FWPrj" << sep
 #ifndef WIN32
-		<< "MemMB__" << sep//ldist 17
+		<< setw(ldst) << "MemMB__" << sep//ldist 17
 #endif
-		<< "\n"
-		;
+		<< endl;
 
 	while(1) 
 	{
@@ -235,106 +204,38 @@ void print_bw_stats(unsigned sleep_msec)
 
 		main_livestats 
 			//bw
-			<< setw(sdst) << ctr_bw_curdepth << /*' ' << */sep
-			<< setw(sdst) << ctr_bw_curwidth << /*' ' << */sep
-			<< setw(sdst) << ctr_bw_maxdepth_la << /*' ' << */sep
-			<< setw(sdst) << ctr_bw_maxwidth_a << /*' ' << */sep
-			<< setw(ldst) << witeration << /*' ' << */sep
-			<< setw(ldst) << piteration << /*' ' << */sep
-			<< setw(sdst) << fpcycles << /*' ' << */sep
-			<< setw(sdst) << bpcycles << /*' ' << */sep
-			<< setw(ldst) << nsz + msz << /*' ' << */sep
-			<< setw(ldst) << osz << /*' ' << */sep
-			<< setw(ldst) << dsz << /*' ' << */sep
-			<< setw(ldst) << wdsz << /*' ' << */sep
-			<< setw(ldst) << wsz << /*' ' << */sep
-			<< setw(ldst) << gsz << /*' ' << */sep
-			<< setw(ldst) << ctr_locally_minimal << /*' ' << */sep
-			<< setw(ldst) << ctr_globally_minimal << /*' ' << */sep
+			<< setw(sdst) << ctr_cdp << sep
+			<< setw(sdst) << ctr_csz << sep
+			<< setw(ldst) << ctr_wit << sep
+			<< setw(ldst) << ctr_pit << sep
+			<< setw(ldst) << ctr_msz << sep
+			<< setw(ldst) << ctr_wsz << sep
 			//fw
-			<< setw(sdst) << ctr_fw_maxdepth << /*' ' << */sep
-			<< setw(sdst) << ctr_fw_maxwidth << /*' ' << */sep
-			<< setw(ldst) << f_its << /*' ' << */sep
-			<< setw(ldst) << accelerations << /*' ' << */sep
-			<< setw(ldst) << fw_qsz << /*' ' << */sep
-			<< setw(ldst) << fw_wsz << /*' ' << */sep
-			<< setw(ldst) << fw_prj_found << /*' ' << */sep
-			//both
+			<< setw(sdst) << ctr_fw_maxdepth << sep
+			<< setw(sdst) << ctr_fw_maxwidth << sep
+			<< setw(ldst) << f_its << sep
+			<< setw(ldst) << fw_qsz << sep
+			<< setw(ldst) << fw_wsz << sep
+			<< setw(ldst) << fw_prj_found << sep
 #ifndef WIN32
 			<< setw(ldst) << memUsed()/1024/1024 << /*' ' << */sep
 #endif
-			<< "\n"
-			, 
-			main_livestats.flush()
-			;
+			<< endl, 
+			main_livestats.flush(),
+			need_stats = 1;
 
 		boost::this_thread::sleep(boost::posix_time::milliseconds(sleep_msec));
 	}
-
 }
 
-string time_diff_str(boost::posix_time::ptime a, boost::posix_time::ptime b)
+float time_diff_float(boost::posix_time::ptime a, boost::posix_time::ptime b)
 {
-	return boost::lexical_cast<std::string>(((float)(a - b).total_microseconds())/1000000);
+	return (((float)(a - b).total_microseconds())/1000000);
 }
 
-vector<BState> read_trace(string trace_fn)
-{
-	vector<BState> work_sequence;
-
-	ifstream w;
-	w.open(trace_fn.c_str(),ifstream::in);
-
-	if(!w.is_open()) throw logic_error((string("cannot read from input file ") + (net.filename + ".trace")).c_str());
-	else main_log << "trace input file " << (net.filename + ".trace") << " successfully opened" << "\n";
-
-	unsigned s_,l_,k_;
-	w >> s_ >> l_ >> k_;
-	if(!(s_ == BState::S && l_ == BState::L)) throw logic_error("trace has invalid dimensions");
-
-	stringstream in;
-	{
-		string line;
-		while (getline(w, line = "")) 
-		{
-			const size_t comment_start = line.find("#");
-			in << ( comment_start == string::npos ? line : line.substr(0, comment_start) ) << "\n"; 
-		}
-	}
-	w.close();
-
-	string line;
-	while (in){
-		getline (in,line);
-		BState s(line);
-		if(s.type != BState::invalid)
-			work_sequence.push_back(s);
-	}
-	w.close();
-
-	return work_sequence;
-}
-
-void test()
-{
-	cout << "sdsad" << endl;
-
-	BState::L = 4;
-	antichain_t X(1);
-	
-	list<bstate_t> states;
-	states.push_back(new BState("0|0,0,1,2"));
-	states.push_back(new BState("0|0,1,1,1"));
-	states.push_back(new BState("0|0,1,2,2"));
-	states.push_back(new BState("0|0,2,2,2"));
-	
-	foreach(bstate_t s,states)
-		X.insert(s);
-
-	cout << "test-end" << endl;
-
-}
-
+#include "antichain_comb.h"
+#include <boost/assign/std/set.hpp>
+using namespace boost::assign;
 
 int main(int argc, char* argv[]) 
 {
@@ -348,12 +249,12 @@ int main(int argc, char* argv[])
 	unordered_priority_set<bstate_t>::order_t border;
 	unordered_priority_set<ostate_t>::order_t forder;
 	vector<BState> work_sequence;
-	bool forward_projections(0), cross_check(0), local_sat(0);
+	bool forward_projections(0), local_sat(0);
 	string o = OPT_STR_OUTPUT_FILE_DEFVAL;
 
 	try {
 		string filename, target_fn, init_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool __por(0),h(0), v(0), ignore_target(0), prj_all(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), nocoverability(0), netstats(0), sccnetstats(0);
+		bool h(0), v(0), ignore_target(0), prj_all(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
 
 #ifndef WIN32
 		unsigned to,mo;
@@ -362,32 +263,27 @@ int main(int argc, char* argv[])
 		//Misc
 		options_description misc;
 		misc.add_options()
-			("por",	bool_switch(&__por), "----")
-
 			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
-#ifndef PUBLIC_RELEASE
-			(OPT_STR_CROSS_CHECK,	bool_switch(&cross_check), "compare results obtained with forward and backward")
-			(OPT_STR_PRINT_KCOVER,	bool_switch(&print_cover), "print uncovered elements")
-#endif
-			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
-			(OPT_STR_UNSOUND,		bool_switch(&unsound_sat), "only add one candidate node (unsound if pruning occurs)")
-
-			(OPT_STR_NOCOV,			bool_switch(&nocoverability), "stop after processing program options")
-			(OPT_STR_NETSTATS,		bool_switch(&netstats), "compute and print net statistics")
-			(OPT_STR_SCCNETSTATS,	bool_switch(&sccnetstats), "compute strongly connected components net statistics (slow)")
-#ifndef PUBLIC_RELEASE
-			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")
-			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main info")
-			(OPT_STR_NORES_INFO,	bool_switch(&noresult_info), "print no result")
-			(OPT_STR_NORESSOURCE_INFO,	bool_switch(&noressource_info), "print no ressource info")
-			(OPT_STR_NOMAIN_LOG,	bool_switch(&no_main_log), "print no main log")
-#endif
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
 			(OPT_STR_MEMOUT,		value<unsigned>(&mo)->default_value(0), "virtual memory limit in megabyte (\"0\" for no limit)")
 #endif
-#ifndef PUBLIC_RELEASE
+			;
+
+		options_description logging("Log output");
+		logging.add_options()
+			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")			
+			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main info")
+			(OPT_STR_NORES_INFO,	bool_switch(&noresult_info), "print no result")
+			(OPT_STR_NORESSOURCE_INFO,	bool_switch(&noressource_info), "print no ressource info")
+			(OPT_STR_NOMAIN_LOG,	bool_switch(&no_main_log), "print no main log")
+			(OPT_STR_REDUCE_LOG,	bool_switch(&reduce_log), "print no main log")
+			(OPT_STR_FORCE_FLUSH,	bool_switch(&ostream_sync::force_flush), "force output to flush (thread output may interleave)")
+			;
+
+		options_description statistics("Statistics");
+		statistics.add_options()
 			(OPT_STR_BW_GRAPH,		value<string>(&graph_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), (string("write bw search graph:\n")
 			+ "- " + '"' + OPT_STR_BW_GRAPH_OPT_none + '"' + ", \n"
 			+ "- " + '"' + OPT_STR_BW_GRAPH_OPT_TIKZ + '"'	+ ", or \n"
@@ -395,8 +291,10 @@ int main(int argc, char* argv[])
 			).c_str())
 			(OPT_STR_FW_TREE,		value<string>(&tree_style)->default_value(OPT_STR_BW_GRAPH_DEFVAL), ("write fw search tree (same arguments as above)"))
 			(OPT_STR_OUTPUT_FILE,	value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "monitor output file (\"stdout\" for console)")
-			(OPT_STR_FORCE_FLUSH,	bool_switch(&FullExpressionAccumulator::force_flush), "force output to flush (thread output may interleave)")
-#endif
+
+			(OPT_STR_STATS,			bool_switch(&stats_info), "print final statistics")
+			(OPT_STR_NETSTATS,		bool_switch(&netstats), "compute and print net statistics")
+			(OPT_STR_PRINT_KCOVER,	bool_switch(&print_cover), "print uncovered elements")
 			;
 
 		//Problem instance
@@ -404,34 +302,27 @@ int main(int argc, char* argv[])
 		problem.add_options()
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
 			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
-			(OPT_STR_INIT,			value<string>(&init_fn), "initial state file (e.g. 1|0,1,1/2)")
+			(OPT_STR_INIT,			value<string>(&init_fn), "initial state file (e.g. 1|0 or 1|0,1/2)")
 			(OPT_STR_IGN_TARGET,	bool_switch(&ignore_target), "ignore the target")
 			;
 
 		//Exploration mode
 		options_description exploration_mode("Exploration mode");
 		exploration_mode.add_options()
-#ifndef PUBLIC_RELEASE
 			(OPT_STR_NO_POR,		bool_switch(&prj_all), "do not use partial order reduction")
-#endif
 			(OPT_STR_MODE,			value<string>(&mode_str)->default_value(CON_OPTION_STR), (string("exploration mode: \n") 
 			+ "- " + '"' + CON_OPTION_STR + '"'		+ " (concurrent forward/backward), \n"
-			+ "- " + '"' + CON2_OPTION_STR + '"'		+ " (concurrent forward/backward with pessimistic exploration), \n"
-#ifndef PUBLIC_RELEASE
-			+ "- " + '"' + FW_CON_OPTION_STR + '"'	+ " (forward, then concurrent forward/backward; for cross-check), \n"
-			+ "- " + '"' + FWBW_OPTION_STR + '"'	+ " (forward, then backward; for cross-check), \n"
-#endif
-			+ "- " + '"' + FW_OPTION_STR + "'"		+ " (forward only), or \n" 
-			+ "- " + '"' + BC_OPTION_STR + "'"		+ " (standard backward search), or \n" 
-			+ "- " + '"' + BW_OPTION_STR + "'"		+ " (backward only)"
+			+ "- " + '"' + CON2_OPTION_STR+ '"'		+ " (concurrent forward/backward with pessimistic exploration), \n"
+			+ "- " + '"' + FW_OPTION_STR  + "'"		+ " (forward only), or \n" 
+			+ "- " + '"' + BC_OPTION_STR  + "'"		+ " (standard backward search), or \n" 
+			+ "- " + '"' + BW_OPTION_STR  + "'"		+ " (backward only)"
 			).c_str());
 
 		//FW options
-		options_description fw_exploration("Forward exploration");
+		options_description fw_exploration("Forward search");
 		fw_exploration.add_options()
 			(OPT_STR_ACCEL_BOUND,	value<unsigned>(&ab)->default_value(OPT_STR_ACCEL_BOUND_DEFVAL), "acceleration bound")
 			(OPT_STR_FW_INFO,		bool_switch(&print_fwinf), "print info during forward exploration")
-			(OPT_STR_PRINT_HASH_INFO,	bool_switch(&print_hash_info), "print info during forward exploration (slow, req. stats option)")
 			(OPT_STR_FW_ORDER,		value<string>(&forder_str)->default_value(OPT_STR_BW_ORDER_DEFVAL), (string("order of the forward workset:\n")
 			+ "- " + '"' + ORDER_SMALLFIRST_OPTION_STR + '"'	+ " (small first), \n"
 			+ "- " + '"' + ORDER_LARGEFIRST_OPTION_STR + '"'	+ " (large first), or \n"
@@ -447,10 +338,9 @@ int main(int argc, char* argv[])
 			;
 
 		//BW options
-		options_description bw_exploration("Backward exploration");
+		options_description bw_exploration("Backward search");
 		bw_exploration.add_options()
 			(OPT_STR_SATBOUND_BW,	value<unsigned>(&k)->default_value(OPT_STR_SATBOUND_BW_DEFVAL), "backward saturation bound/bound for the k-cover")
-			//(OPT_STR_BW_DEFER,		bool_switch(&defer), "defer states with only non-global predecessors (optimistic exploration)")
 			(OPT_STR_BW_INFO,		bool_switch(&print_bwinf), "print info during backward exloration")
 			(OPT_STR_BW_WAITFORFW,	bool_switch(&fw_blocks_bw), "backward exloration is blocked until foward exploration reaches the threshold")
 			(OPT_STR_BW_ORDER,		value<string>(&border_str)->default_value(OPT_STR_BW_ORDER_DEFVAL), (string("order of the backward workset:\n")
@@ -462,9 +352,7 @@ int main(int argc, char* argv[])
 			+ "- " + '"' + OPT_STR_WEIGHT_DEPTH + '"'	+ " (depth), or \n"
 			+ "- " + '"' + OPT_STR_WEIGHT_WIDTH + '"'	+ " (width)"
 			).c_str())
-			(OPT_STR_WRITE_BW_TRACE,bool_switch(&writetrace), "write exploration sequence to file (extension .trace)")
-			(OPT_STR_READ_BW_TRACE,	bool_switch(&readtrace), "read exploration sequence from file (extension .trace)")
-			(OPT_STR_LOCAL_SAT,		bool_switch(&local_sat), "only saturate with state consisting of multiple occurences of the same local")
+			//(OPT_STR_LOCAL_SAT,		bool_switch(&local_sat), "only saturate with state consisting of multiple occurences of the same local")
 			;
 
 		options_description cmdline_options;
@@ -472,6 +360,8 @@ int main(int argc, char* argv[])
 			.add(misc)
 			.add(problem)
 			.add(exploration_mode)
+			.add(logging)
+			.add(statistics)
 #ifndef PUBLIC_RELEASE
 			.add(fw_exploration)
 			.add(bw_exploration)
@@ -485,13 +375,13 @@ int main(int argc, char* argv[])
 
 		if(h || v)
 		{ 
-			if(h) main_inf	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << "\n" << cmdline_options; 
+			if(h) main_inf	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << endl << cmdline_options; 
 			if(v) main_inf	<< "                                   \n" //http://patorjk.com/software/taag, font: Lean
 				<< "    _/_/_/    _/_/_/_/    _/_/_/   \n"
 				<< "   _/    _/  _/        _/          \n"
 				<< "  _/_/_/    _/_/_/    _/           \n"
 				<< " _/    _/  _/        _/            \n"
-				<< "_/_/_/    _/          _/_/_/   v" << VERSION << "\n"
+				<< "_/_/_/    _/          _/_/_/   v" << VERSION << endl
 				<< "-----------------------------------\n"
 				<< "                    Greedy Analysis\n"
 				<< "         of Multi-Threaded Programs\n"
@@ -499,7 +389,7 @@ int main(int argc, char* argv[])
 				<< "-----------------------------------\n"
 				<< "     (c)2012 Alexander Kaiser      \n"
 				<< " Oxford University, United Kingdom \n"
-				<< "Build Date:  " << __DATE__ << " @ " << __TIME__ << "\n";
+				<< "Build Date:  " << __DATE__ << " @ " << __TIME__ << endl;
 				;
 
 			return EXIT_SUCCESS;
@@ -512,7 +402,7 @@ int main(int argc, char* argv[])
 		if(!print_bwinf){ bw_log.rdbuf(0); } //OPT_STR_BW_INFO
 
 		if(nomain_info){ main_inf.rdbuf(0); }
-		else{ main_log << "Log: " << "\n"; } 
+		else{ main_log << "Log: " << endl; } 
 
 		if(noresult_info){ main_res.rdbuf(0); }
 		
@@ -522,6 +412,8 @@ int main(int argc, char* argv[])
 
 		if(!print_cover){ main_cov.rdbuf(0); }
 
+		if(!reduce_log){ net.reduce_log.rdbuf(0); }
+
 #ifndef WIN32
 		if(to != 0)
 		{
@@ -529,7 +421,7 @@ int main(int argc, char* argv[])
 			if (getrlimit(RLIMIT_CPU, &t) < 0) throw logic_error("could not get softlimit for RLIMIT_CPU");
 			t.rlim_cur = to;
 			if(setrlimit(RLIMIT_CPU, &t) < 0) throw logic_error("could not set softlimit for RLIMIT_CPU");
-			else main_log << "successfully set CPU time limit" << "\n";
+			else main_log << "successfully set CPU time limit" << endl;
 		}
 
 		if(mo != 0)
@@ -538,40 +430,33 @@ int main(int argc, char* argv[])
 			if (getrlimit(RLIMIT_AS, &v) < 0) throw logic_error("could not get softlimit for RLIMIT_AS");
 			v.rlim_cur = (unsigned long)mo * 1024 * 1024; //is set in bytes rather than Mb
 			if(setrlimit(RLIMIT_AS, &v) < 0) throw logic_error("could not set softlimit for RLIMIT_AS");
-			else main_log << "successfully set softlimit for the process's virtual memory" << "\n";
+			else main_log << "successfully set softlimit for the process's virtual memory" << endl;
 		}
 #endif
 
 		if(ignore_target) target_fn = "";
 
-		if(target_fn != string()) main_log << "Problem to solve: check target" << "\n"; 
-		else main_log << "Problem to solve: compute cover" << "\n"; 
+		if(target_fn != string()) main_log << "Problem to solve: check target" << endl; 
+		else main_log << "Problem to solve: compute cover" << endl; 
 
 		//read problem instance
-		Net(filename,target_fn,init_fn).swap(net);
+		Net(filename,target_fn,init_fn,prj_all).swap(net);
 
+		if(!prj_all) net.reduce(prj_all);
+		
 		//cout << net << endl;
 
-		if(__por) 
-		{
-			net.reduce();
-			//cout << net << endl;
-		}
-		
 		BState::S = net.S, BState::L = net.L;
 
 		invariant(implies(target_fn == string(),net.target.type = BState::invalid));
 		if(target_fn != string() && !net.target.consistent()) throw logic_error("invalid target state");
 		if(!net.init.consistent()) throw logic_error("invalid initial state");
 
-		//determine shared core states
-		core_shared = net.get_core_shared(prj_all);
-
 		if      (mode_str == FW_OPTION_STR)		mode = FW, forward_projections = 0; //OPT_STR_MODE
 		else if (mode_str == BW_OPTION_STR)
 			mode = BW,
 			defer = false;
-		else if (mode_str == BC_OPTION_STR)		mode = BW, k = 0, main_log << info("saturation deactivated") << "\n";
+		else if (mode_str == BC_OPTION_STR)		mode = BW, k = 0, main_log << info("saturation deactivated") << endl;
 		else if (mode_str == CON_OPTION_STR)	
 			mode = CON, 
 			defer = true, //use defer-mode whenever fw is used, otherwise the memory consumption is too high
@@ -580,22 +465,19 @@ int main(int argc, char* argv[])
 			mode = CON, 
 			defer = false,
 			forward_projections = 1;
-		else if (mode_str == FWBW_OPTION_STR)	mode = FWBW, forward_projections = 0;
-		else if (mode_str == FW_CON_OPTION_STR)	mode = FW_CON, forward_projections = 1;
 		else throw logic_error("Invalid mode"); 
 
-		if(defer) main_log << info("performing optimistic backward exploration") << "\n";
-		else main_log << info("performing pessimistic backward exploration") << "\n";
+		if(defer) main_log << info("performing optimistic backward exploration") << endl;
+		else main_log << info("performing pessimistic backward exploration") << endl;
 
 		if(print_cover && (mode == CON || mode == FW_CON))
-			main_log << warning("printing cover information slows down concurrent mode") << "\n";
+			main_log << warning("printing cover information slows down concurrent mode") << endl;
 		if(print_cover && (mode == FW))
 			throw logic_error("printing cover information not supported in this mode");
 
-		if(k != 0 && mode == FW)
-			k = 0, main_log << info("saturation deactivated") << "\n";
-
-		if(print_hash_info && !stats_info) throw logic_error("hash info requires stats argument");
+		//TODO: remove comment out
+		//if(k != 0 && mode == FW)
+		//	k = 0, main_log << info("saturation deactivated") << endl;
 
 		if     (forder_str == ORDER_SMALLFIRST_OPTION_STR) forder = unordered_priority_set<ostate_t>::less;
 		else if(forder_str == ORDER_LARGEFIRST_OPTION_STR) forder = unordered_priority_set<ostate_t>::greater;
@@ -611,7 +493,7 @@ int main(int argc, char* argv[])
 
 		if(resolve_omegas)
 		{
-			main_log << "deactive acceleration, due to option " << OPT_STR_FW_NO_OMEGAS << "\n";
+			main_log << "deactive acceleration, due to option " << OPT_STR_FW_NO_OMEGAS << endl;
 			ab = 0;
 		}
 
@@ -634,74 +516,54 @@ int main(int argc, char* argv[])
 		else if(bweight_str == OPT_STR_WEIGHT_WIDTH) bw_weight = order_width;
 		else throw logic_error("invalid weight argument");
 
-
-		if(mode == CON && !fw_blocks_bw && (writetrace || readtrace)) throw logic_error((string("reading/writing traces not supported in concurrent mode without option ") + OPT_STR_BW_WAITFORFW).c_str());
-		else if(writetrace && readtrace) throw logic_error("cannot read and write trace at the same time"); //OPT_STR_WRITE_BW_TRACE, OPT_STR_READ_BW_TRACE
-		else if(readtrace) work_sequence = read_trace(net.filename + ".trace");
-		else if(writetrace) {
-			ofstream w((net.filename + ".trace").c_str()); //empty trace file if it exists
-			w << BState::S << " " << BState::L << " " << k << "\n";
-			w.close();
-		}
-
 		if(netstats){
-			Net::stats_t sts = net.get_stats(sccnetstats);
-			main_log << "---------------------------------" << "\n";
-			main_log << "Statistics for " << net.filename << "\n";
-			main_log << "---------------------------------" << "\n";
-			main_log << "local states                    : " << sts.L << "\n";
-			main_log << "shared states                   : " << sts.S << "\n";
-			main_log << "transitions                     : " << sts.T << "\n";
-			//main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << "\n";
-			////main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << "\n";
-			//main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << "\n";
-			////main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << "\n";
-			//main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << "\n";
-			////main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << "\n";
-			//main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << "\n";
-			////main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << "\n";
-			//main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << "\n";
-			//main_log << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << "\n";
-			main_log << "disconnected thread states      : " << sts.discond << "\n";
-			//main_log << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << "\n";
-#ifdef USE_STRONG_COMPONENT
-			if(sccnetstats)
-			{
-				main_log << "strongly connected components   : " << sts.SCC_num << "\n";
-				main_log << "SCC (no disc. thread states)    : " << sts.SCC_num - sts.discond << "\n";
-			}
-#endif
-			main_log << "maximum indegree                : " << sts.max_indegree << "\n";
-			main_log << "maximum outdegree               : " << sts.max_outdegree << "\n";
-			main_log << "maximum degree                  : " << sts.max_degree << "\n";
-			main_log << "target state                    : " << ((net.target.type==BState::invalid)?(BState(0,0,BState::bot)):(net.target)) << "\n";
-			main_log << "dimension of target state       : " << ((net.target.type==BState::invalid)?("invalid"):(boost::lexical_cast<string>(net.target.bounded_locals.size()))) << "\n";
-			main_log << "total core shared states        : " << sts.core_shared_states << "\n";
-			main_log << "---------------------------------" << "\n";
+			Net::stats_t sts = net.get_stats(false);
+			main_log << "---------------------------------" << endl;
+			main_log << "Statistics for " << net.filename << endl;
+			main_log << "---------------------------------" << endl;
+			main_log << "local states                    : " << sts.L << endl;
+			main_log << "shared states                   : " << sts.S << endl;
+			main_log << "transitions                     : " << sts.T << endl;
+			//main_log << "thread transitions              : " << sts.trans_type_counters[thread_transition] << endl;
+			////main_log << "thread transitions (%)          : " << (unsigned)((float)(100*sts.trans_type_counters[thread_transition])/sts.T) << endl;
+			//main_log << "broadcast transitions           : " << sts.trans_type_counters[transfer_transition] << endl;
+			////main_log << "broadcast transitions (%)       : " << (unsigned)((float)(100*sts.trans_type_counters[transfer_transition])/sts.T) << endl;
+			//main_log << "spawn transitions               : " << sts.trans_type_counters[spawn_transition] << endl;
+			////main_log << "spawn transitions (%)           : " << (unsigned)((float)(100*sts.trans_type_counters[spawn_transition])/sts.T) << endl;
+			//main_log << "horizontal transitions (total)  : " << sts.trans_dir_counters[hor] << endl;
+			////main_log << "horizontal transitions (%)      : " << (unsigned)((float)(100*sts.trans_dir_counters[hor])/sts.T) << endl;
+			//main_log << "non-horizontal trans. (total)   : " << sts.trans_dir_counters[nonhor] << endl;
+			//main_log << "non-horizontal trans. (%)       : " << (unsigned)((float)(100*sts.trans_dir_counters[nonhor])/sts.T) << endl;
+			main_log << "disconnected thread states      : " << sts.discond << endl;
+			//main_log << "connected thread states (%)     : " << (unsigned)((float)(100*((sts.S * sts.L) - sts.discond)/(sts.S * sts.L))) << endl;
+			main_log << "maximum indegree                : " << sts.max_indegree << endl;
+			main_log << "maximum outdegree               : " << sts.max_outdegree << endl;
+			main_log << "maximum degree                  : " << sts.max_degree << endl;
+			main_log << "target state                    : " << ((net.target.type==BState::invalid)?(BState(0,0,BState::bot)):(net.target)) << endl;
+			main_log << "dimension of target state       : " << ((net.target.type==BState::invalid)?("invalid"):(boost::lexical_cast<string>(net.target.bounded_locals.size()))) << endl;
+			main_log << "total core shared states        : " << sts.core_shared_states << endl;
+			main_log << "---------------------------------" << endl;
 			main_log.flush();
 		}
 
-		if(nocoverability)
-			throw logic_error("no coverability engine requested"); 
-
 	}
-	catch(std::exception& e)			{ cerr << "INPUT ERROR: " << e.what() << "\n"; main_res << "type " << argv[0] << " -h for instructions" << "\n"; return EXIT_FAILURE; }
-	catch (...)                         { cerr << "unknown error while checking program arguments" << "\n"; return EXIT_FAILURE; }
+	catch(std::exception& e)			{ cerr << "INPUT ERROR: " << e.what() << endl; main_res << "type " << argv[0] << " -h for instructions" << endl; return EXIT_FAILURE; }
+	catch (...)                         { cerr << "unknown error while checking program arguments" << endl; return EXIT_FAILURE; }
 
 #ifndef WIN32
 	installSignalHandler();
 #endif
 
-	main_log << "Running coverability engine..." << "\n";
+	main_log << "Running coverability engine..." << endl;
 
 	//write stream "headers"
-	bw_stats << "BW stats:" << "\n", fw_stats << "FW stats:" << "\n";
-	fw_log << "FW log:" << "\n";
-	bw_log << "BW log:" << "\n";
-	main_inf << "Additional info:" << "\n";
-	main_res << "Result: " << "\n";
-	main_tme << "Ressources: " << "\n";
-	main_cov << "Coverability info:" << "\n";
+	bw_stats << "BW stats:" << endl, fw_stats << "FW stats:" << endl;
+	fw_log << "FW log:" << endl;
+	bw_log << "BW log:" << endl;
+	main_inf << "Additional info:" << endl;
+	main_res << "Result: " << endl;
+	main_tme << "Ressources: " << endl;
+	main_cov << "Coverability info:" << endl;
 
 	ptime start_time;
 
@@ -710,7 +572,7 @@ int main(int argc, char* argv[])
 		
 		if(o != OPT_STR_OUTPUT_FILE_STDOUT)
 		{
-			main_livestats_ofstream.open(o.c_str()), main_log << "csv output file opened" << "\n";
+			main_livestats_ofstream.open(o.c_str()), main_log << "csv output file opened" << endl;
 			if(!main_livestats_ofstream.good()) 
 				throw std::runtime_error((string("cannot write to file ") + o).c_str());
 
@@ -723,17 +585,17 @@ int main(int argc, char* argv[])
 
 		//BW data structure
 
-		main_log << "initializing complement data structure..." << "\n";
+		main_log << "initializing complement data structure..." << endl;
 		complement_vec		U(k, 0, BState::L,!local_sat); //complement_vec		U(k, BState::S, BState::L);
 		U.S = BState::S;
 		auto x = complement_set(0,0,!local_sat);
 		for(unsigned i = 0; i < BState::S; ++i)
-			if(core_shared[i]) U.luv.push_back(move(complement_set(BState::L,k,!local_sat)));
-			else U.luv.push_back(move(x));
+			if(net.core_shared[i]) U.luv.push_back(std::move(complement_set(BState::L,k,!local_sat)));
+			else U.luv.push_back(std::move(x));
 		
-		main_log << "initializing lowerset data structure..." << "\n";
+		main_log << "initializing lowerset data structure..." << endl;
 		lowerset_vec		D(k, BState::S, !local_sat);
-
+		main_log << "done" << endl;
 		if(mode != CON)
 		{
 
@@ -741,11 +603,11 @@ int main(int argc, char* argv[])
 			if(mode == FW || mode == FWBW) //run fw
 			{
 				shared_fw_done = 0;
-				D.project_and_insert(net.init,shared_cmb_deque,false);
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval);
 				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder);
-				main_tme << "total time (fw): " << time_diff_str(finish_time,start_time) << "\n";
+				finish_time = boost::posix_time::microsec_clock::local_time();
+				main_tme << "total time (fw): "<< setprecision(2) << fixed << time_diff_float(finish_time,start_time) << endl;
 			}
 
 			if(mode == BW || mode == FWBW) //run bw
@@ -753,30 +615,15 @@ int main(int argc, char* argv[])
 				shared_fw_done = 0;
 				start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval);
+#ifdef MINBW
+				main_log << "starting backward search..." << endl;
+				minbw(&net,k,&U);
+#else
 				Pre2(&net,k,border,&U,work_sequence,print_cover);
-				main_tme << "total time (bw): " << time_diff_str(finish_time,start_time) << "\n";
+#endif
+				finish_time = boost::posix_time::microsec_clock::local_time();
+				main_tme << "total time (bw): "<< setprecision(2) << fixed << time_diff_float(finish_time,start_time) << endl;
 			}
-
-			//compare results
-			if(cross_check && mode == FWBW)
-			{
-
-				if(net.target.type == BState::invalid)
-				{
-					for(unsigned s = 0; s < BState::S; ++s)
-					{
-						if(D.lv[s].size() != U.luv[s].l_nodes.size()) throw logic_error("inconclusive k-cover (reported sizes differ)");
-						foreach(const cmb_node_p c, D.lv[s]) if(U.luv[s].l_nodes.find(c) == U.luv[s].l_nodes.end()) throw logic_error("backward search unsound");
-						foreach(const cmb_node_p c, U.luv[s].l_nodes) if(D.lv[s].find(c) == D.lv[s].end()) throw logic_error("forward search unsound");
-					}
-					main_log << info("sequential forward/backward search results match (same k-cover)") << "\n";
-				}
-				else if(fw_safe != bw_safe)
-					throw logic_error("inconclusive safety result");
-				else
-					main_log << info("sequential forward/backward search results match (same result for target)") << "\n";
-			}
-
 		}
 
 		if(mode == CON || mode == FW_CON)
@@ -792,7 +639,6 @@ int main(int argc, char* argv[])
 			if(1 || mode == BW || mode == FW || mode == FWBW) //todo: remove first 1
 			{
 				D.clear();
-				D.project_and_insert(net.init,shared_cmb_deque,false);
 				U.clear();
 			}
 
@@ -801,89 +647,78 @@ int main(int argc, char* argv[])
 			
 			boost::thread 
 				fw(do_fw_bfs, &net, ab, &D, &shared_cmb_deque, forward_projections, forder), 
+#ifdef MINBW
+				bw(minbw,&net,k,&U), 
+#else
 				bw(Pre2,&net,k,border,&U,work_sequence,print_cover), 
+#endif
 				bw_mem(print_bw_stats, mon_interval)
 				;
+
+			finish_time = boost::posix_time::microsec_clock::local_time();
 			
-			main_log << "waiting for fw..." << "\n", main_log.flush(), fw.join(), main_log << "fw joined" << "\n", main_log.flush();
-			main_log << "waiting for bw..." << "\n", main_log.flush(), bw.join(), main_log << "bw joined" << "\n", main_log.flush();
+			main_log << "waiting for fw..." << endl, main_log.flush(), fw.join(), main_log << "fw joined" << endl, main_log.flush();
+			main_log << "waiting for bw..." << endl, main_log.flush(), bw.join(), main_log << "bw joined" << endl, main_log.flush();
 			bw_mem.interrupt();
 			bw_mem.join();
 			
-			main_tme << "total time (conc): " << time_diff_str(finish_time,start_time) << "\n";
-			
-			if(mode == FW_CON && cross_check)
-			{
-				if(net.target.type != BState::invalid)
-				{
-					if(!implies(fw_safe && bw_safe, fw_safe_seq) || !implies(!fw_safe || !bw_safe, !fw_safe_seq)) 
-						throw logic_error("inconclusive results (conc. vs. seq. forward)");
-					else
-						main_log << info("sequential forward/concurrent forward/backward search results match (same result for target)") << "\n";
-				}
-				else
-					throw logic_error("cross-check in concurrent mode currently not supported");
-			}
+			main_tme << "total time (conc): "<< setprecision(2) << fixed << time_diff_float(finish_time,start_time) << endl;
 		}
 		
 #ifndef WIN32
 		mon_mem.interrupt(), mon_mem.join();
-		main_tme << "max. virt. memory usage (mb): " << max_mem_used << "\n";
+		main_tme << "max. virt. memory usage (mb): " << max_mem_used << endl;
 #endif
 
 		if(net.target.type == BState::invalid && print_cover)
 		{
 			for(unsigned i = 0; i < BState::S; ++i)
 			{
-				if(!core_shared[i]) continue;
+				if(!net.core_shared[i]) continue;
 				foreach(auto p, U.luv[i].u_nodes)
-					main_cov << BState(i,p->c.begin(),p->c.end()) << "\n";
+					main_cov << BState(i,p->c.begin(),p->c.end()) << endl;
 			}
 
 #ifdef PRINT_KCOVER_ELEMENTS
-			main_cov << "coverable                       : " << "\n", U.print_upper_set(main_log), main_log << "\n";
-			main_cov << "uncoverable                     : " << "\n", U.print_lower_set(main_log), main_log << "\n";
+			main_cov << "coverable                       : " << endl, U.print_upper_set(main_log), main_log << endl;
+			main_cov << "uncoverable                     : " << endl, U.print_lower_set(main_log), main_log << endl;
 #endif
-			main_cov << "coverable elements (all)        : " << U.lower_size() << "\n";
-			main_cov <<	"uncoverable elements (min)      : " << U.upper_size() << "\n";
+			main_cov << "coverable elements (all)        : " << U.lower_size() << endl;
+			main_cov <<	"uncoverable elements (min)      : " << U.upper_size() << endl;
 		}
 
-		//TODO??: This is currently not correct if the forward exploration it stopped due to the width bound/time threshold
-
-		invariant(implies(fw_state_blocked,!shared_fw_done)); //"shared_fw_done" means "fw done and sound"
-
-		invariant(execution_state == RUNNING || execution_state == TIMEOUT || execution_state == MEMOUT || execution_state == INTERRUPTED);
-		switch(execution_state)
+		invariant(exe_state == RUNNING || exe_state == TIMEOUT || exe_state == MEMOUT || exe_state == INTERRUPTED);
+		switch(exe_state)
 		{
 		case RUNNING:
 			if(!shared_fw_done && !shared_bw_done)
-				return_value = EXIT_UNKNOWN_RESULT, main_res << EXIT_UNKNOWN_RESULT_STR << "\n";
+				return_value = EXIT_UNKNOWN_RESULT, main_res << EXIT_UNKNOWN_RESULT_STR << endl;
 			else if(net.target.type == BState::invalid)
-				return_value = EXIT_KCOVERCOMPUTED_SUCCESSFUL, main_res << EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR << "\n";
+				return_value = EXIT_KCOVERCOMPUTED_SUCCESSFUL, main_res << EXIT_KCOVERCOMPUTED_SUCCESSFUL_STR << endl;
 			else if(bw_safe && fw_safe) 
-				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << EXIT_VERIFICATION_SUCCESSFUL_STR << "\n";
+				return_value = EXIT_VERIFICATION_SUCCESSFUL, main_res << EXIT_VERIFICATION_SUCCESSFUL_STR << endl;
 			else 
-				return_value = EXIT_VERIFICATION_FAILED, main_res << EXIT_VERIFICATION_FAILED_STR << "\n";
+				return_value = EXIT_VERIFICATION_FAILED, main_res << EXIT_VERIFICATION_FAILED_STR << endl;
 			break;
 		case TIMEOUT:
-			return_value = EXIT_TIMEOUT_RESULT, main_res << EXIT_TIMEOUT_RESULT_STR << "\n";
+			return_value = EXIT_TIMEOUT_RESULT, main_res << EXIT_TIMEOUT_RESULT_STR << endl;
 			break;
 		case MEMOUT:
-			return_value = EXIT_MEMOUT_RESULT, main_res << EXIT_MEMOUT_RESULT_STR << "\n";
+			return_value = EXIT_MEMOUT_RESULT, main_res << EXIT_MEMOUT_RESULT_STR << endl;
 			break;
 		case INTERRUPTED:
-			return_value = EXIT_OTHER_RESULT, main_res << EXIT_OTHER_RESULT_STR << "\n";
+			return_value = EXIT_OTHER_RESULT, main_res << EXIT_OTHER_RESULT_STR << endl;
 			break;
 		}
 
 	}
 	catch(std::exception& e){
-		return_value = EXIT_FAILURE, main_res << e.what() << "\n";}
+		return_value = EXIT_FAILURE, main_res << e.what() << endl;}
 	catch (...){
-		return_value = EXIT_FAILURE, main_res << "unknown exception" << "\n";}
+		return_value = EXIT_FAILURE, main_res << "unknown exception" << endl;}
 
 	if(o != OPT_STR_OUTPUT_FILE_STDOUT)
-		main_livestats.rdbuf(main_livestats_rdbuf_backup), main_livestats_ofstream.close(), main_log << "csv output file closed" << "\n"; //otherwise the stream might be closed before the destruction of main_livestats which causes an error
+		main_livestats.rdbuf(main_livestats_rdbuf_backup), main_livestats_ofstream.close(), main_log << "csv output file closed" << endl; //otherwise the stream might be closed before the destruction of main_livestats which causes an error
 	
 	//print stream in this order; all other streams are flushed on destruction
 	main_res.flush();

@@ -72,14 +72,15 @@ Net::Net(const Net & other): reduce_log(cerr.rdbuf())
 	assert(0);
 }
 
-Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, adj_t adjacency_list_inv_)
+Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, adj_t adjacency_list_inv_, bool prj_all)
 	: S_input(-1), L_input(-1), S(S_), L(L_), init(init_), target(target_), adjacency_list(adjacency_list_), adjacency_list_inv(adjacency_list_inv_), reduce_log(cerr.rdbuf())
 {
+	core_shared = get_core_shared(prj_all);
 }
 
-Net::Net(string net_fn, string target_fn, string init_fn): filename(net_fn), targetname(target_fn), initname(init_fn), reduce_log(cerr.rdbuf())
+Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filename(net_fn), targetname(target_fn), initname(init_fn), reduce_log(cerr.rdbuf())
 {
-
+	
 	//parse intial state
 	if(init_fn == string())
 	{
@@ -248,6 +249,8 @@ Net::Net(string net_fn, string target_fn, string init_fn): filename(net_fn), tar
 		throw logic_error((string)"could not parse input file (are the line endings correct?): " + e.what());
 	}
 
+	core_shared = get_core_shared(prj_all);
+
 }
 
 Net::s_adjs_t Net::get_backward_adj() const
@@ -295,7 +298,7 @@ pair<Net::vv_adjs_t,Net::vvl_adjs_t> Net::get_backward_adj_2() const
 
 }
 
-vector<bool> Net::get_core_shared(bool prj_all) const
+vector<bool> Net::get_core_shared(bool prj_all, bool ignore_unused_only) const
 {
 	vector<bool> ret(S,1);
 
@@ -323,14 +326,13 @@ vector<bool> Net::get_core_shared(bool prj_all) const
 
 		for(shared_t s = 0; s < S; ++s)
 		{
-			auto q = from_to_shared_counter.find(s);
-			auto f = from_shared_counter.find(s), t = to_shared_counter.find(s);
+			auto q = from_to_shared_counter.find(s), f = from_shared_counter.find(s), t = to_shared_counter.find(s);
 
 			ret[s] = 
 				(s == init.shared) ||
 				(target.type != BState::invalid && s == target.shared) ||
-				(q != from_to_shared_counter.end() && q->second != 0) || //for horizonal transitions, e.g. 2,2 -> 2,5
-				((f != from_shared_counter.end() || t != to_shared_counter.end()) && (f == from_shared_counter.end() || t == to_shared_counter.end() || f->second != 1 || t->second != 1)) //exactly one incoming and one outgoing edge
+				(ignore_unused_only && ((q != from_to_shared_counter.end() && q->second != 0) || (f != from_shared_counter.end() && f->second != 0) || (t != to_shared_counter.end() && t->second != 0))) || //no incoming or outgoing transitions (neither horizonal nor diagonal ones)
+				(!ignore_unused_only && ((q != from_to_shared_counter.end() && q->second != 0) || ((f != from_shared_counter.end() || t != to_shared_counter.end()) && (f == from_shared_counter.end() || t == to_shared_counter.end() || f->second != 1 || t->second != 1)))) //no horizonal transitions (e.g. 2,2 -> 2,5) and exactly one incoming and one outgoing edge
 				;
 		}
 	}
@@ -346,7 +348,7 @@ set<local_t> operator- (const set<local_t>& L, const unsigned& d)
 }
 
 using namespace boost::assign;
-void Net::reduce()
+void Net::reduce(bool prj_all)
 {
 
 	//compute local states that equivalent wrt. to passive effects
@@ -444,14 +446,13 @@ void Net::reduce()
 			COUNT_IF(V,"7SINDE",b && (any_of(l_to_s_inv[l].begin(),l_to_s_inv[l].end(),[&matr,this](ls_m_t::value_type& x){ reduce_log << x.second.size() << "/" << matr << endl; return x.second.size() < matr; })))|| //transition is independent of the shared state
 			COUNT_IF(V,"8PASSE",b && (non_eq_transitions_to_local[l])) //relative passive effects are the same on all predecessors as on l
 			;
-		//core_local[l] = std::any_of(B.begin(),B.end(),boost::bind(equal_to<bool>(),_1,true));
 	}
 	cout << endl;
 
 	for_each(V.begin(),V.end(),[this](scmap_t::value_type& c){ reduce_log << c.first << ": " << c.second << endl; });
 
 	unsigned core_num = 0;
-	core_num = std::count_if(core_local.begin(),core_local.end(),boost::bind(equal_to<bool>(),_1,1));
+	core_num = std::count_if(core_local.begin(),core_local.end(),bind2nd(equal_to<bool>(),true));
 
 	reduce_log << "total local core states: " << core_num << "/" << L << endl;
 
@@ -466,6 +467,15 @@ void Net::reduce()
 	for(local_t l = 0; l < L; ++l)
 		if(core_local[l]) p[l] = L_new++, reduce_log << p[l] << "/" << l << " ";
 		else reduce_log << "-" << "/" << l << " ";
+	reduce_log << endl;
+
+	//compute new shared state values
+	vector<bool> used_shared = get_core_shared(prj_all,true);
+	local_perm_t pS(S,-1);
+	local_t S_new = 0;
+	for(shared_t s = 0; s < S; ++s)
+		if(used_shared[s]) pS[s] = S_new++, reduce_log << pS[s] << "/" << s << " ";
+		else reduce_log << "-" << "/" << s << " ";
 	reduce_log << endl;
 
 	//reduce net by removing non-core local states 
@@ -490,8 +500,8 @@ void Net::reduce()
 				//reduce_log << endl;
 
 				Thread_State
-					x(s.first.shared,p[s.first.local]),
-					y(t.first.shared,p[t.first.local]);
+					x(pS[s.first.shared],p[s.first.local]),
+					y(pS[t.first.shared],p[t.first.local]);
 
 				processed[x][y]=n, processed_inv[y][x]=n_inv;
 			}
@@ -510,56 +520,60 @@ void Net::reduce()
 	{
 		Thread_State u = work.top()->first, v = work.top()->second; work.pop();
 
-		reduce_log << "processing " << u << " -> " << v << "\t";
+		//reduce_log << "processing " << u << " -> " << v << "\t";
 
 		if(core_local[u.local] && core_local[v.local]) 
 		{
 			Thread_State
-				x(u.shared,p[u.local]),
-				y(v.shared,p[v.local]);
+				x(pS[u.shared],p[u.local]),
+				y(pS[v.shared],p[v.local]);
 
-			processed[x][y] = transfers_t(), processed_inv[y][x] = transfers_t(), reduce_log << "core" << endl;
+			if(x == y)
+			{
+				reduce_log << "same source and target -> ignore" << endl;
+				continue;
+			}
+
+			processed[x][y] = transfers_t(), processed_inv[y][x] = transfers_t()/*, reduce_log << "core" << endl*/;
 		}
 		else if(!core_local[u.local] && !core_local[v.local])
-			reduce_log << "no core" << endl; 
+			;/*reduce_log << "no core" << endl; */
 		else
 		{
 			set<Thread_State> pre_u, post_v;
 
 			if(core_local[u.local]) pre_u.insert(u);
-			else if(adjacency_list_inv.find(u) == adjacency_list_inv.end()){ reduce_log << "no pre" << endl; continue; }
+			else if(adjacency_list_inv.find(u) == adjacency_list_inv.end()){ /*reduce_log << "no pre" << endl;*/ continue; }
 			else for( auto& p : adjacency_list_inv[u] ) pre_u.insert(p.first);
 
 			if(core_local[v.local]) post_v.insert(v);
-			else if(adjacency_list.find(v) == adjacency_list.end()){ reduce_log << "no post" << endl; continue; }
+			else if(adjacency_list.find(v) == adjacency_list.end()){ /*reduce_log << "no post" << endl;*/ continue; }
 			else for( auto& p : adjacency_list[v] ) post_v.insert(p.first);
 
 			for(auto p : pre_u) for(auto q : post_v) 
 			{
 				auto i = seen.insert(make_pair(p,q));
-				if(i.second) work.push(i.first), reduce_log << "adding " << p << " -> " << q << " ";
-				else reduce_log << "not new ";
+				if(i.second) work.push(i.first)/*, reduce_log << "adding " << p << " -> " << q << " "*/;
+				else /*reduce_log << "not new "*/;
 			}
-			reduce_log << "; " << work.size() << " transitions remaining" << endl;
+			/*reduce_log << "; " << work.size() << " transitions remaining" << endl;*/
 		}
 	}
 
 	for_each(processed.begin(), processed.end(), [&final_processed_sz](adj_t::value_type& x) { final_processed_sz += x.second.size(); });
 
-	reduce_log << "init work: " << init_work_sz << " init processed: " << init_processed_sz << " final processed: " << final_processed_sz << " saved: " << (int)(init_work_sz + init_processed_sz) - (int)final_processed_sz << endl;
+	reduce_log << "init work: " << init_work_sz << " init processed: " << init_processed_sz << " final processed: " << final_processed_sz << " diff: " << (int)(init_work_sz + init_processed_sz) - (int)final_processed_sz << endl;
 
 	//update initial and target state
-	OState init_new(init);
-	init_new.bounded_locals.clear(), init_new.unbounded_locals.clear();
+	OState init_new(pS[init.shared]);
 	for(local_t l : init.bounded_locals) init_new.bounded_locals.insert(p[l]);
 	for(local_t l : init.unbounded_locals) init_new.unbounded_locals.insert(p[l]);
 
-	BState target_new(target);
-	target_new.bounded_locals.clear();
+	BState target_new(pS[target.shared]);
 	for(local_t l : target.bounded_locals) target_new.bounded_locals.insert(p[l]);
 
 	//return
-	Net(S,L_new,init_new,target_new,processed,processed_inv).swap(*this);
+	Net(S_new,L_new,init_new,target_new,processed,processed_inv,prj_all).swap(*this);
 
 }
 
@@ -579,6 +593,7 @@ void Net::swap(Net& other)
 		adjacency_list.swap(other.adjacency_list);
 		adjacency_list_inv.swap(other.adjacency_list_inv);
 		reduce_log.swap(other.reduce_log);
+		core_shared.swap(other.core_shared);
 	}
 }
 

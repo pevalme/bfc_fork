@@ -53,39 +53,68 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /********************************************************
 Misc
 ********************************************************/
-typedef unordered_priority_set<bstate_t> work_pq;
 typedef set<bstate_t> W_deferred_t;
 typedef Breached_p_t non_minimals_t;
 typedef work_pq pending_t;
-typedef bstate_t bstate_t;
-typedef complement_vec complement_vec_t;
-
-unordered_priority_set<bstate_t>::keyprio_type keyprio_pair(bstate_t s)
-{ 
-	//invariant(bw_weight == s->nb->depth || bw_weight == s->size());
-
-	switch(bw_weight)
-	{
-	case order_width: 
-		return make_pair(s,s->size());
-	case order_depth: 
-		//return make_pair(s,s->nb->depth);
-		invariant(s->nb->gdepth != -1);
-		return make_pair(s,s->nb->gdepth);
-	default:	
-		return make_pair(s,0);
-	}
-}
-
-string add_leading_zeros(const string& s, unsigned count)
-{
-	int diff = count-s.size();
-	if(diff > 0) return string(diff,'0') + s;
-	else return s;
-}
 
 #include "bw.inv.h"
 #include "bw.out.h"
+
+unsigned 
+	ctr_state_new = 0, ctr_state_not_new = 0, 
+	ctr_locally_non_minimal = 0, ctr_locally_non_minimal__neq_ge = 0, ctr_locally_non_minimal__neq_ge__exists_max = 0, 
+	ctr_locally_non_minimal__eq = 0, 
+	ctr_locally_minimal = 0, ctr_locally_minimal__neq_le = 0, ctr_locally_minimal__neq_le__exists_max = 0,
+	ctr_locally_minimal__neq_nge_nle = 0,
+	ctr_globally_non_minimal = 0, ctr_globally_non_minimal__neq_ge = 0, ctr_globally_non_minimal__neq_ge__exists_max = 0, 
+	ctr_globally_minimal = 0, ctr_globally_minimal__neq_le = 0, ctr_globally_minimal__neq_le__exists_max = 0,
+	ctr_globally_minimal__neq_nge_nle = 0
+	;
+
+unsigned
+	ctr_bw_maxdepth_la = 0, //max nb->depth of all processed nodes
+	ctr_bw_maxdepth_ga = 0, //max nb->gdepth of all processed nodes
+	ctr_bw_maxdepth_lu = 0, //max nb->depth of unpruned nodes
+	ctr_bw_maxdepth_gu = 0, //max nb->gdepth of unprundes nodes
+	ctr_bw_maxwidth_u = 0, //max width of unpruned nodes
+	ctr_bw_maxwidth_a = 0, //max width of all processed nodes
+	ctr_cdp = 0,
+	ctr_csz = 0
+	;
+
+unsigned 
+	ctr_lowerset_intersect = 0, 
+	ctr_root_intersect = 0, 
+	ctr_initial_intersect = 0
+	;
+
+unsigned
+	ctr_prune_dequeues = 0, 
+	ctr_known_dequeues = 0
+	;
+
+unsigned
+	ctr_wit = 0, 
+	ctr_pit = 0, 
+	fpcycles = 0,
+	bpcycles = 0
+	; //count the number of workset/pruneset elements that were processed
+
+unsigned
+	ctr_locally_pruned = 0
+	;
+
+unsigned
+	update_counter = 0, 
+	ctr_bw_gmins_gu = 0,
+	osz = 0, osz_max = 0,
+	nsz = 0, nsz_max = 0,
+	msz = 0, msz_max = 0,
+	dsz = 0, dsz_max = 0,
+	wsz = 0, wsz_max = 0,
+	gsz = 0,
+	wdsz = 0
+	;
 
 #ifdef TIMING
 time_duration 
@@ -93,6 +122,7 @@ time_duration
 	gminimal_duration,
 	clean_replace_and_mark_duration,
 	compute_minimal_predecessors_duration,
+	compute_pre_rel,
 	pruning_duration,
 	livestats_duration,
 	first_alloc_duration,
@@ -100,145 +130,124 @@ time_duration
 	check_for_lowerset_interections_duration,
 	check_global_minimal_and_wake_up_duration,
 	defer_state_duration,
-	global_insert_duration
+	global_insert_duration,
+	local_insert_duration,
+	enqueue_duration,
+	enqueue_duration_two,
+	max_insert_duration,
+	max_insert_duration_two,
+	greater_equal_duration
 	;
 #endif
+
+void full_final_stats()
+{
+	shared_bw_done = true;
+	
+	fwbw_mutex.lock(), (shared_fw_done) || (shared_bw_finised_first = 1), fwbw_mutex.unlock();
+	//invariant(implies(shared_bw_finised_first && bw_safe,W.empty()));
+
+	if(shared_bw_finised_first) bw_log << "bw first" << "\n", bw_log.flush();
+	else bw_log << "bw not first" << "\n", bw_log.flush();
+
+	{
+		bw_stats << "\n";
+		bw_stats << "---------------------------------" << "\n";
+		bw_stats << "Backward statistics:" << "\n";
+		bw_stats << "---------------------------------" << "\n";
+		bw_stats << "bw finished first               : " << (shared_bw_finised_first?"yes":"no") << "\n";
+		bw_stats << "bw execution state              : "; 
+		switch(exe_state){
+		case TIMEOUT: bw_stats << "TIMEOUT" << "\n"; break;
+		case MEMOUT: bw_stats << "MEMOUT" << "\n"; break;
+		case RUNNING: bw_stats << "RUNNING" << "\n"; break;
+		case INTERRUPTED: bw_stats << "INTERRUPTED" << "\n"; break;}
+		bw_stats << "\n";
+		bw_stats << "iterations                      : " << ctr_wit + ctr_pit << "\n";
+		bw_stats << "- work iterations               : " << ctr_wit << "\n";
+		bw_stats << "- prune iterations              : " << ctr_pit << "\n";
+		bw_stats << "- foward prune cycles           : " << fpcycles << "\n";
+		bw_stats << "- backward prune cycles         : " << bpcycles << "\n";
+		bw_stats << "\n";
+		bw_stats << "oracle dequeues                 : " << ctr_prune_dequeues + ctr_known_dequeues << "\n";
+		bw_stats << "- pruned                        : " << ctr_prune_dequeues << "\n";
+		bw_stats << "- known                         : " << ctr_known_dequeues << "\n";
+		bw_stats << "\n";
+		bw_stats << "new predecessors                : " << ctr_state_new << "\n";
+		bw_stats << "existing predecessors           : " << ctr_state_not_new << "\n";
+		bw_stats << "\n";
+		bw_stats << "locally_minimal                 : " << ctr_locally_minimal << "\n";
+		bw_stats << "- neq_le (max matched)          : " << ctr_locally_minimal__neq_le << " (" << ctr_locally_minimal__neq_le__exists_max << ")" << "\n";
+		bw_stats << "- neq_nge_nle                   : " << ctr_locally_minimal__neq_nge_nle << "\n";
+		bw_stats << "locally_non_minimal             : " << ctr_locally_non_minimal << "\n";
+		bw_stats << "- neq_ge (max matched)          : " << ctr_locally_non_minimal__neq_ge << " (" << ctr_locally_non_minimal__neq_ge__exists_max << ")" << "\n";
+		bw_stats << "- eq                            : " << ctr_locally_non_minimal__eq << "\n";
+		bw_stats << "\n";
+		bw_stats << "globally_minimal                : " << ctr_globally_minimal << "\n";
+		bw_stats << "- neq_le (max matched)          : " << ctr_globally_minimal__neq_le << " (" << ctr_globally_minimal__neq_le__exists_max << ")" << "\n";
+		bw_stats << "- neq_nge_nle                   : " << ctr_globally_minimal__neq_nge_nle << "\n";
+		bw_stats << "globally_non_minimal            : " << ctr_globally_non_minimal << "\n";
+		bw_stats << "- neq_ge (max matched)          : " << ctr_globally_non_minimal__neq_ge << " (" << ctr_globally_non_minimal__neq_ge__exists_max << ")" << "\n";
+		bw_stats << "\n";
+		bw_stats << "lowerset intersections          : " << ctr_initial_intersect + ctr_root_intersect + ctr_lowerset_intersect << "\n";
+		bw_stats << "- initial_intersect             : " << ctr_initial_intersect << "\n";
+		bw_stats << "- root_intersect                : " << ctr_root_intersect << "\n";
+		bw_stats << "- lowerset_intersect            : " << ctr_lowerset_intersect << "\n";
+		bw_stats << "\n";
+		bw_stats << "locally_pruned                  : " << ctr_locally_pruned << "\n";
+		bw_stats << "---------------------------------" << "\n";		
+		bw_stats << "max bdepth local all            : " << ctr_bw_maxdepth_la << "\n";
+		bw_stats << "max bdepth local unpruned       : " << ctr_bw_maxdepth_lu << "\n";
+		bw_stats << "max bdepth global all           : " << ctr_bw_maxdepth_ga << "\n";
+		bw_stats << "max bdepth global unpruned      : " << ctr_bw_maxdepth_gu << "\n";
+		bw_stats << "max bwidth all                  : " << ctr_bw_maxwidth_a << "\n";
+		bw_stats << "max bwidth unpruned             : " << ctr_bw_maxwidth_u << "\n";
+		bw_stats << "global minimals unpruned        : " << ctr_bw_gmins_gu << "\n";
+		bw_stats << "---------------------------------" << "\n";
+		bw_stats << "osz_max                         : " << osz_max << "\n";
+		bw_stats << "nsz_max                         : " << nsz_max << "\n";
+		bw_stats << "msz_max                         : " << msz_max << "\n";
+		bw_stats << "dsz_max                         : " << dsz_max << "\n";
+		bw_stats << "wsz_max                         : " << wsz_max << "\n";
+#ifdef TIMING
+		bw_stats << "---------------------------------" << "\n";
+		bw_stats << "bw duration after initialization: " << to_simple_string(microsec_clock::local_time() - bwstart) << "\n";
+		//bw_stats << "pre duration                    : " << to_simple_string(pre_duration) << "\n";
+		bw_stats << "global minimal test duration    : " << to_simple_string(gminimal_duration) << "\n";
+		bw_stats << "clean replace and mark duration : " << to_simple_string(clean_replace_and_mark_duration) << "\n";
+		//bw_stats << " - compute minimal predecessors : " << to_simple_string(compute_minimal_predecessors_duration) << "\n";
+		bw_stats << " - compute pre rel              : " << to_simple_string(compute_pre_rel) << "\n";
+		//bw_stats << "pruning duration                : " << to_simple_string(pruning_duration) << "\n";
+		//bw_stats << "livestats duration              : " << to_simple_string(livestats_duration) << "\n";
+		//bw_stats << "first alloc duration            : " << to_simple_string(first_alloc_duration) << "\n";
+		//bw_stats << "first insert duration           : " << to_simple_string(first_insert_duration) << "\n";
+		//bw_stats << "lower intersection duration     : " << to_simple_string(check_for_lowerset_interections_duration) << "\n";
+		bw_stats << "check g-minimal/wake up duration: " << to_simple_string(check_global_minimal_and_wake_up_duration) << "\n";
+		//bw_stats << "defer state duration            : " << to_simple_string(defer_state_duration) << "\n";
+		bw_stats << "local insert_duration           : " << to_simple_string(local_insert_duration) << "\n";
+		bw_stats << "global insert duration          : " << to_simple_string(global_insert_duration) << "\n";
+		//bw_stats << "enqueue duration                : " << to_simple_string(enqueue_duration) << "\n";
+		//bw_stats << "enqueue duration two            : " << to_simple_string(enqueue_duration_two) << "\n";
+		//bw_stats << "max insert duration             : " << to_simple_string(max_insert_duration) << "\n";
+		bw_stats << "greater equal duration          : " << to_simple_string(greater_equal_duration) << "\n";
+		bw_stats << "max insert duration two         : " << to_simple_string(max_insert_duration_two) << "\n";
+		
+#endif
+		//bw_stats << "k-width duration                : " << to_simple_string(zero_width_duration) << "\n";
+		//bw_stats << "work elements after k-width     : " << candidate_num << "\n";
+		bw_stats << "---------------------------------" << "\n";
+
+		bw_stats.flush();
+	}
+}
+
 
 /********************************************************
 Pre image
 ********************************************************/
 //scmap_t V;
 //for_each(V.begin(),V.end(),[](scmap_t::value_type& c){ cout << c.first << " " << c.second << " "; }); cout << endl;
-Breached_p_t Pre(const BState& s, Net& n)
-{
-
-	Breached_p_t pres; //set of successors discovered for s so far (a set is used to avoid reprocessing)
-
-	
-	
-	static pair<Net::vv_adjs_t,Net::vvl_adjs_t> T = n.get_backward_adj_2();
-	Net::vv_adjs_t& X = T.first;
-	Net::vvl_adjs_t& Y = T.second;
-
-	
-	
-	stack<const BState*> work; work.push(&s); //todo: allocate nb and bl here already?
-
-	while(!work.empty())
-	{
-
-		const BState* cur = work.top(); work.pop();
-
-		if(cur != &s && core_shared[cur->shared])
-		{
-			if(!pres.insert(cur).second)
-				delete cur;
-
-			continue;
-		}
-
-		invariant(iff(cur == &s, core_shared[cur->shared]));
-
-		vector<pair<vector<Transition>::const_iterator,vector<Transition>::const_iterator> > tranges;
-		tranges.push_back(make_pair(X[cur->shared].begin(),X[cur->shared].end()));
-		for_each(cur->bounded_locals.begin(),cur->bounded_locals.end(),[&tranges,&cur,&X,&Y](const bounded_t::value_type& b){tranges.push_back(make_pair(Y[cur->shared][b].begin(),Y[cur->shared][b].end()));});
-
-		for( auto& r : tranges )
-		{
-			for( ;r.first != r.second; ++r.first)
-			{
-				const Transition&	t = *r.first;
-				const Thread_State& u = t.source;
-				const Thread_State& v = t.target; 
-				const transfers_t&	p = t.bcs; //inverse transfer
-
-				invariant(cur->shared == v.shared);
-
-				const bool thread_in_u = (cur->bounded_locals.find(u.local) != cur->bounded_locals.end());
-				const bool thread_in_v = (cur->bounded_locals.find(v.local) != cur->bounded_locals.end());
-				const bool horiz_trans = (u.shared == v.shared);
-				const bool diff_locals = (u.local != v.local);
-
-				invariant(!horiz_trans || thread_in_v || !p.empty());
-
-				if(horiz_trans && !thread_in_v && cur->bounded_locals.empty())
-					continue;
-
-				BState* pre = new BState(horiz_trans?cur->shared:u.shared,cur->bounded_locals.begin(),cur->bounded_locals.end(),false); //allocation
-
-				if(thread_in_v) pre->bounded_locals.erase(pre->bounded_locals.find(v.local)); //remove one
-
-				//create, for all passive updates combinations c_i in bounded local states, a state s_i = s+c_i (check for duplicates, and ignoring those entering an "omega"-value)
-				typedef pair<bounded_t,bounded_t> local_tp; //unprocessed and processed local states
-				typedef set<local_tp> comb_t;
-				if(!p.empty() && !pre->bounded_locals.empty()) //if there are passive updates and at least one passive thread exists
-				{
-					comb_t combs_interm; 
-					stack<comb_t::const_iterator> cwork;
-					cwork.push(combs_interm.insert(make_pair(pre->bounded_locals,bounded_t())).first); //inserte pair (locals,{})
-
-					bool first = true;
-					while(!cwork.empty())
-					{
-						comb_t::const_iterator w = cwork.top(); cwork.pop();
-						invariant(w->first.size()); //work shall only contain states with unprocessed local states
-
-						//remove one local and create a new pair for all predecessor combinations
-						local_t passive_source = *w->first.begin();
-						auto x = p.find(passive_source); //transfer destinations
-
-						local_t passive_target;
-						set<local_t>::const_iterator pi;
-
-						if(x == p.end()) passive_target = passive_source;
-						else pi = x->second.begin(), passive_target = *pi;
-
-						do
-						{
-							local_tp ne(*w);
-							ne.second.insert(passive_target);
-							invariant(*ne.first.begin() == passive_source);
-							ne.first.erase(ne.first.find(passive_source));
-
-							if(ne.first.empty())
-							{
-								//create new states for all but the first one; the first one is added in the remainder of this function
-								if(first)
-									//do not readd active thread (done below)
-										pre->bounded_locals = ne.second, first = false;
-								else
-								{
-									ne.second.insert(u.local);
-									BState* prep = new BState(pre->shared,ne.second.begin(),ne.second.end(),false); //allocation
-									invariant(prep->consistent());
-									work.push(prep);
-								}
-							}
-							else
-							{
-								auto a = combs_interm.insert(ne);
-								if(a.second) cwork.push(a.first);
-							}
-						}
-						while(x != p.end() && ++pi != x->second.end() && (passive_target = *pi,1));
-
-					}
-				}
-
-				pre->bounded_locals.insert(u.local);
-
-				work.push(pre);
-			}
-		}
-
-		if(cur != &s) 
-			delete cur;
-
-	}
-
-	return pres;
-
-}
+Breached_p_t Pre(const BState& s, Net& n);
 
 /********************************************************
 Pruning
@@ -370,7 +379,7 @@ void local_capture(bstate_t s)
 
 }
 
-unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C, vec_antichain_t& D, bstate_t target, W_deferred_t& W_deferred)
+unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec& C, vec_antichain_t& D, bstate_t target, W_deferred_t& W_deferred)
 {
 
 	precondition_foreach(bstate_t pre, s->nb->pre, pre->nb->src != s->nb->src); //s must not have predecessors with the same source; holds for source states and must also hold for non-souce states that are locally undercut (in the latter case without this assumption it is possible that a locally non-minimal states is erased when an (also) locally non-minimal predecessor state is detach prior the it)
@@ -510,7 +519,7 @@ unsigned prune(bstate_t s, vec_antichain_t& M, non_minimals_t& N, vec_antichain_
 
 }
 
-unsigned local_detach(bstate_t& expl_src, const set<bstate_t>& S, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C, vec_antichain_t& D, bstate_t t, W_deferred_t& W_deferred) //note: D is not used
+unsigned local_detach(bstate_t& expl_src, const set<bstate_t>& S, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec& C, vec_antichain_t& D, bstate_t t, W_deferred_t& W_deferred) //note: D is not used
 {
 
 	unsigned pruned_ctr = 0;
@@ -587,7 +596,7 @@ set<bstate_t> sources(bstate_t s, vec_antichain_t& D)
 
 }
 
-void try_prune(list<std::pair<shared_t, cmb_node_p> >& prunes, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C, vec_antichain_t& D, bstate_t t, unsigned& piteration, unsigned& ctr_prune_dequeues, unsigned& ctr_known_dequeues, W_deferred_t& W_deferred)
+void try_prune(list<std::pair<shared_t, cmb_node_p> >& prunes, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec& C, vec_antichain_t& D, bstate_t t, unsigned& ctr_pit, unsigned& ctr_prune_dequeues, unsigned& ctr_known_dequeues, W_deferred_t& W_deferred)
 {
 	for(auto get = prunes.begin(), e = prunes.end(); get != e; ++get)
 	{
@@ -600,16 +609,16 @@ void try_prune(list<std::pair<shared_t, cmb_node_p> >& prunes, vec_antichain_t& 
 		}
 		else
 		{
-			bw_log << "--------------- Prune set iteration (F) " << piteration << " ---------------" << "\n";
+			bw_log << "--------------- Prune set iteration (F) " << ctr_pit << " ---------------" << "\n";
 			bw_log << "prune " << to_be_pruned << "\n";
 			invariant(before_prune(*f,M,N,O,W,C));
 #ifdef EAGER_ALLOC
-			(*f)->us->erase(*f), prune(*f,M,N,O,W,C,D,t),piteration++,ctr_prune_dequeues++; //function prune has the precondition that s is not in its local upperset							
+			(*f)->us->erase(*f), prune(*f,M,N,O,W,C,D,t),ctr_pit++,ctr_prune_dequeues++; //function prune has the precondition that s is not in its local upperset							
 #else
 			if((*f)->us != nullptr)
 				(*f)->us->erase(*f);
 
-			prune(*f,M,N,O,W,C,D,t,W_deferred),piteration++,ctr_prune_dequeues++; //function prune has the precondition that s is not in its local upperset							
+			prune(*f,M,N,O,W,C,D,t,W_deferred),ctr_pit++,ctr_prune_dequeues++; //function prune has the precondition that s is not in its local upperset							
 #endif
 			invariant(consistent(M,N,O,W,C)); //consistency check
 		}
@@ -618,7 +627,7 @@ void try_prune(list<std::pair<shared_t, cmb_node_p> >& prunes, vec_antichain_t& 
 	invariant(intersection_free(D,M));
 }
 
-bool try_prune(bstate_t& w, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t& C, vec_antichain_t& D, bstate_t t, unsigned& piteration, unsigned& ctr_prune_dequeues, W_deferred_t& W_deferred)
+bool try_prune(bstate_t& w, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec& C, vec_antichain_t& D, bstate_t t, unsigned& ctr_pit, unsigned& ctr_prune_dequeues, W_deferred_t& W_deferred)
 {
 	bool found_target = false;
 	invariant(intersection_free(D,M));
@@ -628,12 +637,12 @@ bool try_prune(bstate_t& w, vec_antichain_t& M, non_minimals_t& N, vec_antichain
 		if(p == t)
 			found_target = true;
 
-		//if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,p,work_pq(),true,witeration,piteration,"_interm");
+		//if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,p,work_pq(),true,ctr_wit,ctr_pit,"_interm");
 
-		bw_log << "--------------- Prune set iteration (B) " << piteration << " ---------------" << "\n";
+		bw_log << "--------------- Prune set iteration (B) " << ctr_pit << " ---------------" << "\n";
 		bw_log << "prune " << *p << "\n";
 		invariant(before_prune(p,M,N,O,W,C));
-		p->us->erase(p), prune(p,M,N,O,W,C,D,t,W_deferred), ++piteration; //function prune has the precondition that s is not in its local upperset
+		p->us->erase(p), prune(p,M,N,O,W,C,D,t,W_deferred), ++ctr_pit; //function prune has the precondition that s is not in its local upperset
 		invariant(consistent(M,N,O,W,C)); //consistency check
 	}
 
@@ -641,69 +650,9 @@ bool try_prune(bstate_t& w, vec_antichain_t& M, non_minimals_t& N, vec_antichain
 }
 
 /********************************************************
-On-the-fly statistics
-********************************************************/
-unsigned 
-	ctr_state_new = 0, ctr_state_not_new = 0, 
-	ctr_locally_non_minimal = 0, ctr_locally_non_minimal__neq_ge = 0, ctr_locally_non_minimal__neq_ge__exists_max = 0, 
-	ctr_locally_non_minimal__eq = 0, 
-	ctr_locally_minimal = 0, ctr_locally_minimal__neq_le = 0, ctr_locally_minimal__neq_le__exists_max = 0,
-	ctr_locally_minimal__neq_nge_nle = 0,
-	ctr_globally_non_minimal = 0, ctr_globally_non_minimal__neq_ge = 0, ctr_globally_non_minimal__neq_ge__exists_max = 0, 
-	ctr_globally_minimal = 0, ctr_globally_minimal__neq_le = 0, ctr_globally_minimal__neq_le__exists_max = 0,
-	ctr_globally_minimal__neq_nge_nle = 0
-	;
-
-unsigned
-	ctr_bw_maxdepth_la = 0, //max nb->depth of all processed nodes
-	ctr_bw_maxdepth_ga = 0, //max nb->gdepth of all processed nodes
-	ctr_bw_maxdepth_lu = 0, //max nb->depth of unpruned nodes
-	ctr_bw_maxdepth_gu = 0, //max nb->gdepth of unprundes nodes
-	ctr_bw_maxwidth_u = 0, //max width of unpruned nodes
-	ctr_bw_maxwidth_a = 0, //max width of all processed nodes
-	ctr_bw_curdepth = 0,
-	ctr_bw_curwidth = 0
-	;
-
-unsigned 
-	ctr_lowerset_intersect = 0, 
-	ctr_root_intersect = 0, 
-	ctr_initial_intersect = 0
-	;
-
-unsigned
-	ctr_prune_dequeues = 0, 
-	ctr_known_dequeues = 0
-	;
-
-unsigned
-	witeration = 0, 
-	piteration = 0, 
-	fpcycles = 0,
-	bpcycles = 0
-	; //count the number of workset/pruneset elements that were processed
-
-unsigned
-	ctr_locally_pruned = 0
-	;
-
-unsigned
-	update_counter = 0, 
-	ctr_bw_gmins_gu = 0,
-	osz = 0, osz_max = 0,
-	nsz = 0, nsz_max = 0,
-	msz = 0, msz_max = 0,
-	dsz = 0, dsz_max = 0,
-	wsz = 0, wsz_max = 0,
-	gsz = 0,
-	wdsz = 0
-	;
-
-
-/********************************************************
 Greedy backward search
 ********************************************************/
-bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec_t* C, vec_antichain_t& D, bstate_t t, unsigned& piteration, unsigned& ctr_prune_dequeues, unsigned& ctr_known_dequeues, W_deferred_t& W_deferred, Net* n)
+bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, pending_t& W, complement_vec* C, vec_antichain_t& D, bstate_t t, unsigned& ctr_pit, unsigned& ctr_prune_dequeues, unsigned& ctr_known_dequeues, W_deferred_t& W_deferred, Net* n)
 {
 
 	auto 
@@ -728,7 +677,7 @@ bool check_for_lowerset_interections(bstate_t w, list<bstate_t>& pres, vec_antic
 
 		++bpcycles;
 
-		if (!try_prune(w,M,N,O,W,*C,D,t,piteration, ctr_prune_dequeues,W_deferred))
+		if (!try_prune(w,M,N,O,W,*C,D,t,ctr_pit, ctr_prune_dequeues,W_deferred))
 		{
 			bw_log << "Backward trace to coverable state found; target " << net.target << " is coverable" << "\n";
 			bw_safe = false;
@@ -796,7 +745,10 @@ void clean_replace_and_mark(bstate_t src, bstate_t w, list<bstate_t>& pres, vec_
 	{				
 		bstate_t pre = *i;
 		po_rel_t rel;
-		if(!min_predecs.manages(pre) || (rel = src->us->relation(pre)) == neq_ge || rel == eq)
+		bool b;
+
+		time_and_exe(b = (!min_predecs.manages(pre) || (rel = src->us->relation(pre)) == neq_ge || rel == eq),compute_pre_rel);
+		if(b)
 		{
 			//predecessor is locally non-minimal => delete
 			bw_log << *pre << " is not locally minimal => ignore it" << "\n";
@@ -892,7 +844,7 @@ bool check_global_minimal_and_wake_up(bstate_t w, list<bstate_t>& pres, vec_anti
 				auto LGE = M.LGE(pre,antichain_t::less_equal);
 
 				bool skip = false;
-				if(unsound_sat)
+				if(false)
 				{
 					foreach(const bstate_t& other, LGE)
 						if(!other->nb->sleeping)
@@ -911,7 +863,7 @@ bool check_global_minimal_and_wake_up(bstate_t w, list<bstate_t>& pres, vec_anti
 						other->nb->gdepth = w->nb->gdepth + 1; //the wake-up is in terms of w's predecessor (which have w's depth increased by one)
 						other->nb->sleeping = false, W.push(keyprio_pair(other));
 
-						if(unsound_sat)
+						if(false)
 						{
 							bw_log << "UNSOUND: potentially unsound due to blocked wake up" << "\n";
 							skip = true;
@@ -969,9 +921,63 @@ void defer_state(bstate_t w, list<bstate_t>& pres, W_deferred_t& W_deferred)
 }
 
 /********************************************************
+Initialization
+********************************************************/
+void init_ds(complement_vec* C, BState* target, vec_antichain_t& M, work_pq& W)
+{
+
+	//create inital nodes
+	bw_log << "Initializing backward data structures..." << "\n";
+	C->project_and_insert(net.init); //add the k-projections of state net.init to the lower set stored in C (e.g. 0|0 and 0|0,0 for initial state 0|0w and k=2)
+	bw_log << "project_and_insert done" << "\n";
+	for(shared_t s = 0; s < BState::S && (print_cover || !shared_fw_done) && exe_state == RUNNING; ++s)
+	{
+
+		if(!core_shared[s])
+			continue;
+
+		bw_log << "shared state " << s << " about to be initialized... " << "\n";
+
+		foreach(const cmb_node_p n, C->luv[s].u_nodes) //traverse all minimal uncovered elements (e.g. 0|1, 1|0 and 1|1 for initial state 0|0w, S=L=2; independant of k)
+		{
+
+			if(!(print_cover || !shared_fw_done) && exe_state == RUNNING)
+				break;
+
+			BState* add = new BState(s,n->c.begin(),n->c.end(),true); //allocation of the inital state resp. node of the backward state
+			add->nb->src = add, add->nb->ini = true; //the source field of a source state points to itself and its ini flag is set to true
+
+			//TODO:  BState->bl und BState->us erst bei Gebrauch allozieren!! Unnötige reallokationen suchen und verhinder.
+			//Vielleicht auch BState->nb, aber das wäre vermutlich recht aufwendig
+#ifdef EAGER_ALLOC
+			add->us = new BState::vec_upperset_t, add->us->insert(add); //every source state has an associated upperset (called "local") that initially only contains this state
+#endif
+			invariant(add->nb->gdepth == -1);
+			add->nb->gdepth = 0;
+
+			add->nb->status = BState::pending, target->type != BState::invalid?add->nb->sleeping = true:W.push(keyprio_pair(add));
+			//M.insert(add); //every source state is a minimal element of the "global" upperset
+			M.insert_incomparable(add);
+		}
+
+		bw_log << "shared state " << s << " initialized" << "\n";
+
+		bw_log.flush();
+
+	}
+}
+
+/********************************************************
+Statistics
+********************************************************/
+ptime bwstart, prunestart;
+time_duration zero_width_duration;
+unsigned candidate_num; //to measure candidates used in the CAV'10 paper
+
+/********************************************************
 Greedy backward search
 ********************************************************/
-void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C, const vector<BState>& work_seq, bool print_cover)
+void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec* C, const vector<BState>& work_seq, bool print_cover)
 {
 
 	BState* target = new BState(n->target);
@@ -992,8 +998,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		ctr_bw_maxdepth_gu = 0,
 		ctr_bw_maxwidth_u = 0,
 		ctr_bw_maxwidth_a = 0,
-		ctr_bw_curdepth = 0,
-		ctr_bw_curwidth = 0;
+		ctr_cdp = 0,
+		ctr_csz = 0;
 
 	ctr_lowerset_intersect = 0, 
 		ctr_root_intersect = 0, 
@@ -1002,8 +1008,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 	ctr_prune_dequeues = 0, 
 		ctr_known_dequeues = 0;
 
-	witeration = 0, 
-		piteration = 0, 
+	ctr_wit = 0, 
+		ctr_pit = 0, 
 		fpcycles = 0,
 		bpcycles = 0; //count the number of workset/pruneset elements that were processed
 
@@ -1016,12 +1022,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 	ctr_locally_pruned = 0;
 
-	ptime bwstart, prunestart;
-	time_duration zero_width_duration;
-
 	unsigned 
-		last_width = 0, //to measure time spent in states with 0 or 1 thread
-		candidate_num = 0; //to measure candidates used in the CAV'10 paper
+		last_width = 0; //to measure time spent in states with 0 or 1 thread
 
 	work_pq				W(worder); //working set with priority "greater", "less" or "random"
 	W_deferred_t		W_deferred; //state that must be readded to W up on pruning
@@ -1037,47 +1039,10 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bstate_t				w = nullptr; //current work/pruning element
 		bstate_nc_t				t;
 
-		//create inital nodes
-		bw_log << "Initializing backward data structures..." << "\n";
-		C->project_and_insert(net.init); //add the k-projections of state net.init to the lower set stored in C (e.g. 0|0 and 0|0,0 for initial state 0|0w and k=2)
-		bw_log << "project_and_insert done" << "\n";
-		for(shared_t s = 0; s < BState::S && (print_cover || !shared_fw_done) && execution_state == RUNNING; ++s)
-		{
 
-			if(!core_shared[s])
-				continue;
+		init_ds(C,target,M,W);
 
-			bw_log << "shared state " << s << " about to be initialized... " << "\n";
-
-			foreach(const cmb_node_p n, C->luv[s].u_nodes) //traverse all minimal uncovered elements (e.g. 0|1, 1|0 and 1|1 for initial state 0|0w, S=L=2; independant of k)
-			{
-
-				if(!(print_cover || !shared_fw_done) && execution_state == RUNNING)
-					break;
-
-				BState* add = new BState(s,n->c.begin(),n->c.end(),true); //allocation of the inital state resp. node of the backward state
-				add->nb->src = add, add->nb->ini = true; //the source field of a source state points to itself and its ini flag is set to true
-
-				//TODO:  BState->bl und BState->us erst bei Gebrauch allozieren!! Unnötige reallokationen suchen und verhinder.
-				//Vielleicht auch BState->nb, aber das wäre vermutlich recht aufwendig
-#ifdef EAGER_ALLOC
-				add->us = new BState::vec_upperset_t, add->us->insert(add); //every source state has an associated upperset (called "local") that initially only contains this state
-#endif
-				invariant(add->nb->gdepth == -1);
-				add->nb->gdepth = 0;
-
-				add->nb->status = BState::pending, target->type != BState::invalid?add->nb->sleeping = true:W.push(keyprio_pair(add));
-				//M.insert(add); //every source state is a minimal element of the "global" upperset
-				M.insert_incomparable(add);
-			}
-
-			bw_log << "shared state " << s << " initialized" << "\n";
-			
-			bw_log.flush();
-
-		}
-
-		if(target->type != BState::invalid && (print_cover || !shared_fw_done) && execution_state == RUNNING)
+		if(target->type != BState::invalid && (print_cover || !shared_fw_done) && exe_state == RUNNING)
 		{
 
 			if(!M.manages(target))
@@ -1090,18 +1055,18 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			}
 			else
 			{
-				t = const_cast<bstate_nc_t>(*M.case_insert(target).exist_els.begin());
+				t = const_cast<bstate_nc_t>(*M.case_insert(target).ex.begin());
 				delete target, target = t;
 				invariant(t->nb->gdepth == 0);
 			}
 			
 			if(M.relation(t) == neq_ge)
 			{
-				BState::upperset_t::insert_t ins = M.case_insert(t); //get smaller elements
-				N.insert(t), enqueue(ins.exist_els,O.LGE(t, vec_antichain_t::set_t::greater_equal),t), O.max_insert(t), t->nb->status = BState::blocked_pending; //the predecessor is locally, but not globally minimal; it is added to the set of non-minimal elements, its blocking edged are adjusted wrt. to existing states and its status is set to blocked_pending
+				insert_t ins = M.case_insert(t); //get smaller elements
+				N.insert(t), enqueue(ins.ex,O.LGE(t, vec_antichain_t::set_t::greater_equal),t), O.max_insert(t), t->nb->status = BState::blocked_pending; //the predecessor is locally, but not globally minimal; it is added to the set of non-minimal elements, its blocking edged are adjusted wrt. to existing states and its status is set to blocked_pending
 
 				//wake up smaller states
-				foreach(const bstate_t& other, ins.exist_els)
+				foreach(const bstate_t& other, ins.ex)
 				{
 					invariant(other->nb->sleeping);
 					other->nb->gdepth = t->nb->gdepth;
@@ -1111,7 +1076,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			}
 			else if(M.relation(t) == neq_nge_nle)
 			{
-				BState::upperset_t::insert_t ins = M.case_insert(t); //get smaller elements
+				insert_t ins = M.case_insert(t); //get smaller elements
 				enqueue(set<bstate_t>(),O.LGE(t, vec_antichain_t::set_t::greater_equal),t), W.push(keyprio_pair(t)), t->nb->status = BState::pending; //adjust blocking edges, set the status to pending and add it to the work set
 			}
 			else
@@ -1128,7 +1093,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		bwstart = microsec_clock::local_time();
 
 		bw_log << "Starting backward main loop..." << "\n", bw_log.flush();
-		while((print_cover || !shared_fw_done) && execution_state == RUNNING)
+		while((print_cover || !shared_fw_done) && exe_state == RUNNING)
 		{
 
 			if(++update_counter%30==0)
@@ -1164,7 +1129,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				++fpcycles;
 				m = new std::list<std::pair<shared_t, cmb_node_p> >;
 				shared_cmb_deque.mtx.lock(), swap(shared_cmb_deque.lst,m), shared_cmb_deque.mtx.unlock();
-				try_prune(*m,M,N,O,W,*C,D,t,piteration,ctr_prune_dequeues,ctr_known_dequeues,W_deferred);
+				try_prune(*m,M,N,O,W,*C,D,t,ctr_pit,ctr_prune_dequeues,ctr_known_dequeues,W_deferred);
 				delete m;
 
 				if(defer)
@@ -1202,9 +1167,9 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 
 			if(W.empty() || (!print_cover && shared_fw_done) || !bw_safe) break;
 
-			bw_log << "+++++++++++++++ Work set iteration " << witeration << " +++++++++++++++" << "\n";
+			bw_log << "+++++++++++++++ Work set iteration " << ctr_wit << " +++++++++++++++" << "\n";
 
-			if(witeration >= work_seq.size())
+			if(ctr_wit >= work_seq.size())
 			{
 				w = W.top().first, w->nb->status = BState::processed, W.pop(); //the work element is guaranteed to be processed
 
@@ -1217,23 +1182,23 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 			}
 			else
 			{
-				non_minimals_t::const_iterator exist = M.M_cref(work_seq[witeration].shared).find(&work_seq[witeration]);
-				invariant(exist != M.M_cref(work_seq[witeration].shared).end() && W.contains(keyprio_pair(*exist)));
+				non_minimals_t::const_iterator exist = M.M_cref(work_seq[ctr_wit].shared).find(&work_seq[ctr_wit]);
+				invariant(exist != M.M_cref(work_seq[ctr_wit].shared).end() && W.contains(keyprio_pair(*exist)));
 				w = *exist, w->nb->status = BState::processed, W.erase(keyprio_pair(*exist));
 			}
 
 			invariant(w->nb->gdepth != -1);
 
-			//if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,witeration,piteration,"_interm");
+			//if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,ctr_wit,ctr_pit,"_interm");
 
 			bw_log << "processing " << *w << "\n";
-			witeration++; //increase the number of processed workset elements
+			ctr_wit++; //increase the number of processed workset elements
 
 			ctr_bw_maxdepth_la = max(ctr_bw_maxdepth_la, w->nb->depth), 
 				ctr_bw_maxdepth_ga = max(ctr_bw_maxdepth_ga, w->nb->gdepth), 
 				ctr_bw_maxwidth_a = max(ctr_bw_maxwidth_a, (unsigned)w->size()), 
-				ctr_bw_curdepth = w->nb->gdepth, 
-				ctr_bw_curwidth = w->size();
+				ctr_cdp = w->nb->gdepth, 
+				ctr_csz = w->size();
 
 			if(last_width <= k && w->size() > k)
 				zero_width_duration += microsec_clock::local_time() - bwstart,
@@ -1258,7 +1223,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 				e = pres.end();
 
 			//handle lowerset intersections
-			bool b; {time_and_exe(b = check_for_lowerset_interections(w,pres,M,N,O,W,C,D,t,piteration,ctr_prune_dequeues,ctr_known_dequeues,W_deferred,n),check_for_lowerset_interections_duration);}
+			bool b; {time_and_exe(b = check_for_lowerset_interections(w,pres,M,N,O,W,C,D,t,ctr_pit,ctr_prune_dequeues,ctr_known_dequeues,W_deferred,n),check_for_lowerset_interections_duration);}
 			if(b)
 				continue;
 			
@@ -1303,7 +1268,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 					bw_log << "checking predecessor " << *pre << "; new state? " << is_new << "\n";
 
 					//----------- expansion -----------//
-					BState::upperset_t::insert_t
+					insert_t
 						local_insert,
 						global_insert;
 
@@ -1312,15 +1277,17 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 					
 					local_insert.case_type = get_lre(pre), unmark_lrel(pre);
 					invariant(local_insert.case_type != neq_ge && local_insert.case_type != eq);
+
+					time_and_exe({
 					if(local_insert.case_type == neq_nge_nle) src->us->insert_incomparable(pre);
-					else local_insert.exist_els = src->us->insert_neq_le(pre);
+					else local_insert.ex = src->us->insert_neq_le(pre);},local_insert_duration);
 
 					bw_log << "local insert done" << "\n";
 
 					switch(local_insert.case_type){
-					case neq_ge:		ctr_locally_non_minimal++,	ctr_locally_non_minimal__neq_ge++, ctr_locally_non_minimal__neq_ge__exists_max = max(ctr_locally_non_minimal__neq_ge__exists_max, (unsigned)local_insert.exist_els.size()); break;
+					case neq_ge:		ctr_locally_non_minimal++,	ctr_locally_non_minimal__neq_ge++, ctr_locally_non_minimal__neq_ge__exists_max = max(ctr_locally_non_minimal__neq_ge__exists_max, (unsigned)local_insert.ex.size()); break;
 					case eq:			ctr_locally_non_minimal++,	ctr_locally_non_minimal__eq++; break;
-					case neq_le:		ctr_locally_minimal++,		ctr_locally_minimal__neq_le++, ctr_locally_minimal__neq_le__exists_max = max(ctr_locally_minimal__neq_le__exists_max, (unsigned)local_insert.exist_els.size()); break;
+					case neq_le:		ctr_locally_minimal++,		ctr_locally_minimal__neq_le++, ctr_locally_minimal__neq_le__exists_max = max(ctr_locally_minimal__neq_le__exists_max, (unsigned)local_insert.ex.size()); break;
 					case neq_nge_nle:	ctr_locally_minimal++,		ctr_locally_minimal__neq_nge_nle++; break;}
 
 					//process wpre
@@ -1330,8 +1297,8 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 						bw_log << "locally minimal" << "\n";
 						if(local_insert.case_type == neq_le) //check for existance of locally minimal elements that are larger and incomparable to the predecessor
 						{
-							bw_log << "local detach wrt. smaller local states: "; copy_deref_range(local_insert.exist_els.begin(), local_insert.exist_els.end(), bw_log); bw_log << "\n";
-							ctr_locally_pruned += local_detach(src,local_insert.exist_els,M,N,O,W,*C,D,t,W_deferred); //detach parts of the local search tree that start in (now) locally non-minimal states
+							bw_log << "local detach wrt. smaller local states: "; copy_deref_range(local_insert.ex.begin(), local_insert.ex.end(), bw_log); bw_log << "\n";
+							ctr_locally_pruned += local_detach(src,local_insert.ex,M,N,O,W,*C,D,t,W_deferred); //detach parts of the local search tree that start in (now) locally non-minimal states
 						}
 
 						if(is_new)
@@ -1350,23 +1317,34 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 							invariant(global_insert.case_type != eq);
 
 							switch(global_insert.case_type){
-							case neq_ge:		ctr_globally_non_minimal++,	ctr_globally_non_minimal__neq_ge++, ctr_globally_non_minimal__neq_ge__exists_max = max(ctr_globally_non_minimal__neq_ge__exists_max, (unsigned)global_insert.exist_els.size()); break;
-							case neq_le:		ctr_globally_minimal++,		ctr_globally_minimal__neq_le++, ctr_globally_minimal__neq_le__exists_max = max(ctr_globally_minimal__neq_le__exists_max, (unsigned)global_insert.exist_els.size()); break;
+							case neq_ge:		ctr_globally_non_minimal++,	ctr_globally_non_minimal__neq_ge++, ctr_globally_non_minimal__neq_ge__exists_max = max(ctr_globally_non_minimal__neq_ge__exists_max, (unsigned)global_insert.ex.size()); break;
+							case neq_le:		ctr_globally_minimal++,		ctr_globally_minimal__neq_le++, ctr_globally_minimal__neq_le__exists_max = max(ctr_globally_minimal__neq_le__exists_max, (unsigned)global_insert.ex.size()); break;
 							case neq_nge_nle:	ctr_globally_minimal++,		ctr_globally_minimal__neq_nge_nle++; break;}
 
 							if(global_insert.case_type == neq_ge) //check whether the predecessor is >= and != existing states with a different source
 							{
-								bw_log << "globally non-minimal; blocks on "; copy_deref_range(global_insert.exist_els.begin(), global_insert.exist_els.end(), bw_log); bw_log << "\n";
+								bw_log << "globally non-minimal; blocks on "; copy_deref_range(global_insert.ex.begin(), global_insert.ex.end(), bw_log); bw_log << "\n";
 
-								N.insert(pre), enqueue(global_insert.exist_els,O.LGE(pre, vec_antichain_t::set_t::greater_equal),pre), O.max_insert(pre), pre->nb->status = BState::blocked_pending; //the predecessor is locally, but not globally minimal; it is added to the set of non-minimal elements, its blocking edged are adjusted wrt. to existing states and its status is set to blocked_pending
+								{
+									N.insert(pre);
+									set<bstate_t> GE;
+									{time_and_exe({GE = O.LGE(pre, vec_antichain_t::set_t::greater_equal);},greater_equal_duration);}
+									{time_and_exe(enqueue(global_insert.ex,GE,pre),enqueue_duration);}
+									{time_and_exe(O.max_insert(pre),max_insert_duration_two);}
+									pre->nb->status = BState::blocked_pending;
+								}
+
+								//
+
+								//the predecessor is locally, but not globally minimal; it is added to the set of non-minimal elements, its blocking edged are adjusted wrt. to existing states and its status is set to blocked_pending
 
 								if(target->type != BState::invalid)
 								{
 
 									bool skip = false;
-									if(unsound_sat)
+									if(false)
 									{
-										foreach(const bstate_t& other, global_insert.exist_els)
+										foreach(const bstate_t& other, global_insert.ex)
 											if(!other->nb->sleeping)
 											{
 												skip = true;
@@ -1374,7 +1352,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 											}
 									}
 
-									foreach(const bstate_t& other, global_insert.exist_els)
+									foreach(const bstate_t& other, global_insert.ex)
 									{
 										if(other->nb->sleeping && !skip)
 										{
@@ -1383,7 +1361,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 											bw_log << "target dependant wake up (predecessor strictly covers-2): " << *other << "\n";
 											other->nb->sleeping = false, W.push(keyprio_pair(other));
 
-											if(unsound_sat)
+											if(false)
 											{
 												bw_log << "UNSOUND: potentially unsound due to blocked wake up" << "\n";
 												skip = true;
@@ -1401,11 +1379,11 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 								
 								if(global_insert.case_type == neq_le)
 								{
-									bw_log << "blocking larger states "; copy_deref_range(global_insert.exist_els.begin(), global_insert.exist_els.end(), bw_log); bw_log << "\n";
+									bw_log << "blocking larger states "; copy_deref_range(global_insert.ex.begin(), global_insert.ex.end(), bw_log); bw_log << "\n";
 
-									foreach(const bstate_t& other, global_insert.exist_els)
+									foreach(const bstate_t& other, global_insert.ex)
 									{
-										O.max_insert(other), N.insert(other);
+										time_and_exe((O.max_insert(other), N.insert(other)),max_insert_duration);
 										if(other->nb->status == BState::pending)
 										{
 											invariant(iff(W.contains(keyprio_pair(other)),W_deferred.find(other) == W_deferred.end()));
@@ -1419,7 +1397,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 									}
 								}
 
-								enqueue(set<bstate_t>(),O.LGE(pre, vec_antichain_t::set_t::greater_equal),pre), W.push(keyprio_pair(pre)), pre->nb->status = BState::pending; //adjust blocking edges, set the status to pending and add it to the work set
+								time_and_exe((enqueue(set<bstate_t>(),O.LGE(pre, vec_antichain_t::set_t::greater_equal),pre), W.push(keyprio_pair(pre)), pre->nb->status = BState::pending),enqueue_duration_two); //adjust blocking edges, set the status to pending and add it to the work set
 							}
 							
 							bw_log << "global insert done" << "\n";
@@ -1441,7 +1419,7 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 		
 		}
 
-		if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,witeration,piteration,"_final");
+		if(graph_type != GTYPE_NONE) print_dot_search_graph(M,N,O,w,work_pq(),false,ctr_wit,ctr_pit,"_final");
 
 		//compute statistics
 		for(shared_t s = 0; s < BState::S; ++s) foreach(bstate_t m,M.uv[s].M) 
@@ -1472,103 +1450,13 @@ void Pre2(Net* n, const unsigned k, work_pq::order_t worder, complement_vec_t* C
 	catch(std::bad_alloc)
 	{
 		cerr << fatal("backward exploration reached the memory limit") << "\n"; 
-		execution_state = MEMOUT;
+		exe_state = MEMOUT;
 #ifndef WIN32
 		disable_mem_limit(); //to prevent bad allocations while printing statistics
 #endif
 	}
 
-	shared_bw_done = true;
-	
-	fwbw_mutex.lock(), (shared_fw_done) || (shared_bw_finised_first = 1), fwbw_mutex.unlock();
-	invariant(implies(shared_bw_finised_first && bw_safe,W.empty()));
-
-	if(shared_bw_finised_first) 
-		finish_time = boost::posix_time::microsec_clock::local_time(), bw_log << "bw first" << "\n", bw_log.flush();
-	else 
-		bw_log << "bw not first" << "\n", bw_log.flush();
-
-	{
-		bw_stats << "\n";
-		bw_stats << "---------------------------------" << "\n";
-		bw_stats << "Backward statistics:" << "\n";
-		bw_stats << "---------------------------------" << "\n";
-		bw_stats << "bw finished first               : " << (shared_bw_finised_first?"yes":"no") << "\n";
-		bw_stats << "bw execution state              : "; 
-		switch(execution_state){
-		case TIMEOUT: bw_stats << "TIMEOUT" << "\n"; break;
-		case MEMOUT: bw_stats << "MEMOUT" << "\n"; break;
-		case RUNNING: bw_stats << "RUNNING" << "\n"; break;
-		case INTERRUPTED: bw_stats << "INTERRUPTED" << "\n"; break;}
-		bw_stats << "\n";
-		bw_stats << "iterations                      : " << witeration + piteration << "\n";
-		bw_stats << "- work iterations               : " << witeration << "\n";
-		bw_stats << "- prune iterations              : " << piteration << "\n";
-		bw_stats << "- foward prune cycles           : " << fpcycles << "\n";
-		bw_stats << "- backward prune cycles         : " << bpcycles << "\n";
-		bw_stats << "\n";
-		bw_stats << "oracle dequeues                 : " << ctr_prune_dequeues + ctr_known_dequeues << "\n";
-		bw_stats << "- pruned                        : " << ctr_prune_dequeues << "\n";
-		bw_stats << "- known                         : " << ctr_known_dequeues << "\n";
-		bw_stats << "\n";
-		bw_stats << "new predecessors                : " << ctr_state_new << "\n";
-		bw_stats << "existing predecessors           : " << ctr_state_not_new << "\n";
-		bw_stats << "\n";
-		bw_stats << "locally_minimal                 : " << ctr_locally_minimal << "\n";
-		bw_stats << "- neq_le (max matched)          : " << ctr_locally_minimal__neq_le << " (" << ctr_locally_minimal__neq_le__exists_max << ")" << "\n";
-		bw_stats << "- neq_nge_nle                   : " << ctr_locally_minimal__neq_nge_nle << "\n";
-		bw_stats << "locally_non_minimal             : " << ctr_locally_non_minimal << "\n";
-		bw_stats << "- neq_ge (max matched)          : " << ctr_locally_non_minimal__neq_ge << " (" << ctr_locally_non_minimal__neq_ge__exists_max << ")" << "\n";
-		bw_stats << "- eq                            : " << ctr_locally_non_minimal__eq << "\n";
-		bw_stats << "\n";
-		bw_stats << "globally_minimal                : " << ctr_globally_minimal << "\n";
-		bw_stats << "- neq_le (max matched)          : " << ctr_globally_minimal__neq_le << " (" << ctr_globally_minimal__neq_le__exists_max << ")" << "\n";
-		bw_stats << "- neq_nge_nle                   : " << ctr_globally_minimal__neq_nge_nle << "\n";
-		bw_stats << "globally_non_minimal            : " << ctr_globally_non_minimal << "\n";
-		bw_stats << "- neq_ge (max matched)          : " << ctr_globally_non_minimal__neq_ge << " (" << ctr_globally_non_minimal__neq_ge__exists_max << ")" << "\n";
-		bw_stats << "\n";
-		bw_stats << "lowerset intersections          : " << ctr_initial_intersect + ctr_root_intersect + ctr_lowerset_intersect << "\n";
-		bw_stats << "- initial_intersect             : " << ctr_initial_intersect << "\n";
-		bw_stats << "- root_intersect                : " << ctr_root_intersect << "\n";
-		bw_stats << "- lowerset_intersect            : " << ctr_lowerset_intersect << "\n";
-		bw_stats << "\n";
-		bw_stats << "locally_pruned                  : " << ctr_locally_pruned << "\n";
-		bw_stats << "---------------------------------" << "\n";		
-		bw_stats << "max bdepth local all            : " << ctr_bw_maxdepth_la << "\n";
-		bw_stats << "max bdepth local unpruned       : " << ctr_bw_maxdepth_lu << "\n";
-		bw_stats << "max bdepth global all           : " << ctr_bw_maxdepth_ga << "\n";
-		bw_stats << "max bdepth global unpruned      : " << ctr_bw_maxdepth_gu << "\n";
-		bw_stats << "max bwidth all                  : " << ctr_bw_maxwidth_a << "\n";
-		bw_stats << "max bwidth unpruned             : " << ctr_bw_maxwidth_u << "\n";
-		bw_stats << "global minimals unpruned        : " << ctr_bw_gmins_gu << "\n";
-		bw_stats << "---------------------------------" << "\n";
-		bw_stats << "osz_max                         : " << osz_max << "\n";
-		bw_stats << "nsz_max                         : " << nsz_max << "\n";
-		bw_stats << "msz_max                         : " << msz_max << "\n";
-		bw_stats << "dsz_max                         : " << dsz_max << "\n";
-		bw_stats << "wsz_max                         : " << wsz_max << "\n";
-#ifdef TIMING
-		bw_stats << "---------------------------------" << "\n";
-		bw_stats << "bw duration after initialization: " << to_simple_string(microsec_clock::local_time() - bwstart) << "\n";
-		bw_stats << "pre duration                    : " << to_simple_string(pre_duration) << "\n";
-		bw_stats << "global minimal test duration    : " << to_simple_string(gminimal_duration) << "\n";
-		bw_stats << "clean replace and mark duration : " << to_simple_string(clean_replace_and_mark_duration) << "\n";
-		bw_stats << " - compute minimal predecessors : " << to_simple_string(compute_minimal_predecessors_duration) << "\n";
-		bw_stats << "pruning duration                : " << to_simple_string(pruning_duration) << "\n";
-		bw_stats << "livestats duration              : " << to_simple_string(livestats_duration) << "\n";
-		bw_stats << "first alloc duration            : " << to_simple_string(first_alloc_duration) << "\n";
-		bw_stats << "first insert duration           : " << to_simple_string(first_insert_duration) << "\n";
-		bw_stats << "lower intersection duration     : " << to_simple_string(check_for_lowerset_interections_duration) << "\n";
-		bw_stats << "check g-minimal/wake up duration: " << to_simple_string(check_global_minimal_and_wake_up_duration) << "\n";
-		bw_stats << "defer state duration            : " << to_simple_string(defer_state_duration) << "\n";
-		bw_stats << "global insert duration          : " << to_simple_string(global_insert_duration) << "\n";
-#endif
-		bw_stats << "k-width duration                : " << to_simple_string(zero_width_duration) << "\n";
-		bw_stats << "work elements after k-width     : " << candidate_num << "\n";
-		bw_stats << "---------------------------------" << "\n";
-
-		bw_stats.flush();
-	}
+	full_final_stats();
 
 	bw_log.flush();
 

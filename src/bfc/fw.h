@@ -87,49 +87,13 @@ void print_dot_search_graph(const Oreached_t& Q)
 
 }
 
-
-enum core_state_t{
-	SHARED,
-	LOCAL,
-	FULL };
-
-//bool is_core_state(ostate_t s, Net& n, core_state_t t = FULL)
-//{
-//	bool ret = true;
-//
-//	if(t!=LOCAL) 
-//		ret &= core_shared[s->shared];
-//
-//#ifndef NO_LOCAL_POR
-//	if(t!=SHARED){
-//		for(const local_t& l : s->bounded_locals)
-//			ret &= n.core_local(l);
-//		for(const local_t& l : s->unbounded_locals)
-//			ret &= n.core_local(l);
-//	}
-//#endif
-//
-//	return ret;
-//}
-
-typedef vector<pair<Net::adj_t::const_iterator, trans_type> > tt_list_t;
+typedef vector<Net::adj_t::const_iterator> tt_list_t;
 
 Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque)
 { 
 	
 	Oreached_t succs;
 
-	/*
-	//TODO: remove
-	const_cast<OState*>(ag)->unbounded_locals.clear();
-	//const_cast<OState*>(ag)->unbounded_locals.insert(0);
-	//const_cast<OState*>(ag)->bounded_locals.insert(2);
-	const_cast<OState*>(ag)->bounded_locals.insert(0);
-	const_cast<OState*>(ag)->bounded_locals.insert(0);
-	const_cast<OState*>(ag)->bounded_locals.insert(1);
-	fw_log << "computing successor of " << *ag << "\n"; //TODO: remove
-	*/
-	
 	stack<OState*> work;
 
 	work.push(const_cast<OState*>(ag));
@@ -140,7 +104,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		OState* g = work.top(); work.pop();
 		bool g_in_use = g == ag;
 
-		invariant(iff(g == ag,core_shared[g->shared]));
+		invariant(iff(g == ag,n.core_shared[g->shared]));
 
 		//collect all relevant transitions
 		tt_list_t tt_list;
@@ -150,7 +114,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		for(auto l = g->bounded_locals.begin(), le = g->bounded_locals.end();l != le;)
 		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
-				tt_list.push_back(make_pair(tc, thread_transition));
+				tt_list.push_back(tc);
 
 			local_t last = *l;
 			while(++l != le && last == *l); //skip same locals
@@ -158,7 +122,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 		for(auto l = g->unbounded_locals.begin(), le = g->unbounded_locals.end(); l != le; ++l)
 		{
 			if((tc = n.adjacency_list.find(Thread_State(g->shared, *l))) != n.adjacency_list.end()) 
-				tt_list.push_back(make_pair(tc, thread_transition));
+				tt_list.push_back(tc);
 		}
 
 		//compute successors
@@ -167,13 +131,12 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 			tte = tt_list.end();
 
 		for(; tt != tte; ++tt){
-			const trans_type& ty = tt->second;
-			const Thread_State& u = tt->first->first; 
+			const Thread_State& u = (*tt)->first; 
 			invariant(g->shared == u.shared);
 
-			auto tsb = tt->first->second.begin(),
-				tsbnex = tt->first->second.begin(), //only for the type
-				tse = tt->first->second.end();
+			auto tsb = (*tt)->second.begin(),
+				tsbnex = (*tt)->second.begin(), //only for the type
+				tse = (*tt)->second.end();
 
 			for(;tsb != tse; ++tsb)
 			{
@@ -190,7 +153,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 
 				invariant(!bounded_in_u || !unbounded_in_u);
 
-				if((!thread_in_u && (ty == thread_transition || horiz_trans)))
+				if(!thread_in_u)
 				{
 					fw_log << "Ignore: No/no incomparable successors" << "\n";
 					continue;
@@ -205,15 +168,16 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				else
 					succ = new OState(g->shared,g->bounded_locals.begin(),g->bounded_locals.end(),g->unbounded_locals.begin(),g->unbounded_locals.end()); //note: even in this case the there might not exist another successor (the continue above could happen)
 
-				succ->tsucc = (g != ag && g->tsucc) || ty == transfer_transition;
+				succ->tsucc = (g != ag && g->tsucc) || !p.empty();
 
 				if(!horiz_trans) 
 					succ->shared = v.shared;
 
-				if(!p.empty() || (diff_locals && thread_in_u && !(ty == thread_transition && unbounded_in_u && unbounded_in_v)))
+				if(!p.empty() || (diff_locals && thread_in_u && !(unbounded_in_u && unbounded_in_v)))
 				{
 					//remove one bounded occurence of u.local
-					if(ty == thread_transition && bounded_in_u) succ->bounded_locals.erase(succ->bounded_locals.find(u.local)); 
+					if(bounded_in_u) 
+						succ->bounded_locals.erase(succ->bounded_locals.find(u.local)); 
 
 					if(!p.empty())
 					{
@@ -280,7 +244,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 
 											invariant(succp->consistent());
 
-											if(core_shared[succp->shared])
+											if(n.core_shared[succp->shared])
 											{
 												fw_log << "Found passive core successor: " << *succp << "\n";
 												succs.insert(succp); //add to return set
@@ -306,13 +270,17 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 					//add one/unbounded v.local's if an unbounded number do not yet exist
 					if(!unbounded_in_v) 
 						if(unbounded_in_u && horiz_trans)
+						{
 							succ->unbounded_locals.insert(v.local);
+							if(bounded_in_v)
+								succ->bounded_locals.erase(v.local); //0 0 -> 0 1 in state 0|1/0 -> 0|/0,1
+						}
 						else
 							succ->bounded_locals.insert(v.local);
 				}
 				invariant(succ->consistent());
 				
-				if(core_shared[succ->shared])
+				if(n.core_shared[succ->shared])
 				{
 					fw_log << "Found core successor: " << *succ << "\n";
 					succs.insert(succ); //add to return set
@@ -384,27 +352,6 @@ bool accel(ostate_t q, OState* c)
 	return 1;
 }
 
-void print_hash_stats(const Oreached_t& Q)
-{
-	Oreached_t::size_type max_bucket_size = 0;
-	map<unsigned, unsigned> bucket_size_counters;
-	for(int i=0;i<10;i++) bucket_size_counters[i]=0;
-
-	unsigned Q_size = 0;
-	for(Oreached_t::size_type i = 0; i < Q.bucket_count(); ++i)
-		max_bucket_size = max(max_bucket_size, Q.bucket_size(i)),
-		bucket_size_counters[min((unsigned)Q.bucket_size(i),9U)]++,
-		Q_size += Q.bucket_size(i);
-
-	fw_stats << "Maximum bucket size             : " << max_bucket_size << "\n";
-	fw_stats << "Hash load factor                : " << Q.load_factor() << "\n";
-	fw_stats << "Max collisions                  : " << max_bucket_size << "\n";
-
-	for(map<unsigned, unsigned>::const_iterator i = bucket_size_counters.begin(), ie = bucket_size_counters.end(); i != ie; ++i)
-		if(i->first < 9) fw_stats << "Buckets of size " << boost::lexical_cast<string>(i->first) << "               : " << i->second << "\n";
-		else fw_stats << "Buckets of size >" << boost::lexical_cast<string>(i->first) << "              : " << i->second << "\n";
-}
-
 unsigned 
 	f_its = 0
 	;
@@ -453,13 +400,14 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	{
 
 		ostate_t init_p;
-		init_p = new OState(n->init), Q.insert(init_p), W.push(keyprio_pair(init_p)), D->project_and_insert(*init_p,*shared_cmb_deque,false); //create the initial state and insert it into the reached, work and projection set 
+		init_p = new OState(n->init), Q.insert(init_p), W.push(keyprio_pair(init_p)); //create the initial state and insert it into the reached, work and projection set 
+		//D->project_and_insert(*init_p,*shared_cmb_deque,true)
 		invariant(init_p->prede == nullptr && init_p->accel == nullptr && init_p->tsucc == false);
 		
 		ostate_t cur, walker;
 		unsigned depth;
 
-		while(execution_state == RUNNING && fw_safe && (!shared_bw_done || !bw_safe) && W.try_get(cur)) //retrieve the next working element
+		while(exe_state == RUNNING && fw_safe && (!shared_bw_done || !bw_safe) && W.try_get(cur)) //retrieve the next working element
 		{
 
 			++f_its;
@@ -574,13 +522,22 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	catch(std::bad_alloc)
 	{
 		cerr << fatal("forward exploration reached the memory limit") << "\n"; 
-		execution_state = MEMOUT;
+		exe_state = MEMOUT;
 #ifndef WIN32
 		disable_mem_limit(); //to prevent bad allocations while printing statistics
 #endif
 	}
 
 	fw_log << "fw while exit" << "\n", fw_log.flush();
+
+
+	////TODO: remove
+	//while(!shared_bw_done)
+	//{
+	//	boost::this_thread::sleep(boost::posix_time::seconds(2));
+	//}
+
+
 
 	while(net.target.type != BState::invalid && !shared_bw_done && print_cover)
 	{
@@ -610,7 +567,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		fw_stats << "---------------------------------" << "\n";
 		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
 		fw_stats << "fw execution state              : "; 
-		switch(execution_state){
+		switch(exe_state){
 		case TIMEOUT: fw_stats << "TIMEOUT" << "\n"; break;
 		case MEMOUT: fw_stats << "MEMOUT" << "\n"; break;
 		case RUNNING: fw_stats << "RUNNING" << "\n"; break;
@@ -628,7 +585,6 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 		fw_stats << "accelerations                   : " << accelerations << "\n";
 		fw_stats << "max acceleration depth checked  : " << max_depth_checked << "\n";
 		fw_stats << "max acceleration depth          : " << max_accel_depth << "\n";
-		if(print_hash_info) fw_stats << "\n", print_hash_stats(Q);
 		fw_stats << "---------------------------------" << "\n";
 		fw_stats << "max. forward depth checked      : " << ctr_fw_maxdepth << "\n";
 		fw_stats << "max. forward width checked      : " << ctr_fw_maxwidth << "\n";

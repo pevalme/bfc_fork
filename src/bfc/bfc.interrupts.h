@@ -52,7 +52,7 @@ void catcher(int sig)
 
 		case SIGXCPU:
 			disable_time_limit(); //disable soft limit
-			execution_state = TIMEOUT;
+			exe_state = TIMEOUT;
 			main_log << "time limit disabled; execution state changed to TIMEOUT" << "\n";
 			break;
 
@@ -62,7 +62,7 @@ void catcher(int sig)
 			//break;
 
 		default: 
-			execution_state = INTERRUPTED;
+			exe_state = INTERRUPTED;
 			main_log << "execution state changed to INTERRUPTED" << "\n";
 		}
 		main_log.flush();
@@ -71,17 +71,17 @@ void catcher(int sig)
 	{
 		main_log << "second interrupt; terminate" << "\n";
 
-		fw_log.flush();
-		fw_stats.flush();
+		//fw_log.flush();
+		//fw_stats.flush();
 
-		bw_log.flush();
-		bw_stats.flush();
+		//bw_log.flush();
+		//bw_stats.flush();
 
-		main_livestats.flush();
-		main_log.flush();
-		main_res.flush();
-		main_inf.flush();
-		main_tme.flush();
+		//main_livestats.flush();
+		//main_log.flush();
+		//main_res.flush();
+		//main_inf.flush();
+		//main_tme.flush();
 
 		_exit(sig);
 	}

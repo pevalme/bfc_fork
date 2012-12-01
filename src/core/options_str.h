@@ -9,15 +9,12 @@
 #define OPT_STR_VERSION				"version,v"
 #define OPT_STR_STATS				"stats"
 
-#define OPT_STR_NOCOV				"no-cov"
 #define OPT_STR_NETSTATS			"net-stats"
-#define OPT_STR_SCCNETSTATS			"scc-stats"
 
 #define OPT_STR_UNSOUND				"unsound"
 #define OPT_STR_MON_INTERV			"interv"
 #define OPT_STR_MON_INTERV_DEFVAL	0
 #define OPT_STR_PRINT_KCOVER		"print-cover"
-#define OPT_STR_CROSS_CHECK			"cross-check"
 #define OPT_STR_FORCE_FLUSH			"force-flush"
 
 #ifndef WIN32
@@ -31,21 +28,20 @@
 
 #define OPT_STR_NO_POR				"prj-all"
 #define OPT_STR_MODE				"mode,d"
-#define FW_CON_OPTION_STR			"FC"
 #define CON_OPTION_STR				"C"
 #define CON2_OPTION_STR				"CND"
-#define FWBW_OPTION_STR				"FB"
 #define FW_OPTION_STR				"F"
 #define BW_OPTION_STR				"B"
 #define BC_OPTION_STR				"A"
 #define OPT_STR_ACCEL_BOUND			"acc-bound"
 #define OPT_STR_ACCEL_BOUND_DEFVAL	500
-#define OPT_STR_FW_INFO				"fw-info"
-#define OPT_STR_PRINT_HASH_INFO		"hash-info"
-#define OPT_STR_FW_ORDER			"fw-order"
-#define OPT_STR_NOMAIN_INFO			"no-main-info"
-#define OPT_STR_NORES_INFO			"no-result-info"
-#define OPT_STR_NORESSOURCE_INFO	"no-ressource-info"
+
+#define OPT_STR_REDUCE_LOG			"reduce-log"
+#define OPT_STR_BW_INFO				"bw-log"
+#define OPT_STR_FW_INFO				"fw-log"
+#define OPT_STR_NOMAIN_INFO			"no-main-log"
+#define OPT_STR_NORES_INFO			"no-result-log"
+#define OPT_STR_NORESSOURCE_INFO	"no-ressource-log"
 #define OPT_STR_NOMAIN_LOG			"no-main-log"
 
 #define ORDER_SMALLFIRST_OPTION_STR	"S"
@@ -63,6 +59,7 @@
 #define OPT_STR_FW_THRESHOLD		"fw-threshold"
 #define OPT_STR_FW_THRESHOLD_DEFVAL	0
 #define OPT_STR_FW_NO_OMEGAS		"fw-no-omegas"
+#define OPT_STR_FW_ORDER			"fw-order"
 
 #define OPT_STR_BW_GRAPH			"write-graph"
 #define OPT_STR_FW_TREE				"write-fw-tree"
@@ -70,7 +67,6 @@
 #define OPT_STR_BW_GRAPH_OPT_TIKZ	"tikz"
 #define OPT_STR_BW_GRAPH_OPT_DOTTY	"dot"
 #define OPT_STR_BW_GRAPH_DEFVAL		OPT_STR_BW_GRAPH_OPT_none
-#define OPT_STR_BW_INFO				"bw-info"
 #define OPT_STR_BW_ORDER			"bw-order"
 #define OPT_STR_BW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
 
@@ -81,9 +77,6 @@
 #define OPT_STR_WEIGHT_DEPTH		"D"
 #define OPT_STR_WEIGHT_WIDTH		"W"
 #define OPT_STR_WEIGHT_DEFVAL		OPT_STR_WEIGHT_WIDTH
-
-#define OPT_STR_WRITE_BW_TRACE		"write-trace"
-#define OPT_STR_READ_BW_TRACE		"read-trace"
 
 //ttsgen
 #define OPT_STR_OUTPUT_FILE			"output,o"

@@ -83,12 +83,12 @@ ofstream& dot_state_out(bstate_t q, bstate_t p, const work_pq& P, bool prune, gr
 
 }
 
-void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, bstate_t p, const work_pq& P, bool prune, unsigned witeration, unsigned piteration, string ext) //p will be highlighted
+void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, bstate_t p, const work_pq& P, bool prune, unsigned ctr_wit, unsigned ctr_pit, string ext) //p will be highlighted
 {
 
 	bw_log << "writing uncoverability graph..." << "\n";
 
-	string out_fn = net.filename + ".bw-graph.it_" + add_leading_zeros(boost::lexical_cast<string>(witeration),5) + "-" + add_leading_zeros(boost::lexical_cast<string>(piteration),5) + ext + ".dot";
+	string out_fn = net.filename + ".bw-graph.it_" + add_leading_zeros(boost::lexical_cast<string>(ctr_wit),5) + "-" + add_leading_zeros(boost::lexical_cast<string>(ctr_pit),5) + ext + ".dot";
 
 	set<bstate_t> seen;
 	stack<bstate_t> S;

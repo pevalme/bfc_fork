@@ -1,6 +1,6 @@
 CORE
 main.tts
---target "2|2,2"
+--target main.prop
 ^EXIT=0$
 ^SIGNAL=0$
 ^VERIFICATION SUCCESSFUL$

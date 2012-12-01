@@ -96,7 +96,7 @@ BState::blocking_t::blocking_t(): blocked_by(INIT_BUCKETS), blocks(INIT_BUCKETS)
 
 BState::~BState()
 {
-	invariant(fl == 0);
+	//invariant(fl == 0);
 	if(us != nullptr && nb != nullptr && nb->ini)
 		delete us; //note: "us" is usually shared between multiple BState objects
 	if(nb != nullptr)
@@ -211,18 +211,6 @@ ostream& BState::operator << (ostream& out) const
 		}
 	}
 
-	//if(this->nb != nullptr)
-	//{
-	//	switch(this->nb->status)
-	//	{
-	//		case BState::pending: out << "pending" << endl; break;
-	//		case BState::blocked_pending: out << "blocked_pending" << endl; break;
-	//		case BState::processed: out << "processed" << endl; break;
-	//		case BState::blocked_processed: out << "blocked_processed" << endl; break;
-	//	}
-	//	out << "depth: " << this->nb->gdepth << endl;
-	//}
-
 	return out;
 }
 
@@ -231,8 +219,6 @@ string BState::id_str() const
 	string ret = 's' + boost::lexical_cast<string>(this->shared);
 	foreach(local_t l, this->bounded_locals)
 		ret += 'l' + boost::lexical_cast<string>(l);
-	ret += "_d" + boost::lexical_cast<string>(nb->gdepth);
-
 	return ret;
 }
 
@@ -243,6 +229,13 @@ string BState::str_latex() const
 		l_part += (sep + boost::lexical_cast<string>(l) + '^' + boost::lexical_cast<string>(bounded_locals.count(l))), sep = ',';
 
 	return (string)"$" + (nb->ini?"\\graphqconf":"\\graphconf") +  '{' + boost::lexical_cast<string>(shared) + '}' + '{' + l_part + '}' + '$';
+}
+
+ostream& BState::mindot(std::ostream& out, bool mark) const
+{
+	precondition(!(nb == nullptr));
+	out << '"' << id_str() << '"' << ' ' << "[label=\"" << *this << " (" << this->nb->gdepth << ")" << "\"," << "fontcolor=" << (mark?"orange":(nb->status == BState::pending?"red":"green")) << ",shape=\"plaintext\"]";
+	return out;
 }
 
 /* ---- Misc ---- */

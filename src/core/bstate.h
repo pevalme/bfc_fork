@@ -54,10 +54,6 @@ struct antichain_t;
 /********************************************************
 BState
 ********************************************************/
-struct BState;
-typedef BState const* bstate_t;
-typedef BState* bstate_nc_t;
-
 struct husher{ std::size_t operator()(const BState& p) const; };
 struct eqstr{ bool operator()(const BState& s1, const BState& s2) const; };
 typedef unordered_set<BState,husher,eqstr> Breached_t;
@@ -74,20 +70,9 @@ typedef std::pair<Breached_t::const_iterator,int> Bpriority_iterator;
 struct priority_iterator_comparison{ bool operator() (Bpriority_iterator& lhs, Bpriority_iterator& rhs) const; };
 typedef std::priority_queue<Bpriority_iterator,std::vector<Bpriority_iterator>,priority_iterator_comparison> work_priority_queue_t;
 
+typedef list<bstate_t> lst_bs_t;
+
 #define INIT_BUCKETS (0)
-
-enum po_rel_t
-{
-	neq_le = 0,		//covered by
-	eq = 1,			//equal
-	neq_ge = 2,		//covers
-	neq_nge_nle	= 3,//incomparable
-
-	//combinations
-	neq_ge__or__neq_nge_nle = 4,
-	neq_le__or__neq_nge_nle = 5,
-	neq_ge__or__neq_le = 6
-};
 
 struct BState{
 	/* ---- Members and types ---- */	
@@ -124,6 +109,12 @@ struct BState{
 		bool					sleeping; //this should go somewhere else
 
 		unsigned				depth,gdepth; //depth in local tree/global depth
+		
+		/* For minbw only*/
+		lst_bs_t::iterator		li; //iterator in the list of discovered states
+		pre_set_t				cpre; //cover predecessors
+		suc_set_t				csuc; //cover successors
+
 
 #ifdef USE_SETS
 		neighborhood_t(bstate_t = nullptr, pre_set_t = pre_set_t(), suc_set_t = suc_set_t(), status_t m = unset, bool sleeps = false);
@@ -154,10 +145,10 @@ struct BState{
 	bounded_t			bounded_locals;
 
 	//hash-function insensitive data
-	neighborhood_t*				nb;
-	blocking_t*					bl;
-	vec_upperset_t*				us;
-	unsigned					fl; //flags; for temporary usage
+	mutable neighborhood_t*		nb;
+	mutable blocking_t*			bl;
+	mutable vec_upperset_t*		us;
+	mutable unsigned			fl; //for flagging
 
 	static size_t L, S;
 
@@ -180,6 +171,7 @@ struct BState{
 	std::ostream& operator << (std::ostream& out) const;
 	std::string id_str() const;
 	std::string str_latex() const;
+	std::ostream& mindot(std::ostream& out, bool = false) const;
 
 	/* ---- Misc ---- */
 	size_t size() const;

@@ -1,4 +1,4 @@
-CORE
+FUTURE
 main.tts
 -k3 --print-cover
 ^EXIT=0$

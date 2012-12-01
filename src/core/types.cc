@@ -23,22 +23,22 @@ boost::mutex fwbw_mutex;
 
 graph_type_t graph_type, tree_type;
 
-interrupt_t execution_state = RUNNING;
+interrupt_t exe_state = RUNNING;
 
-bool FullExpressionAccumulator::force_flush = false;
-boost::mutex FullExpressionAccumulator::shared_cout_mutex;
+bool ostream_sync::force_flush = false;
+boost::mutex ostream_sync::shared_cout_mutex;
 
-streambuf * FullExpressionAccumulator::rdbuf(streambuf * a){
+streambuf * ostream_sync::rdbuf(streambuf * a){
 	return os.rdbuf(a);
 }
 
-FullExpressionAccumulator::FullExpressionAccumulator(streambuf * a) : os(a) {
+ostream_sync::ostream_sync(streambuf * a) : os(a) {
 }
 
-FullExpressionAccumulator::FullExpressionAccumulator(std::ostream& os) : os(os.rdbuf()) {
+ostream_sync::ostream_sync(std::ostream& os) : os(os.rdbuf()) {
 }
 
-FullExpressionAccumulator::~FullExpressionAccumulator() {
+ostream_sync::~ostream_sync() {
 	if(os.rdbuf())
 	{
 		invariant(os.rdbuf() && ss.rdbuf() && ss.good());
@@ -46,18 +46,21 @@ FullExpressionAccumulator::~FullExpressionAccumulator() {
 	}
 }
 
-FullExpressionAccumulator& operator<<(FullExpressionAccumulator& os, ostream_manipulator pf)
+ostream_sync& operator<<(ostream_sync& os, ostream_manipulator pf)
 {
-   return operator<< <ostream_manipulator> (os, pf);
+	if(os.os.rdbuf()) 
+		operator<< <ostream_manipulator> (os, pf);
+	
+	return os;
 }
 
-void FullExpressionAccumulator::weak_flush(){
+void ostream_sync::weak_flush(){
 #if 0
 	flush();
 #endif
 }
 
-void FullExpressionAccumulator::flush(){
+void ostream_sync::flush(){
 	std::streamoff size;
 	if(os.rdbuf()) {
 		ss.seekg(0, ios::end), size = ss.tellg(), ss.seekg(0, ios::beg);
@@ -70,15 +73,35 @@ void FullExpressionAccumulator::flush(){
 	}
 }
 
-void FullExpressionAccumulator::set_force_flush(bool b)
+void ostream_sync::set_force_flush(bool b)
 {
 	force_flush = b;
 }
 
-void FullExpressionAccumulator::swap(FullExpressionAccumulator& other)
+void ostream_sync::swap(ostream_sync& other)
 {
 	os.rdbuf(other.os.rdbuf());
 #ifdef WIN32
 	ss.swap(other.ss);
 #endif
+}
+
+insert_t::insert_t(po_rel_t c, bstate_t i, s_scpc_t il): case_type(c), new_el(i), ex(il)
+{
+}
+
+insert_t::insert_t(po_rel_t c, bstate_t i, bstate_t il): case_type(c), new_el(i), ex()
+{
+	ex.insert(il); 
+}
+
+insert_t::insert_t()
+{
+}
+
+string add_leading_zeros(const string& s, unsigned count)
+{
+	int diff = count-s.size();
+	if(diff > 0) return string(diff,'0') + s;
+	else return s;
 }

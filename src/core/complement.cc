@@ -137,6 +137,8 @@ us_cmb_node_p_t complement_set::diff_remove(cmb_node_p f)
 	return u_nodes_diff;
 }
 
+#define sat_cond(full_sat,l,b,e)(full_sat || all_of(b,e,bind2nd(equal_to<local_t>(),l)) || ((l % 5 == 0) && (all_of(b,e,[](cmb_node::cmb_t::value_type x){ return (x % 5 == 0); }))))
+
 void complement_set::try_expand_remove(cmb_node_p f) 
 {
 	invariant(*(f->rc) == 0);
@@ -149,7 +151,11 @@ void complement_set::try_expand_remove(cmb_node_p f)
 	static stack<cmb_node*> work_set;
 	
 	local_t lp = *f->c.begin();
-	for(l = full_sat?0:lp; l < (full_sat?L:lp+1); ++l){ //for(l = 0; l < L; ++l){
+	for(l = 0; l < L; ++l){ //for(l = full_sat?0:lp; l < (full_sat?L:lp+1); ++l){
+		
+		if(!sat_cond(full_sat,l,f->c.begin(),f->c.end()))
+			continue;
+
 		new_node = new cmb_node(), new_node->c = f->c, new_node->c.push_back(l);
 		sort(new_node->c.begin(), new_node->c.end()); //keep new_node->c sorted
 		if(m_nodes.insert(new_node).second) work_set.push(new_node); //add new [c.push_back(l)] to the work list
@@ -181,14 +187,16 @@ void complement_set::diff_try_expand_remove(cmb_node_p f,us_cmb_node_p_t& u_node
 
 	if(!(f->c.size() < K)) return;
 
-	static local_t l;
 	static cmb_node* new_node;
 	static unsigned nex_sz;
 
 	static stack<cmb_node*> work_set;
 
 	local_t lp = *f->c.begin();
-	for(l = full_sat?0:lp; l < (full_sat?L:lp+1); ++l){ //for(l = 0; l < L; ++l){
+	for(local_t l = 0; l < L; ++l){ //for(l = full_sat?0:lp; l < (full_sat?L:lp+1); ++l){
+		if(!sat_cond(full_sat,l,f->c.begin(),f->c.end()))
+			continue;
+
 		new_node = new cmb_node(), new_node->c = f->c, new_node->c.push_back(l);
 		sort(new_node->c.begin(), new_node->c.end()); //keep new_node->c sorted
 		if(m_nodes.insert(new_node).second) work_set.push(new_node); //add new [c.push_back(l)] to the work list
@@ -296,13 +304,17 @@ unsigned complement_vec::project_and_insert(const OState& g)
 	if(gg2.size() < gg2_n) gg2.resize(gg2_n, invalid_local);
 	merge_mult(g.bounded_locals.begin(), g.bounded_locals.end(), g.unbounded_locals.begin(), g.unbounded_locals.end(), this->K, gg2.begin());
 
-	for(unsigned i = prj.size() + 1; i <= this->K; ++i) //for a give k, this loop is executed only once
+	for(unsigned i = prj.size() + 1; i <= this->K; ++i) //for a given k, this loop is executed only once
 		prj.push_back(cmb_node(i)); 
 
 	for(unsigned r = 1; r <= this->K && r <= gg2.size(); ++r){
 		do {
 			invariant(r <= gg2.size());
 			invariant(is_sorted(gg2.begin(), gg2.begin() + r));
+
+			if(!sat_cond(full_sat,*gg2.begin(),gg2.begin(),gg2.begin() + r))
+				continue;
+			
 			copy(gg2.begin(), gg2.begin() + r, prj[r-1].c.begin());
 			if(this->luv[g.shared].insert(prj[r-1])) ++new_projections;
 		} while (boost::next_combination(gg2.begin(), gg2.begin() + r, gg2.begin() + gg2_n));
@@ -346,14 +358,19 @@ unsigned lowerset_vec::project_and_insert(const OState& g, shared_cmb_deque_t& s
 	if(gg2.size() < gg2_n) gg2.resize(gg2_n, invalid_local);
 	merge_mult(g.bounded_locals.begin(), g.bounded_locals.end(), g.unbounded_locals.begin(), g.unbounded_locals.end(), K, gg2.begin());
 
-	for(unsigned i = prj.size() + 1; i <= K; ++i) //for a give k, this loop is executed only once
+	for(unsigned i = prj.size() + 1; i <= K; ++i) //for a given k, this loop is executed only once
 		prj.push_back(cmb_node(i)); 
 
 	list<pair<shared_t,cmb_node_p> > projections;
 
 	for(unsigned r = 1; r <= min(K,gg2_n); ++r){ //the latter loop condition catches the case when we try to project a state that has less components than k: (0|0) cannot be projected with k=2
 		do {
+			invariant(r <= gg2.size());
 			invariant(is_sorted(gg2.begin(), gg2.begin() + r));
+
+			if(!sat_cond(full_sat,*gg2.begin(),gg2.begin(),gg2.begin() + r))
+				continue;
+
 			copy(gg2.begin(), gg2.begin() + r, prj[r-1].c.begin());
 
 			if(this->lv[g.shared].find(&prj[r-1]) == this->lv[g.shared].end())
@@ -361,7 +378,11 @@ unsigned lowerset_vec::project_and_insert(const OState& g, shared_cmb_deque_t& s
 				us_cmb_node_p_t::const_iterator i = this->lv[g.shared].insert(new cmb_node(prj[r-1],false)).first;
 				++new_projections;
 				if(forward_projections)
+				{
 					projections.push_back(make_pair(g.shared,*i));
+					//BState added(g.shared, (*i)->c.begin(),(*i)->c.end());
+					//cout << "added " << added << endl;
+				}
 			}
 
 		} while (boost::next_combination(gg2.begin(), gg2.begin() + r, gg2.begin() + gg2_n));

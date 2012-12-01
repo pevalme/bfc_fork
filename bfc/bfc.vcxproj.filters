@@ -18,6 +18,8 @@
     <ClCompile Include="..\src\core\tstate.cc" />
     <ClCompile Include="..\src\core\trans.cc" />
     <ClCompile Include="..\src\core\net.cc" />
+    <ClCompile Include="..\src\core\antichain_comb.cc" />
+    <ClCompile Include="..\src\bfc\minbw.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\bfc\bfc.interrupts.h">
@@ -81,6 +83,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\core\u_set_vm.h__">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\core\antichain_comb.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\bfc\minbw.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

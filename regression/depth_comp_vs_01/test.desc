@@ -1,6 +1,6 @@
 CORE
 main.tts
---target main.prop --sat-bound 5
+--target main.prop
 ^EXIT=0$
 ^SIGNAL=0$
 ^VERIFICATION SUCCESSFUL$

@@ -7,6 +7,7 @@
 //cbfs
 #define OPT_STR_HELP				"help,h"
 #define OPT_STR_VERSION				"version,v"
+#define OPT_STR_SAVE_NET			"save-net"
 #define OPT_STR_STATS				"stats"
 
 #define OPT_STR_NETSTATS			"net-stats"

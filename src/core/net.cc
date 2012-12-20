@@ -74,7 +74,18 @@ Net::Net(const Net & other): reduce_log(cerr.rdbuf())
 
 Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, adj_t adjacency_list_inv_, bool prj_all)
 	: S_input(-1), L_input(-1), S(S_), L(L_), init(init_), target(target_), adjacency_list(adjacency_list_), adjacency_list_inv(adjacency_list_inv_), reduce_log(cerr.rdbuf())
-{
+{ 
+
+	//TODO: this does not check whether adjacency_list_inv is the inverse of adjacency_list; better: build adjacency_list_inv here
+
+	//typedef std::map<Thread_State, std::map<Thread_State, transfers_t> > adj_t; //permit one transfer per sl->s'l' transition only
+	//typedef std::map<local_t,std::set<local_t> > transfers_t; //TODO: this should be a multimap
+	for(auto& a : adjacency_list)
+		for(auto& b : a.second)
+			for(auto& c : b.second)
+				/*if(*/c.second.erase(c.first);/*)*/
+					; /*cout << "erased side-effect-free broadcast" << endl;*/
+
 	core_shared = get_core_shared(prj_all);
 }
 
@@ -190,6 +201,9 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 				if(i == tok.end()) throw logic_error("transfer target missing");
 				lp = boost::lexical_cast<local_t>(*(i++));
 
+				if(l >= L_input || lp >= L_input)
+					throw logic_error("invalid source or target transfer state");
+
 				transfers[l].insert(lp), transfers_inv[lp].insert(l);
 			}
 
@@ -289,12 +303,17 @@ pair<Net::vv_adjs_t,Net::vvl_adjs_t> Net::get_backward_adj_2() const
 		{
 			const Thread_State& u = a.first;
 			const Thread_State& v = b.first;
-			const transfers_t&	t = adjacency_list_inv.at(v).at(u);
+			const transfers_t&	tb = adjacency_list_inv.at(v).at(u);
+			const transfers_t&	tf = adjacency_list.at(u).at(v);
 			
-			if(u.shared != v.shared || !t.empty())
-				X[v.shared].push_back(Transition(u,v,t)); //diagonal and non-plain transitions 
+			if(u.shared != v.shared || !tb.empty())
+			{
+				X[v.shared].push_back(Transition(u,v,tb,tf)); //diagonal and non-plain transitions 
+			}
 			else
-				Y[v.shared][v.local].push_back(Transition(u,v,t)); //horizontal plain transitions
+			{
+				Y[v.shared][v.local].push_back(Transition(u,v,tb,tf)); //horizontal plain transitions
+			}
 		}
 	}
 

@@ -69,17 +69,13 @@ void minprint_dot_search_graph(vec_ac_t& M, unsigned ctr_wit, string ext, string
 					out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=solid,arrowsize=\".75\"" << "];" << endl;
 				for(bstate_t r : q->nb->csuc)
 					out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=dotted,arrowsize=\".75\"" << "];" << endl;
-				//for(bstate_t r : q->nb->pre)
-				//	out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=solid,arrowsize=\".2\"" << "];" << endl;
-				//for(bstate_t r : q->nb->cpre)
-				//	out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=dotted,arrowsize=\".2\"" << "];" << endl;
 			}
 	}
 	out << "}" << endl;
 	out.close();
 
 	string cmd = "dot -T pdf " + out_fn + " -o " + out_fn + ".pdf";
-	system(cmd.c_str());
+	(void)system(cmd.c_str());
 	cout << cmd << endl;
 }
 
@@ -120,7 +116,8 @@ Breached_p_t Pre(const BState& s, Net& n)
 				const Transition&	t = *r.first;
 				const Thread_State& u = t.source;
 				const Thread_State& v = t.target; 
-				const transfers_t&	p = t.bcs; //inverse transfer
+				const transfers_t&	p = t.bcs; //inverse transfers (backward)
+				const transfers_t&	p2= t.bcs2; //transfers (forward)
 
 				invariant(cur->shared == v.shared);
 
@@ -138,32 +135,35 @@ Breached_p_t Pre(const BState& s, Net& n)
 
 				if(thread_in_v) pre->bounded_locals.erase(pre->bounded_locals.find(v.local)); //remove one
 
+				if(0/*some passive local is force to move in the transition*/) //if some passive local is in conflict with the broadcast effect
+					continue;
+
 				//create, for all passive updates combinations c_i in bounded local states, a state s_i = s+c_i (check for duplicates, and ignoring those entering an "omega"-value)
 				typedef pair<bounded_t,bounded_t> local_tp; //unprocessed and processed local states
 				typedef set<local_tp> comb_t;
+				bool first = false;
 				if(!p.empty() && !pre->bounded_locals.empty()) //if there are passive updates and at least one passive thread exists
 				{
+					first = true;
 					comb_t combs_interm; 
 					stack<comb_t::const_iterator> cwork;
 					cwork.push(combs_interm.insert(make_pair(pre->bounded_locals,bounded_t())).first); //inserte pair (locals,{})
 
-					bool first = true;
 					while(!cwork.empty())
 					{
 						comb_t::const_iterator w = cwork.top(); cwork.pop();
 						invariant(w->first.size()); //work shall only contain states with unprocessed local states
 
-						//remove one local and create a new pair for all predecessor combinations
+						set<local_t> DEST; //TODO: inefficient: avoid to copy x->second
 						local_t passive_source = *w->first.begin();
-						auto x = p.find(passive_source); //transfer destinations
+						if(p2.find(passive_source) == p2.end()) // not p ~> *, thus p ~> p, which has inverse p <~ p
+							DEST.insert(passive_source);
+						auto x = p.find(passive_source);
+						if(x != p.end())
+							DEST.insert(x->second.begin(),x->second.end()); //add other inverse transfers
 
-						local_t passive_target;
-						set<local_t>::const_iterator pi;
-
-						if(x == p.end()) passive_target = passive_source;
-						else pi = x->second.begin(), passive_target = *pi;
-
-						do
+						//remove one local and create a new pair for all predecessor combinations
+						for(auto& passive_target : DEST)
 						{
 							local_tp ne(*w);
 							ne.second.insert(passive_target);
@@ -190,14 +190,22 @@ Breached_p_t Pre(const BState& s, Net& n)
 								if(a.second) cwork.push(a.first);
 							}
 						}
-						while(x != p.end() && ++pi != x->second.end() && (passive_target = *pi,1));
+						//while(x2 != p2.end() && ++pi != x->second.end() && (passive_target = *pi,1));
+						//while(x != p.end() && ++pi != x->second.end() && (passive_target = *pi,1));
+						
 
 					}
 				}
 
-				pre->bounded_locals.insert(u.local);
-
-				work.push(pre);
+				if(!first)
+				{
+					pre->bounded_locals.insert(u.local);
+					work.push(pre);
+				}
+				else
+				{
+					//no predecessor combination found
+				}
 			}
 		}
 
@@ -449,6 +457,8 @@ void final_stats()
 		bw_stats << "---------------------------------" << endl;		
 		bw_stats << "backward depth (max)            : " << ctr_cdpM << endl;
 		bw_stats << "backward width (max)            : " << ctr_cszM << endl;
+		bw_stats << "backward depth (max,final)      : " << ctr_cdpM_f << endl;
+		bw_stats << "backward width (max,final)      : " << ctr_cszM_f << endl;
 		bw_stats << "---------------------------------" << endl;
 
 		bw_stats.flush();
@@ -482,7 +492,7 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 			//boost::this_thread::sleep(boost::posix_time::milliseconds(100));
 			ctr_wit++;
 			bw_log << "+++++++++++++++ Work set iteration " << ctr_wit << " +++++++++++++++" << endl;
-			if(graph_type != GTYPE_NONE) minprint_dot_search_graph(M,ctr_wit,"_wit",n->filename,w = W.top().first);
+			//if(graph_type != GTYPE_NONE) minprint_dot_search_graph(M,ctr_wit,"_wit",n->filename,w = W.top().first);
 			
 			w = W.top().first, W.pop(), invariant(!(w->nb == nullptr) && w->nb->status == BState::pending), w->nb->status = BState::processed;
 
@@ -531,10 +541,14 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 		else 
 			bw_safe = true;
 
-		//clean up M
+		//clean up M and update statistics
 		for(auto& b : M)
 			for(auto& c : b.second.M)
+			{
+				if(c->nb != nullptr && c->nb->status == BState::processed)
+					ctr_cdpM_f = max(ctr_cdpM_f,c->nb->gdepth),ctr_cszM_f = max(ctr_cszM_f,(unsigned)c->size());
 				delete c;
+			}
 
 		//clean up D
 		for(bstate_t b : D)

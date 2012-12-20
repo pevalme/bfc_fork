@@ -41,7 +41,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "bstate.h"
 
 #include "multiset_adapt.h"
+#ifndef TEST
 #include "antichain.h"
+#endif
 
 #include <boost/functional/hash.hpp>
 #include <boost/foreach.hpp>
@@ -97,8 +99,10 @@ BState::blocking_t::blocking_t(): blocked_by(INIT_BUCKETS), blocks(INIT_BUCKETS)
 BState::~BState()
 {
 	//invariant(fl == 0);
+#ifndef TEST
 	if(us != nullptr && nb != nullptr && nb->ini)
 		delete us; //note: "us" is usually shared between multiple BState objects
+#endif
 	if(nb != nullptr)
 		delete nb;
 	if(bl != nullptr)

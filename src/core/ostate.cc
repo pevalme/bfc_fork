@@ -75,16 +75,26 @@ OState::OState(string str)
 {
 	try
 	{
-		vector<string> SL, BU, B, U;
+		vector<string> SL, SU, BU, B, U;
 		split( SL, str, is_any_of("|"));
-		if(SL.size() != 2) throw;
-		this->shared = lexical_cast<shared_t>(SL[0]);
-		split( BU, SL[1], is_any_of("/") );
-		if(SL.size() != 1 && SL.size() != 2) throw;
-		if(!BU[0].empty()) 
-			split( B, BU[0], is_any_of(",") ), for_each(B.begin(), B.end(), [this](string b){ bounded_locals.insert(lexical_cast<local_t>(b)); });
-		if(BU.size()!=1 && !BU[1].empty()) 
-			split( U, BU[1], boost::is_any_of(",") ), for_each(U.begin(), U.end(), [this](string u){ unbounded_locals.insert(lexical_cast<local_t>(u)); });
+		if(SL.size() == 1) //"0/0"
+		{
+			split( SU, str, is_any_of("/"));
+			this->shared = lexical_cast<shared_t>(SU[0]);
+			if(!SU[1].empty()) 
+				split( U, SU[1], is_any_of(",") ), for_each(U.begin(), U.end(), [this](string u){ unbounded_locals.insert(lexical_cast<local_t>(u)); });
+		}
+		else//"0|/0" and "0|0/1"
+		{
+			if(SL.size() != 2) throw;
+			this->shared = lexical_cast<shared_t>(SL[0]);
+			split( BU, SL[1], is_any_of("/") );
+			if(SL.size() != 1 && SL.size() != 2) throw;
+			if(!BU[0].empty()) 
+				split( B, BU[0], is_any_of(",") ), for_each(B.begin(), B.end(), [this](string b){ bounded_locals.insert(lexical_cast<local_t>(b)); });
+			if(BU.size()!=1 && !BU[1].empty()) 
+				split( U, BU[1], boost::is_any_of(",") ), for_each(U.begin(), U.end(), [this](string u){ unbounded_locals.insert(lexical_cast<local_t>(u)); });
+		}
 	}
 	catch(...)
 	{

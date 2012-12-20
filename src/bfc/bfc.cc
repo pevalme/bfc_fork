@@ -94,7 +94,7 @@ ostream_sync
 	;
 
 ofstream main_livestats_ofstream; //must have the same storage duration as main_livestats
-streambuf* main_livestats_rdbuf_backup;
+streambuf* main_livestats_rdbuf_backup, *bw_stats_backup;
 
 #include "user_assert.h"
 #include "net.h"
@@ -254,7 +254,7 @@ int main(int argc, char* argv[])
 
 	try {
 		string filename, target_fn, init_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), ignore_target(0), prj_all(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
+		bool h(0), v(0), wr(0), ignore_target(0), prj_all(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
 
 #ifndef WIN32
 		unsigned to,mo;
@@ -265,6 +265,7 @@ int main(int argc, char* argv[])
 		misc.add_options()
 			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
+			(OPT_STR_SAVE_NET,		bool_switch(&wr), "save the (reduced) net with extension .red")
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
 			(OPT_STR_MEMOUT,		value<unsigned>(&mo)->default_value(0), "virtual memory limit in megabyte (\"0\" for no limit)")
@@ -444,7 +445,12 @@ int main(int argc, char* argv[])
 
 		if(!prj_all) net.reduce(prj_all);
 		
-		//cout << net << endl;
+		if(wr)
+		{
+			ofstream out((filename + ".red").c_str());
+			if(!out.good()) throw logic_error(string("cannot write to ") + filename + ".red");
+			out << net << endl, out.close();
+		}
 
 		BState::S = net.S, BState::L = net.L;
 
@@ -583,6 +589,8 @@ int main(int argc, char* argv[])
 				throw std::runtime_error((string("cannot write to file ") + o).c_str());
 
 			main_livestats_rdbuf_backup = main_livestats.rdbuf(main_livestats_ofstream.rdbuf());
+			bw_stats_backup = bw_stats.rdbuf(main_livestats_ofstream.rdbuf());
+
 		}
 
 #ifndef WIN32
@@ -724,7 +732,7 @@ int main(int argc, char* argv[])
 		return_value = EXIT_FAILURE, main_res << "unknown exception" << endl;}
 
 	if(o != OPT_STR_OUTPUT_FILE_STDOUT)
-		main_livestats.rdbuf(main_livestats_rdbuf_backup), main_livestats_ofstream.close(), main_log << "csv output file closed" << endl; //otherwise the stream might be closed before the destruction of main_livestats which causes an error
+		main_livestats.rdbuf(main_livestats_rdbuf_backup), bw_stats.rdbuf(bw_stats_backup), main_livestats_ofstream.close(), main_log << "csv output file closed" << endl; //otherwise the stream might be closed before the destruction of main_livestats which causes an error
 	
 	//print stream in this order; all other streams are flushed on destruction
 	main_res.flush();

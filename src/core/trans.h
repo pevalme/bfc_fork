@@ -44,6 +44,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <map>
 #include <set>
 
+#include "types.h"
 #include "tstate.h"
 
 enum trans_type
@@ -65,10 +66,12 @@ typedef std::map<local_t,std::set<local_t> > transfers_t; //TODO: this should be
 
 struct Transition
 {	
-	Thread_State	source;
-	Thread_State	target;
-	transfers_t		bcs;
-	Transition(const Thread_State& s = Thread_State(0,0), const Thread_State& t = Thread_State(0,0), transfers_t trns = transfers_t());
+	Thread_State		source;
+	Thread_State		target;
+	transfers_t			bcs;
+	mutable transfers_t	bcs2;
+	
+	Transition(const Thread_State& s = Thread_State(0,0), const Thread_State& t = Thread_State(0,0), transfers_t trns = transfers_t(), transfers_t trns2 = transfers_t());
 
 	bool operator < (const Transition&) const;
 	bool operator ==(const Transition&) const;

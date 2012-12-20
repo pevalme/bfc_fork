@@ -8,8 +8,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>--target main.prop --init "0|0" main.tts --force-flush -dC --stats --bw-log</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--target main.prop main.tts --force-flush -dF --prj-all --fw-log</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\self_loop_vs</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\ticket_lock</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

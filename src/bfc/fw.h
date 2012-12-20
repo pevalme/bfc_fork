@@ -182,7 +182,30 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 					if(!p.empty())
 					{
 						//distribute omegas (this yields the maximal obtainable state)
+
+						/*
+						#init   0/0,1
+						#target 1|1
+						2 3
+						0 0 -> 1 0 1 ~> 2
+						*/
+
 						set<local_t> distibute;
+						for(auto i = succ->unbounded_locals.begin(); i != succ->unbounded_locals.end(); )
+						{
+							const local_t &passive_source = *i;
+							auto x = p.find(passive_source);
+							if(x == p.end()) { ++i; continue; }
+							const bool forced_to_move = x->second.find(passive_source) == x->second.end();
+							unbounded_in_v |= x->second.find(v.local) != x->second.end();
+							distibute.insert(x->second.begin(),x->second.end());
+							if(forced_to_move) i = succ->unbounded_locals.erase(i);
+							else ++i;
+						}
+						succ->unbounded_locals.insert(distibute.begin(),distibute.end());
+						
+#if 0
+						set<local_t> distibute, erase;
 						for(const local_t &passive_source : succ->unbounded_locals)
 						{
 							auto x = p.find(passive_source);
@@ -191,6 +214,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 							distibute.insert(x->second.begin(),x->second.end());
 						}
 						succ->unbounded_locals.insert(distibute.begin(),distibute.end());
+#endif
 
 						//create, for all passive updates combinations c_i in bounded local states, a state s_i = s+c_i (check for duplicates, and ignoring those entering an "omega"-value)
 						typedef pair<bounded_t,bounded_t> local_tp; //unprocessed and processed local states

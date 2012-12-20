@@ -43,8 +43,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace std;
 
-Transition::Transition(const Thread_State& s, const Thread_State& t, transfers_t b)
-	: source(s), target(t), bcs(b)
+Transition::Transition(const Thread_State& s, const Thread_State& t, transfers_t b, transfers_t b2)
+	: source(s), target(t), bcs(b), bcs2(b2)
 {
 }
 

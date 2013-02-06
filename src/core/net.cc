@@ -470,9 +470,6 @@ void Net::reduce(bool prj_all)
 	{
 		bool b = trans_from_local[l] || trans_to_local[l];
 		core_local[l] =
-			
-			//l == 27 ||
-			
 			COUNT_IF(V,"0INITB",init.bounded_locals.find(l) != init.bounded_locals.end()) || //is a bounded initial local state
 			COUNT_IF(V,"1INITU",init.unbounded_locals.find(l) != init.unbounded_locals.end())|| //is an unbounded initial local state
 			COUNT_IF(V,"2TARGE",target.bounded_locals.find(l) != target.bounded_locals.end())|| //is a target local state
@@ -485,7 +482,7 @@ void Net::reduce(bool prj_all)
 			COUNT_IF(V,"9SINKK",!b && (!is_transferred_from[l] && is_transferred_to[l])) //can only be reached passively (TODO: all sink states could be merged to further reduce the net)
 			;
 	}
-	cout << endl;
+	reduce_log << endl;
 
 	for_each(V.begin(),V.end(),[this](scmap_t::value_type& c){ reduce_log << c.first << ": " << c.second << endl; });
 

@@ -94,7 +94,7 @@ void minprint_dot_search_graph(vec_ac_t& M, unsigned ctr_wit, string ext, string
 
 	string cmd = "dot -T pdf " + out_fn + " -o " + out_fn + ".pdf";
 	(void)system(cmd.c_str());
-	cout << cmd << endl;
+	bw_log << cmd << endl;
 }
 
 Breached_p_t Pre(const BState& s, Net& n)

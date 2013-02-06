@@ -1,0 +1,9 @@
+CORE
+main.tts
+--target main.prop --init "0/2"
+^EXIT=0$
+^SIGNAL=0$
+^VERIFICATION SUCCESSFUL$
+--
+--
+no comments

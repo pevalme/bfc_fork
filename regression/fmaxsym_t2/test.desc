@@ -1,0 +1,9 @@
+CORE
+main.tts
+--target main.prop --init "0|0/49" --prj-all
+^EXIT=10$
+^SIGNAL=0$
+^VERIFICATION FAILED$
+--
+--
+no comments

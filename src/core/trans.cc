@@ -66,12 +66,8 @@ bool Transition::operator ==(const Transition& t2) const
 ostream& operator << (ostream& out, const Transition& r)
 { 
 	if(!out.rdbuf()) return out;
-	out << "(" << r.source << ")" << " -> " << "(" << r.target << ")";
-	return out;
-}
-
-ostream& Transition::extended_print(ostream& out) const
-{ 
-	out << "(" << this->source << ")" << " -> " << "(" << this->target << ")";
+	out << r.source << " -> " << r.target;
+	for(auto p : r.bcs)for(auto pp : p.second)
+		out << " " << p.first << " ~> " << pp;
 	return out;
 }

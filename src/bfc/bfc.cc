@@ -254,7 +254,13 @@ int main(int argc, char* argv[])
 
 	try {
 		string filename, target_fn, init_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
-		bool h(0), v(0), wr(0), ignore_target(0), prj_all(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
+
+#ifndef PUBLIC_RELEASE
+		bool prj_all(1); //TODO: reduction currently overapproximates (see regression\__ticket_reduction_overappr); set initially to false once fixed
+#else
+		bool prj_all(0);
+#endif
+		bool h(0), v(0), wr(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
 
 #ifndef WIN32
 		unsigned to,mo;
@@ -265,7 +271,6 @@ int main(int argc, char* argv[])
 		misc.add_options()
 			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
-			(OPT_STR_SAVE_NET,		bool_switch(&wr), "save the (reduced) net with extension .red")
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
 			(OPT_STR_MEMOUT,		value<unsigned>(&mo)->default_value(0), "virtual memory limit in megabyte (\"0\" for no limit)")
@@ -274,6 +279,7 @@ int main(int argc, char* argv[])
 
 		options_description logging("Log output");
 		logging.add_options()
+			(OPT_STR_SAVE_NET,		bool_switch(&wr), "save the (reduced) net with extension .red")
 			(OPT_STR_MON_INTERV,	value<unsigned>(&mon_interval)->default_value(OPT_STR_MON_INTERV_DEFVAL), "update interval for on-the-fly statistics (ms, \"0\" for none)")			
 			(OPT_STR_NOMAIN_INFO,	bool_switch(&nomain_info), "print no main info")
 			(OPT_STR_NORES_INFO,	bool_switch(&noresult_info), "print no result")
@@ -304,7 +310,6 @@ int main(int argc, char* argv[])
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
 			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
 			(OPT_STR_INIT,			value<string>(&init_fn), "initial state file (e.g. 1|0 or 1|0,1/2)")
-			(OPT_STR_IGN_TARGET,	bool_switch(&ignore_target), "ignore the target")
 			;
 
 		//Exploration mode
@@ -356,18 +361,14 @@ int main(int argc, char* argv[])
 			//(OPT_STR_LOCAL_SAT,		bool_switch(&local_sat), "only saturate with state consisting of multiple occurences of the same local")
 			;
 
-		options_description cmdline_options;
-		cmdline_options
-			.add(misc)
-			.add(problem)
-			.add(exploration_mode)
-			.add(logging)
-			.add(statistics)
+		options_description cmdline_options, visible;
+		cmdline_options.add(misc).add(problem).add(exploration_mode).add(logging).add(statistics).add(fw_exploration).add(bw_exploration);
+
 #ifndef PUBLIC_RELEASE
-			.add(fw_exploration)
-			.add(bw_exploration)
+		visible.add(misc).add(problem).add(exploration_mode).add(logging).add(statistics).add(fw_exploration).add(bw_exploration);
+#else
+		visible.add(misc).add(problem);
 #endif
-			;
 
 		positional_options_description p; p.add(OPT_STR_INPUT_FILE, -1);
 
@@ -376,7 +377,7 @@ int main(int argc, char* argv[])
 
 		if(h || v)
 		{ 
-			if(h) main_inf	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << endl << cmdline_options; 
+			if(h) main_inf	<< "Usage: " << argv[0] << " [options] [" << OPT_STR_INPUT_FILE << "]" << endl << visible; 
 			if(v) main_inf	<< "                                   \n" //http://patorjk.com/software/taag, font: Lean
 				<< "    _/_/_/    _/_/_/_/    _/_/_/   \n"
 				<< "   _/    _/  _/        _/          \n"
@@ -384,11 +385,10 @@ int main(int argc, char* argv[])
 				<< " _/    _/  _/        _/            \n"
 				<< "_/_/_/    _/          _/_/_/   v" << VERSION << endl
 				<< "-----------------------------------\n"
-				<< "                    Greedy Analysis\n"
-				<< "         of Multi-Threaded Programs\n"
-				<< "    with Non-Blocking Communication\n"
+				<< "             A Widening Approach to\n"
+				<< "Multi-Threaded Program Verification\n"
 				<< "-----------------------------------\n"
-				<< "     (c)2012 Alexander Kaiser      \n"
+				<< "   (c)2011-2013 Alexander Kaiser   \n"
 				<< " Oxford University, United Kingdom \n"
 				<< "Build Date:  " << __DATE__ << " @ " << __TIME__ << endl;
 				;
@@ -434,8 +434,6 @@ int main(int argc, char* argv[])
 			else main_log << "successfully set softlimit for the process's virtual memory" << endl;
 		}
 #endif
-
-		if(ignore_target) target_fn = "";
 
 		if(target_fn != string()) main_log << "Problem to solve: check target" << endl; 
 		else main_log << "Problem to solve: compute cover" << endl; 

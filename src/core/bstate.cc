@@ -230,9 +230,10 @@ string BState::str_latex() const
 {
 	string l_part, sep;
 	foreach(local_t l, set<local_t>(bounded_locals.begin(),bounded_locals.end()))
-		l_part += (sep + boost::lexical_cast<string>(l) + '^' + boost::lexical_cast<string>(bounded_locals.count(l))), sep = ',';
+		for(unsigned i=1; i<=bounded_locals.count(l); ++i) //l_part += (sep + boost::lexical_cast<string>(l) + '^' + boost::lexical_cast<string>(bounded_locals.count(l))), sep = ',';
+			l_part += (sep + "\\LOCALSTATE{" + boost::lexical_cast<string>(l) + "}"), sep = ',';
 
-	return (string)"$" + (nb->ini?"\\graphqconf":"\\graphconf") +  '{' + boost::lexical_cast<string>(shared) + '}' + '{' + l_part + '}' + '$';
+	return (string)"$" + "\\graphconf" +  '{' + "\\SHAREDSTATE{" + boost::lexical_cast<string>(shared) + '}' + '}' + '{' + l_part + '}' + '$';
 }
 
 ostream& BState::mindot(std::ostream& out, bool mark) const

@@ -61,25 +61,62 @@ void print_dot_search_graph(const Oreached_t& Q)
 	out << "digraph BDD {" << "\n";
 	foreach(ostate_t s, Q)
 	{
-		if(s->prede == nullptr)
-			out << "{rank=source; " << '"' << s->str_id() << '"' << '}' << "\n";
 
-		out << '"' << s->str_id() << '"' << ' ' << '[' << "lblstyle=" << '"' << "kmnode" << '"' << ",texlbl=" << '"' << s->str_latex() << '"' << ']' << ';' << "\n";
+		bool maximal_state = true;
+		for(auto& b : Q)
+		{
+			if(s != b && *s <= *b)
+				maximal_state = false, fw_log << "state " << *s << " is not maximal; it's covered by " << *b << endl;
+		}
+
+		//bool use = 
+		//	OState("1/2") == *s || 
+		//	OState("0|7/2") == *s || 
+		//	OState("0|15/2,7") == *s || 
+		//	OState("0/2,11,15") == *s || 
+		//	OState("0/2,6,11,15") == *s || 
+		//	OState("0/2,3,14,15") == *s || 
+		//	OState("0/2,3,6,7,14,15") == *s || 
+		//	OState("0/2,7,14,15") == *s || 
+		//	OState("1|6/14,15") == *s || 
+		//	OState("1|7/14,15") == *s || 
+		//	OState("0/2,11,14,15") == *s || 
+		//	OState("0/2,6,7,14,15") == *s || 
+		//	OState("1|11/14,15") == *s || 
+		//	OState("0/2,6,11,14,15") == *s || 
+		//	OState("2|13/2,6,11,14,15") == *s
+		//	;
+
+		//if(!use)
+		//{
+		//	cout << "IGNORE" << endl;
+		//	continue;
+		//}
+
+		string thiname = s->str_id();
+
+		if(s->prede == nullptr)
+			out << "{rank=source; " << '"' << thiname << '"' << '}' << "\n";
+
+		out << '"' << thiname << '"' << ' ' << '[' << "lblstyle=" << '"' << "kmnode" << (maximal_state?",maxstate":",nonmaxstate") << '"' << ",texlbl=" << '"' << s->str_latex() << '"' << ']' << ';' << "\n";
 
 		if(s->prede != nullptr)
+		{
+			string prename = s->prede->str_id();
 			if(s->tsucc)
-				switch(graph_type){
-				case GTYPE_DOT: out << '"' << s->prede->str_id() << '"' << " -> " << '"' << s->str_id() << '"' << "[style=dashed];" << "\n"; break;
-				case GTYPE_TIKZ: out << '"' << s->prede->str_id() << '"' << " -> " << '"' << s->str_id() << '"' << "[style=transfer_trans];" << "\n"; break;}
+				switch(tree_type){
+				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=dashed];" << "\n"; break;
+				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=transfer_trans];" << "\n"; break;}
 			else
-				switch(graph_type){
-				case GTYPE_DOT: out << '"' << s->prede->str_id() << '"' << " -> " << '"' << s->str_id() << '"' << ';' << "\n"; break;
-				case GTYPE_TIKZ: out << '"' << s->prede->str_id() << '"' << " -> " << '"' << s->str_id() << '"' << "[style=thread_trans];" << "\n"; break;}
+				switch(tree_type){
+				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << ';' << "\n"; break;
+				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=thread_trans];" << "\n"; break;}
+		}
 
 		if(s->accel != nullptr)
-			switch(graph_type){
-				case GTYPE_DOT: out << '"' << s->str_id() << '"' << " -> " << '"' << s->accel->str_id() << '"' << " [" << accel_edge_style << "];" << "\n"; break;
-				case GTYPE_TIKZ: out << '"' << s->str_id() << '"' << " -> " << '"' << s->accel->str_id() << '"' << "[style=accel_edge];" << "\n"; break;}
+			switch(tree_type){
+				case GTYPE_DOT: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << " [" << accel_edge_style << "];" << "\n"; break;
+				case GTYPE_TIKZ: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << "[style=accel_edge];" << "\n"; break;}
 	}
 
 	out << "}" << "\n";
@@ -88,6 +125,21 @@ void print_dot_search_graph(const Oreached_t& Q)
 }
 
 typedef vector<Net::adj_t::const_iterator> tt_list_t;
+
+#define FINALIZE_TRANS(succp) \
+											auto x = p.find(u.local);\
+											const bool others_in_u_were_move = x != p.end() && x->second.find(u.local) == x->second.end(); /*vastly overapproximates without this condition: see regression test accel_fault_vs for an example*/ \
+											auto y = p.find(v.local); \
+											const bool v_local_is_force_to_move_in_the_transition = y != p.end() && y->second.find(v.local) == y->second.end(); /*add one/unbounded v.local's if an unbounded number do not yet exist*/ \
+											if(!unbounded_in_v) \
+												if(unbounded_in_u && horiz_trans && !others_in_u_were_move && !v_local_is_force_to_move_in_the_transition) \
+												{ \
+													succp->unbounded_locals.insert(v.local); \
+													if(bounded_in_v) \
+														succp->bounded_locals.erase(v.local); /*0 0 -> 0 1 in state 0|1/0 -> 0|/0,1*/ \
+												} \
+												else \
+													succp->bounded_locals.insert(v.local);
 
 Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared_cmb_deque)
 { 
@@ -195,10 +247,12 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 						{
 							const local_t &passive_source = *i;
 							auto x = p.find(passive_source);
-							if(x == p.end()) { ++i; continue; }
+							if(x == p.end()) { ++i; continue; }  //passive_source is forced to stay in its local state
+							
 							const bool forced_to_move = x->second.find(passive_source) == x->second.end();
 							unbounded_in_v |= x->second.find(v.local) != x->second.end();
 							distibute.insert(x->second.begin(),x->second.end());
+							
 							if(forced_to_move) i = succ->unbounded_locals.erase(i);
 							else ++i;
 						}
@@ -238,6 +292,8 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 								local_t passive_target;
 								set<local_t>::const_iterator pi;
 
+								invariant(implies(x != p.end(),!x->second.empty()));
+
 								if(x == p.end()) passive_target = passive_source;
 								else pi = x->second.begin(), passive_target = *pi;
 
@@ -260,11 +316,8 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 										{
 											OState* succp = new OState(succ->shared,ne.second.begin(),ne.second.end(),succ->unbounded_locals.begin(),succ->unbounded_locals.end());
 											//readd active thread
-											if(!unbounded_in_v) 
-												if(unbounded_in_u && horiz_trans)
-													succp->unbounded_locals.insert(v.local);
-												else
-													succp->bounded_locals.insert(v.local);
+
+											FINALIZE_TRANS(succp);
 
 											invariant(succp->consistent());
 
@@ -290,17 +343,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 							}
 						}
 					}
-
-					//add one/unbounded v.local's if an unbounded number do not yet exist
-					if(!unbounded_in_v) 
-						if(unbounded_in_u && horiz_trans)
-						{
-							succ->unbounded_locals.insert(v.local);
-							if(bounded_in_v)
-								succ->bounded_locals.erase(v.local); //0 0 -> 0 1 in state 0|1/0 -> 0|/0,1
-						}
-						else
-							succ->bounded_locals.insert(v.local);
+					FINALIZE_TRANS(succ);
 				}
 				invariant(succ->consistent());
 				
@@ -313,7 +356,10 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				{
 					fw_log << "Found intermediate successor: " << *succ << "\n";
 					work.push(succ); //add to work list
-				}			
+				}
+				static set<Transition>ACT;
+				if(ACT.insert(Transition(u,v,p)).second)
+					fw_log << "new active transition: " << Transition(u,v,p) << endl;
 			}
 		}
 
@@ -413,7 +459,7 @@ unordered_priority_set<ostate_t>::keyprio_type keyprio_pair(ostate_t s)
 void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_cmb_deque, bool forward_projections, unordered_priority_set<ostate_t>::order_t forder)
 {
 
-	const bool plain_km = false;
+	const bool plain_km = false; //always try to accelerate (may overapproximate in the presence of broadcast side-effects)
 	fw_start_time = boost::posix_time::microsec_clock::local_time();
 
 	Oreached_t				Q;
@@ -529,6 +575,16 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 					
 					max_depth_checked = max(max_depth_checked, depth);
 				}
+
+//				bool maximal_state = true;
+//#define DISCARD_NON_MAX
+//#ifdef DISCARD_NON_MAX //only for compact output, otherwise probably too slow
+//				for(auto& b : Q)
+//				{
+//					if(*p <= *b)
+//						maximal_state = false, fw_log << "ignore state; it's covered by " << b << endl;
+//				}
+//#endif
 
 				p->prede = cur, p->depth = 1 + cur->depth; 
 				if(Q.insert(p).second)

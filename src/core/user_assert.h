@@ -41,6 +41,7 @@ extern "C" {_CRTIMP void __cdecl _wassert(_In_z_ const wchar_t * _Message, _In_z
 #define precondition_foreach(a,b,c) debug_assert_foreach(a,b,c)
 #define postcondition_foreach(a,b,c) debug_assert_foreach(a,b,c)
 #define implies(a,b) (!(a) || (b))
+#define impliedby(a,b) (implies(b,a))
 #define iff(a,b) ((a) == (b))
 
 #endif

@@ -77,14 +77,11 @@ Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_
 { 
 
 	//TODO: this does not check whether adjacency_list_inv is the inverse of adjacency_list; better: build adjacency_list_inv here
-
-	//typedef std::map<Thread_State, std::map<Thread_State, transfers_t> > adj_t; //permit one transfer per sl->s'l' transition only
-	//typedef std::map<local_t,std::set<local_t> > transfers_t; //TODO: this should be a multimap
 	for(auto& a : adjacency_list)
 		for(auto& b : a.second)
-			for(auto& c : b.second)
-				/*if(*/c.second.erase(c.first);/*)*/
-					; /*cout << "erased side-effect-free broadcast" << endl;*/
+			for(auto c = b.second.begin(); c != b.second.end(); )
+				if(c->second.size() == 1 && c->second.find(c->first) != c->second.end()) c = b.second.erase(c); //remove 0 ~> 0 since 0 not~> l for all l != 0
+				else ++c; //keep 0 ~> 0, since 0 ~> l for some l != 0
 
 	core_shared = get_core_shared(prj_all);
 }
@@ -409,7 +406,8 @@ void Net::reduce(bool prj_all)
 	//compute core local states
 	lls_map_t
 		lcur_lnex_to_shared,
-		l_to_s_inv;
+		l_to_s_inv
+		;
 
 	locals_boolvec_t
 		trans_from_local,
@@ -417,7 +415,10 @@ void Net::reduce(bool prj_all)
 		diag_trans_to_local,
 		non_plain_from_local,
 		non_plain_to_local,
-		non_eq_transitions_to_local;
+		non_eq_transitions_to_local,
+		is_transferred_from,
+		is_transferred_to
+		;
 
 	for(auto& a : adjacency_list)
 	{
@@ -433,6 +434,15 @@ void Net::reduce(bool prj_all)
 			diag_trans_to_local[target.local] |= source.shared != target.shared;
 			non_plain_from_local[source.local] |= !transfers.empty(), non_plain_to_local[target.local] |= !transfers.empty();
 			non_eq_transitions_to_local[target.local] |= !EQl[source.local][target.local];
+
+			for(auto& pa : b.second)
+			{
+				is_transferred_from[pa.first] = true;
+				for(auto& pb : pa.second)
+				{
+					is_transferred_to[pb] = true;
+				}
+			}			
 		}
 	}
 
@@ -445,9 +455,10 @@ void Net::reduce(bool prj_all)
 
 	unsigned matr = 0;
 	bool sound_por = false;
+	//bool sound_por = true;
 	if(sound_por) //to determine whether transitions are shared-state independent
 		matr = std::count_if(core_shared.begin(), core_shared.end(), [](bool i){return i;});
-	else //this is correct for satabs generated nets but may introduce unsoundness for other models
+	else //this is correct for satabs generated nets but may overapproximate for other models
 		for_each(l_to_s_inv.begin(),l_to_s_inv.end(),[&matr,&l_to_s_inv](lls_map_t::value_type& x){
 			for_each(x.second.begin(),x.second.end(),[&matr,&l_to_s_inv](ls_m_t::value_type& y){
 				matr = max(matr,(unsigned)y.second.size());});});
@@ -459,6 +470,9 @@ void Net::reduce(bool prj_all)
 	{
 		bool b = trans_from_local[l] || trans_to_local[l];
 		core_local[l] =
+			
+			//l == 27 ||
+			
 			COUNT_IF(V,"0INITB",init.bounded_locals.find(l) != init.bounded_locals.end()) || //is a bounded initial local state
 			COUNT_IF(V,"1INITU",init.unbounded_locals.find(l) != init.unbounded_locals.end())|| //is an unbounded initial local state
 			COUNT_IF(V,"2TARGE",target.bounded_locals.find(l) != target.bounded_locals.end())|| //is a target local state
@@ -467,7 +481,8 @@ void Net::reduce(bool prj_all)
 			COUNT_IF(V,"5NONPO",b && (non_plain_from_local[l]))|| //one or more outgoing edges are no plain (i.e.|| with no effect on passive threads) thread transitions
 			COUNT_IF(V,"6NONPI",b && (non_plain_to_local[l]))|| //one or more ingoing edges are no plain thread transitions
 			COUNT_IF(V,"7SINDE",b && (any_of(l_to_s_inv[l].begin(),l_to_s_inv[l].end(),[&matr,this](ls_m_t::value_type& x){ reduce_log << x.second.size() << "/" << matr << endl; return x.second.size() < matr; })))|| //transition is independent of the shared state
-			COUNT_IF(V,"8PASSE",b && (non_eq_transitions_to_local[l])) //relative passive effects are the same on all predecessors as on l
+			COUNT_IF(V,"8PASSE",b && (non_eq_transitions_to_local[l])) || //relative passive effects are the same on all predecessors as on l
+			COUNT_IF(V,"9SINKK",!b && (!is_transferred_from[l] && is_transferred_to[l])) //can only be reached passively (TODO: all sink states could be merged to further reduce the net)
 			;
 	}
 	cout << endl;
@@ -480,13 +495,14 @@ void Net::reduce(bool prj_all)
 	reduce_log << "total local core states: " << core_num << "/" << L << endl;
 
 	reduce_log << "non-core local: ";
-	for(local_t l = 0; l < L; ++l)
-		if(!core_local[l]) reduce_log << l << " ";
+	for(local_t l = 0; l < L; ++l)//if(!core_local[l]) reduce_log << l << " ";
+		if(!core_local[l]) reduce_log << l << "(" << is_transferred_from[l] << is_transferred_to[l] << ")" << " ";
 	reduce_log<< endl;
 
 	//compute new local state values
 	local_perm_t p(L,-1);
 	local_t L_new = 0;
+
 	for(local_t l = 0; l < L; ++l)
 		if(core_local[l]) p[l] = L_new++, reduce_log << p[l] << "/" << l << " ";
 		else reduce_log << "-" << "/" << l << " ";
@@ -513,14 +529,14 @@ void Net::reduce(bool prj_all)
 		{
 			if(core_local[s.first.local] && core_local[t.first.local])
 			{
-				//reduce_log << s.first << " -> " << t.first << " ";
+				reduce_log << s.first << " -> " << t.first << " ";
 				transfers_t n, n_inv;
 				for(auto b : t.second)
 					if(core_local[b.first]) 
 						for(auto c : b.second)
 							if(core_local[c])
-								n[p[b.first]].insert(p[c]), n_inv[p[c]].insert(p[b.first])/*, reduce_log << b.first << " ~> " << c << " "*/;
-				//reduce_log << endl;
+								n[p[b.first]].insert(p[c]), n_inv[p[c]].insert(p[b.first]), reduce_log << b.first << " ~> " << c << " ";
+				reduce_log << endl;
 
 				Thread_State
 					x(pS[s.first.shared],p[s.first.local]),
@@ -543,7 +559,7 @@ void Net::reduce(bool prj_all)
 	{
 		Thread_State u = work.top()->first, v = work.top()->second; work.pop();
 
-		//reduce_log << "processing " << u << " -> " << v << "\t";
+		reduce_log << "processing " << u << " -> " << v << "\t";
 
 		if(core_local[u.local] && core_local[v.local]) 
 		{
@@ -557,29 +573,29 @@ void Net::reduce(bool prj_all)
 				continue;
 			}
 
-			processed[x][y] = transfers_t(), processed_inv[y][x] = transfers_t()/*, reduce_log << "core" << endl*/;
+			processed[x][y] = transfers_t(), processed_inv[y][x] = transfers_t(), reduce_log << "core" << endl;
 		}
 		else if(!core_local[u.local] && !core_local[v.local])
-			;/*reduce_log << "no core" << endl; */
+			reduce_log << "no core" << endl;
 		else
 		{
 			set<Thread_State> pre_u, post_v;
 
 			if(core_local[u.local]) pre_u.insert(u);
-			else if(adjacency_list_inv.find(u) == adjacency_list_inv.end()){ /*reduce_log << "no pre" << endl;*/ continue; }
+			else if(adjacency_list_inv.find(u) == adjacency_list_inv.end()){ reduce_log << "no pre" << endl; continue; }
 			else for( auto& p : adjacency_list_inv[u] ) pre_u.insert(p.first);
 
 			if(core_local[v.local]) post_v.insert(v);
-			else if(adjacency_list.find(v) == adjacency_list.end()){ /*reduce_log << "no post" << endl;*/ continue; }
+			else if(adjacency_list.find(v) == adjacency_list.end()){ reduce_log << "no post" << endl; continue; }
 			else for( auto& p : adjacency_list[v] ) post_v.insert(p.first);
 
 			for(auto p : pre_u) for(auto q : post_v) 
 			{
 				auto i = seen.insert(make_pair(p,q));
-				if(i.second) work.push(i.first)/*, reduce_log << "adding " << p << " -> " << q << " "*/;
-				else /*reduce_log << "not new "*/;
+				if(i.second) work.push(i.first), reduce_log << "adding " << p << " -> " << q << " ";
+				else reduce_log << "not new ";
 			}
-			/*reduce_log << "; " << work.size() << " transitions remaining" << endl;*/
+			reduce_log << "; " << work.size() << " transitions remaining" << endl;
 		}
 	}
 

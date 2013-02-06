@@ -58,17 +58,35 @@ void minprint_dot_search_graph(vec_ac_t& M, unsigned ctr_wit, string ext, string
 	for(auto& u : M)
 		for(auto& q : u.second.M)
 			if(!(q->nb == nullptr)) 
-				q->mindot(out,q==mark), out << endl;
+			{
+
+				bool min_state = true;
+				for(auto& v : M)
+					for(auto& s : v.second.M)
+						if(!(s->nb == nullptr) && s != q && *s <= *q) 
+						{
+							min_state = false, bw_log << "state " << *q << " is not minimal; it covers " << *s << endl;
+						}
+
+				switch(graph_type){
+				case GTYPE_DOT: q->mindot(out,q==mark), out << endl; break;
+				case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << ' ' << '[' << "lblstyle=" << '"' << "bwnode" << (min_state?",minstate":",nonminstate") << '"' << ",texlbl=" << '"' << q->str_latex() << '"' << ']' << ';' << "\n"; }
+			}
 
 	for(auto& u : M)
 	{
 		for(auto& q : u.second.M)
 			if(!(q->nb == nullptr)) 
 			{
-				for(bstate_t r : q->nb->suc)
-					out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=solid,arrowsize=\".75\"" << "];" << endl;
-				for(bstate_t r : q->nb->csuc)
-					out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=dotted,arrowsize=\".75\"" << "];" << endl;
+				for(bstate_t r : q->nb->suc) //out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=solid,arrowsize=\".75\"" << "];" << endl;
+					switch(graph_type){
+					case GTYPE_DOT: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=solid];" << endl; break;
+					case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=predecessor_edge];" << endl; break;}
+
+				for(bstate_t r : q->nb->csuc) //out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=dotted,arrowsize=\".75\"" << "];" << endl;
+					switch(graph_type){
+					case GTYPE_DOT: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=dotted];" << endl; break;
+					case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=coverpredecessor_edge];" << endl; break;}
 			}
 	}
 	out << "}" << endl;
@@ -224,7 +242,16 @@ void init(vec_ac_t& M, complement_vec* C, Net& n)
 	BState* q;
 	for(shared_t s = 0; s < BState::S && (!shared_fw_done || WAIT_NOT_FOR_FW) && exe_state == RUNNING; ++s)
 		for(auto b = C->luv[s].u_nodes.begin(), e = C->luv[s].u_nodes.end(); n.core_shared[s] && b != e && (!shared_fw_done || WAIT_NOT_FOR_FW) && exe_state == RUNNING; ++b) //traverse all minimal uncovered elements (e.g. 0|1, 1|0 and 1|1 for initial state 0|0w, S=L=2; independant of k)
-			q = new BState(s,(*b)->c.begin(),(*b)->c.end()), M[q->shared].insert_incomparable(q), bw_log << *q << " added" << endl, invariant(q->nb == nullptr);
+		{
+			if(!(BState(s,(*b)->c.begin(),(*b)->c.end()) <= n.target))
+			{
+				q = new BState(s,(*b)->c.begin(),(*b)->c.end()), M[q->shared].insert_incomparable(q), bw_log << *q << " added" << endl, invariant(q->nb == nullptr);
+			}
+			else
+			{
+				bw_log << "ignore " << BState(s,(*b)->c.begin(),(*b)->c.end()) << ", it's smaller than the target" << endl; //as a workaround, don't try smaller elements for the initial state (there is some bug related to replacing the target state on-the-fly)
+			}
+		}
 }
 
 void make_target(bstate_t& t, vec_ac_t& M, work_pq& W, lst_bs_t& L, Net& n)
@@ -232,11 +259,13 @@ void make_target(bstate_t& t, vec_ac_t& M, work_pq& W, lst_bs_t& L, Net& n)
 	bw_log << "create target vertex" << endl;
 	po_rel_t r = M[n.target.shared].relation(&n.target);
 
-	invariant(r == eq || r == neq_ge || r == neq_nge_nle || r == neq_le__or__neq_nge_nle); //(i) the target has <= k threads, and thus a node already exists, or (ii) a state with <= k threads that is strictly smaller than the target is also uncoverable, or (iii) no uncoverable state with <= k threads exists that is smaller than the target
+	//invariant(r == eq || r == neq_ge || r == neq_nge_nle || r == neq_le__or__neq_nge_nle); //(i) the target has <= k threads, and thus a node already exists, or (ii) a state with <= k threads that is strictly smaller than the target is also uncoverable, or (iii) no uncoverable state with <= k threads exists that is smaller than the target
+	invariant(r == neq_le__or__neq_nge_nle);
 	switch(r){
 	case eq:										t = *M[n.target.shared].case_insert(&n.target).ex.begin(), bw_log << "target already exists -> use it" << endl; break; //take existing element as target
 	case neq_ge:									t = *M[n.target.shared].case_insert(&n.target).ex.begin(), bw_log << "smaller target exists -> use it" << endl;	break; //take some strictly smaller existing element as target
 	case neq_nge_nle: case neq_le__or__neq_nge_nle:	t = new BState(n.target), M[n.target.shared].insert_incomparable(t), bw_log << "no smaller target exists -> added" << endl; break; } //add a new node for the target
+	
 	invariant(t->nb == nullptr), t->nb = new BState::neighborhood_t, t->nb->status = BState::pending, t->nb->li = L.insert(L.end(),t), W.push(make_pair(t,t->size())), t->nb->gdepth = 0, t->nb->ini = *t <= n.init;
 	
 	//TODO: use this!!!
@@ -415,7 +444,7 @@ void sync(vec_ac_t& M, complement_vec& C, work_pq& W, bstate_t& t, lst_bs_t& L, 
 			if(M[b.shared].manages(&b)) 
 				adjust(*M[b.shared].case_insert(&b).ex.begin(),pruning,t,M,W,L,C,true,n,D); //get existing node and remove it from M
 			else 
-				bw_log << b << " already known" << endl, invariant(D.find(&b) != D.end());
+				bw_log << b << " already known" << endl, invariant(implies(!(b <= *t),D.find(&b) != D.end()));
 		}
 		delete m;
 	}

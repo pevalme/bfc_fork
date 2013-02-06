@@ -51,7 +51,7 @@
 #define OPT_STR_FW_ORDER_DEFVAL		ORDER_SMALLFIRST_OPTION_STR
 
 #define OPT_STR_SATBOUND_BW			"sat-bound,k"
-#define OPT_STR_SATBOUND_BW_DEFVAL	2
+#define OPT_STR_SATBOUND_BW_DEFVAL	1
 
 #define OPT_STR_FW_WEIGHT			"fw-weight"
 #define OPT_STR_FW_WIDTH			"max_fw_width"

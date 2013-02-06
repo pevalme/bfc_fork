@@ -12,6 +12,7 @@ all: bfc
 
 bfc: $(OBJS)
 	$(CXX) $(LDFLAGS) -o ./bin/bfc/release/bfc $(OBJS) $(LDLIBS) 
+	tar -cvzf ./bin/bfc/release/bfc-2.0-linux-x86-64.tar.gz -C ./bin/bfc/release/ bfc
 
 depend: .depend
 

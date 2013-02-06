@@ -75,8 +75,6 @@ struct Transition
 
 	bool operator < (const Transition&) const;
 	bool operator ==(const Transition&) const;
-
-	std::ostream& extended_print(std::ostream&) const;
 };
 
 std::ostream& operator << (std::ostream&, const Transition& t);

@@ -24,7 +24,14 @@
 #endif
 #define OPT_STR_INPUT_FILE			"input-file"
 #define OPT_STR_TARGET				"target,a"
+
+#define OPT_STR_INIT_VAL_SING		"single"
+#define OPT_STR_INIT_VAL_PARA		"unbounded"
 #define OPT_STR_INIT				"initial,i"
+#define OPT_STR_INIT_DEFVAL			OPT_STR_INIT_VAL_PARA
+
+
+
 #define OPT_STR_IGN_TARGET			"ignore-target"
 
 #define OPT_STR_NO_POR				"prj-all"
@@ -52,6 +59,7 @@
 
 #define OPT_STR_SATBOUND_BW			"sat-bound,k"
 #define OPT_STR_SATBOUND_BW_DEFVAL	1
+//#define OPT_STR_SATBOUND_BW_DEFVAL	2
 
 #define OPT_STR_FW_WEIGHT			"fw-weight"
 #define OPT_STR_FW_WIDTH			"max_fw_width"

@@ -130,7 +130,8 @@ BState::BState(string str, bool alloc)
 	}
 	catch(...)
 	{
-		throw runtime_error((string("invalid state string: ") + str).c_str()); 
+		//throw runtime_error((string("invalid state string: ") + str).c_str()); 
+		type = invalid;
 	}
 
 	if(alloc)

@@ -96,14 +96,8 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 	}
 	else
 	{
-		try{ 
-			init = OState(init_fn); 
-		}catch(...){
-			ifstream init_in(init_fn.c_str());
-			if(!init_in.good()) throw logic_error("cannot read from target input file");
-			try{ string tmp; init_in >> tmp; init = OState(tmp); }
-			catch(...){ throw logic_error("invalid initial file (only one initial state in the first line supported)"); }
-		}
+		try{ init = OState(init_fn); }
+		catch(...){ throw logic_error("invalid initial file (only one initial state in the first line supported)"); }
 	}
 
 	//parse target state
@@ -113,13 +107,15 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 	}
 	else
 	{
-		try{ 
-			target = BState(target_fn,false); 
-		}catch(...){
+		target = BState(target_fn,false); 
+		if(target.type == BState::invalid)
+		{
 			ifstream target_in(target_fn.c_str());
-			if(!target_in.good()) throw logic_error("cannot read from target input file");
-			try{ string tmp; target_in >> tmp; target = BState(tmp); }
-			catch(...){ throw logic_error("invalid target file (only one target state in the first line supported)"); }
+			if(!target_in.good()) 
+				throw logic_error((string)"cannot read from target input file " + target_fn.c_str());
+			string tmp; target_in >> tmp; target = BState(tmp);
+			if(target.type == BState::invalid) 
+				throw logic_error("invalid target file (only one target state in the first line supported)");
 		}
 	}
 
@@ -138,7 +134,7 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 
 		stringstream in;
 		string line2;
-		while (getline(orig, line2 = "")) 
+		while(getline(orig, line2 = "")) 
 		{
 			const size_t comment_start = line2.find("#");
 			in << ( comment_start == string::npos ? line2 : line2.substr(0, comment_start) ) << endl; 
@@ -154,6 +150,16 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 		while(in)
 		{
 			getline (in,line);
+
+			if(target_fn == string()) //read first target from input file
+			{
+				target = BState(line,false);
+				if(target.type != BState::invalid)
+				{
+					target_fn = line;
+					continue;
+				}
+			}
 
 			boost::tokenizer<boost::char_separator<char> > tok(line, boost::char_separator<char>(" "));
 			boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();

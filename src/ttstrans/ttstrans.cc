@@ -72,15 +72,15 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 		}
 	}
 	
-	for (Net::adj_t::const_iterator pair = adj.begin(), end = adj.end(); pair != end; ++pair) //print transisitons
+	for(auto& pair : adj)
 	{
-		const Thread_State&      t          = pair->first;
-		const set<std::pair<Thread_State, transfers_t > >& successors = pair->second;
-		for (set<std::pair<Thread_State, transfers_t > >::const_iterator succt = successors.begin(), end = successors.end(); succt != end; ++succt)
+		const Thread_State& t = pair.first;
+		auto& successors = pair.second;
+		for(auto& succt : successors) //for (set<std::pair<Thread_State, transfers_t > >::const_iterator succt = successors.begin(), end = successors.end(); succt != end; ++succt)
 		{
 
-			const Thread_State& succ = succt->first;
-			const transfers_t& p = succt->second;
+			const Thread_State& succ = succt.first;
+			const transfers_t& p = succt.second;
 
 			if(!p.empty()) throw runtime_error("translation of broadcast transitions not supported");
 
@@ -158,7 +158,7 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 }
 
 #include "options_str.h"
-
+#include <fstream>
 void test_g();
 
 int main(int argc, char* argv[]) 
@@ -174,17 +174,13 @@ int main(int argc, char* argv[])
 	{
 		bool single_initial(0);
 		unsigned h(0);
-		string f,target_fn;
-		shared_t init_shared;
-		local_t init_local;
+		string f,target_fn,init_fn;
 
 		options_description desc;
 		desc.add_options()			
 			(OPT_STR_HELP, bool_switch(&(bool&)h), "produce help message")
-			(OPT_STR_INI_SHARED, value<shared_t>(&init_shared)->default_value(OPT_STR_INI_SHARED_DEFVAL), "initial shared state")
-			(OPT_STR_INI_LOCAL, value<local_t>(&init_local)->default_value(OPT_STR_INI_LOCAL_DEFVAL), "initial local state")
-			(OPT_STR_SINGLE_INITIAL,bool_switch(&single_initial), "do not parametrize the local initial state")
 			(OPT_STR_INPUT_FILE, value<string>(&i), "input file")
+			(OPT_STR_INIT, value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), "initial state (e.g. 1|0 or 1|0,1/2)")
 			(OPT_STR_TARGET, value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
 			(OPT_STR_OUTPUT_FILE, value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "output file (\"stdout\" for console)")
 			(OPT_STR_FORMAT, value<string>(&f), (string("output format: ")
@@ -212,34 +208,7 @@ int main(int argc, char* argv[])
 
 		//read input net
 		if(i == string()) throw logic_error("no input file");
-		net.read_net_from_file(i);
-		
-		//get initial state
-		net.init.shared = init_shared, net.init.unbounded_locals.insert(init_local);
-		if(!net.init.consistent()) throw runtime_error("invalid initial state");
-		
-		//get target
-		if(target_fn != string())
-		{
-			try{ 
-				net.target = new BState(target_fn,true); 
-			}catch(...){
-				ifstream target_in(target_fn.c_str());
-				if(!target_in.good()) throw logic_error("cannot read from target input file");
-				try{ string tmp; target_in >> tmp; net.target = new BState(tmp,true); }
-				catch(...){ throw logic_error("invalid target file (only one target in the first line supported)"); }
-			}
-
-			if(!net.target->consistent()) throw logic_error("invalid target");
-			net.Otarget = OState(net.target->shared,net.target->bounded_locals.begin(),net.target->bounded_locals.end());
-			net.check_target = true;
-		}
-
-		net.init = OState(init_shared), net.local_init = init_local; //OPT_STR_INI_SHARED, OPT_STR_INI_LOCAL
-		if(single_initial) 
-			net.init.bounded_locals.insert(init_local);
-		else
-			net.init.unbounded_locals.insert(init_local);
+		Net(i,target_fn,init_fn,false).swap(net);
 
 		//check output file
 		if(o != "stdout")
@@ -259,6 +228,7 @@ int main(int argc, char* argv[])
 	//write output
 	if(format == Net::CLASSIFY)
 	{
+#if 0
 		Net::net_stats_t sts = net.get_net_stats(true);
 		cout << "---------------------------------" << endl;
 		cout << "Statistics for " << net.filename << endl;
@@ -284,6 +254,7 @@ int main(int argc, char* argv[])
 		cout << "maximum outdegree               : " << sts.max_outdegree << endl;
 		cout << "maximum degree                  : " << sts.max_degree << endl;
 		cout << "---------------------------------" << endl;
+#endif
 	}
 	else
 	{

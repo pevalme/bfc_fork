@@ -1,4 +1,4 @@
-//#define PUBLIC_RELEASE
+#define PUBLIC_RELEASE
 //#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
 //#define TIMING
 //#define EAGER_ALLOC
@@ -255,12 +255,7 @@ int main(int argc, char* argv[])
 	try {
 		string filename, target_fn, init_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
 
-#ifndef PUBLIC_RELEASE
-		bool prj_all(1); //TODO: reduction currently overapproximates (see regression\__ticket_reduction_overappr); set initially to false once fixed
-#else
-		bool prj_all(0);
-#endif
-		bool h(0), v(0), wr(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
+		bool prj_all(0),h(0), v(0), wr(0), print_sgraph(0), stats_info(0), print_bwinf(0), print_fwinf(0), single_initial(0), nomain_info(0), noresult_info(0), noressource_info(0), no_main_log(0), reduce_log(0), netstats(0);
 
 #ifndef WIN32
 		unsigned to,mo;
@@ -309,7 +304,7 @@ int main(int argc, char* argv[])
 		problem.add_options()
 			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
 			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
-			(OPT_STR_INIT,			value<string>(&init_fn), "initial state file (e.g. 1|0 or 1|0,1/2)")
+			(OPT_STR_INIT,			value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), "initial state (e.g. 1|0 or 1|0,1/2)")
 			;
 
 		//Exploration mode
@@ -435,8 +430,8 @@ int main(int argc, char* argv[])
 		}
 #endif
 
-		if(target_fn != string()) main_log << "Problem to solve: check target" << endl; 
-		else main_log << "Problem to solve: compute cover" << endl; 
+		//if(target_fn != string()) main_log << "Problem to solve: check target" << endl; 
+		//else main_log << "Problem to solve: compute cover" << endl; 
 
 		//read problem instance
 		Net(filename,target_fn,init_fn,prj_all).swap(net);

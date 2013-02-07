@@ -4,12 +4,12 @@
     <LocalDebuggerCommandArguments>--target "0|18,43" --init "0|0/49" -k1 main.tts --force-flush --prj-all -dB</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|Win32'">
-    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\__09_fmaxsym</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\fmaxsym_t1</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>--target main.prop --init "0/2" main.tts --force-flush --bw-log --reduce-log</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--init "0/2" main.tts --force-flush --bw-log --reduce-log</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\__ticket_reduction_overappr_full</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\fmaxsym_t1</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

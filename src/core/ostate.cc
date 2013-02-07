@@ -44,6 +44,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 
 #include "multiset_adapt.h"
+#include "options_str.h"
 
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
@@ -73,6 +74,10 @@ OState::OState(shared_t s): shared(s), accel(nullptr), prede(nullptr), tsucc(fal
 OState::OState(string str)
 	: accel(nullptr), prede(nullptr), tsucc(false), depth(0)
 {
+
+	if(str == OPT_STR_INIT_VAL_SING) str = "0|0";
+	else if(str == OPT_STR_INIT_VAL_PARA) str = "0/0";
+
 	try
 	{
 		vector<string> SL, SU, BU, B, U;

@@ -71,7 +71,8 @@ EXTERN unsigned
 	ctr_isold, ctr_isnew,
 	ctr_nomin, ctr_ismin,
 	ctr_csz, ctr_cszM, ctr_cszM_f,
-	ctr_cdp, ctr_cdpM, ctr_cdpM_f
+	ctr_cdp, ctr_cdpM, ctr_cdpM_f,
+	tmp_ctr; //no specific use
 	;
 
 EXTERN map<unsigned,unsigned>

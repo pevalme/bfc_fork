@@ -494,6 +494,8 @@ void final_stats()
 		for(auto a : ctr_cdpM_f_map) 
 		bw_stats << "num depth " << a.first << " (final)             : " << a.second << endl;
 		bw_stats << "---------------------------------" << endl; 
+		bw_stats << "tmp                             : " << tmp_ctr << endl;
+		bw_stats << "---------------------------------" << endl; 
 		bw_stats.flush();
 	}
 }
@@ -534,6 +536,8 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 			{
 				if(w->nb->pre.empty() && w->nb->cpre.empty())
 					bw_log << "discarding work node " << *w << " (not minimal anymore)" << endl, adjust(w,discarding,t,M,W,L,*C,true,*n,D);
+				else
+					++tmp_ctr; //this case is very rare
 
 				//TODO: not clear whether we can prune here or not
 				//if(!(w->nb->pre.empty() && w->nb->cpre.empty()))

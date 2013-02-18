@@ -1,4 +1,4 @@
-#define PUBLIC_RELEASE
+//#define PUBLIC_RELEASE
 //#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
 //#define TIMING
 //#define EAGER_ALLOC
@@ -168,13 +168,12 @@ bool fw_blocks_bw = false;
 //#include "bw.h"
 #include "minbw.h"
 
-void print_bw_stats(unsigned sleep_msec)
+const unsigned sdst = 5;
+const unsigned ldst = 7;
+const string sep = ",";
+void print_bw_stats_head(unsigned sleep_msec)
 {
 	if(sleep_msec == 0) return;
-
-	const unsigned sdst = 5;
-	const unsigned ldst = 7;
-	const string sep = ",";
 
 	main_livestats << endl
 		<< setw(sdst) << "BCDep" << sep
@@ -194,6 +193,11 @@ void print_bw_stats(unsigned sleep_msec)
 		<< setw(ldst) << "MemMB__" << sep//ldist 17
 #endif
 		<< endl;
+}
+
+void print_bw_stats(unsigned sleep_msec)
+{
+	if(sleep_msec == 0) return;
 
 	while(1) 
 	{
@@ -239,22 +243,12 @@ using namespace boost::assign;
 int main(int argc, char* argv[]) 
 {
 
-	//write stream "headers"
-	bw_stats << "BW stats:" << endl; 
-	fw_stats << "FW stats:" << endl;
-	fw_log << "FW log:" << endl;
-	bw_log << "BW log:" << endl;
-	main_inf << "Additional info:" << endl;
-	main_res << "Result: " << endl;
-	main_tme << "Ressources: " << endl;
-	main_cov << "Coverability info:" << endl;
-
 	int return_value = EXIT_SUCCESS;
 
 	srand((unsigned)microsec_clock::local_time().time_of_day().total_microseconds());
 
 	enum {FW,BW,FWBW,CON,FW_CON} mode;
-	unsigned k(OPT_STR_SATBOUND_BW_DEFVAL),ab(OPT_STR_ACCEL_BOUND_DEFVAL), mon_interval(OPT_STR_MON_INTERV_DEFVAL);
+	unsigned k(OPT_STR_SATBOUND_BW_DEFVAL),ab(OPT_STR_ACCEL_BOUND_DEFVAL), mon_interval(OPT_STR_MON_INTERV_DEFVAL), sleep_bw_msec(0);
 	unordered_priority_set<bstate_t>::order_t border;
 	unordered_priority_set<ostate_t>::order_t forder;
 	vector<BState> work_sequence;
@@ -320,6 +314,7 @@ int main(int argc, char* argv[])
 		options_description exploration_mode("Exploration mode");
 		exploration_mode.add_options()
 			(OPT_STR_NO_POR,		bool_switch(&prj_all), "do not use partial order reduction")
+			("bw-sleep",	value<unsigned>(&sleep_bw_msec)->default_value(0), "sleep time before backward search starts (in ms)")			
 			(OPT_STR_MODE,			value<string>(&mode_str)->default_value(CON_OPTION_STR), (string("exploration mode: \n") 
 			+ "- " + '"' + CON_OPTION_STR + '"'		+ " (concurrent forward/backward), \n"
 			+ "- " + '"' + CON2_OPTION_STR+ '"'		+ " (concurrent forward/backward with pessimistic exploration), \n"
@@ -399,6 +394,16 @@ int main(int argc, char* argv[])
 
 			return EXIT_SUCCESS;
 		}
+
+		//write stream "headers"
+		bw_stats << "BW stats:" << endl; 
+		fw_stats << "FW stats:" << endl;
+		fw_log << "FW log:" << endl;
+		bw_log << "BW log:" << endl;
+		main_inf << "Additional info:" << endl;
+		main_res << "Result: " << endl;
+		main_tme << "Ressources: " << endl;
+		main_cov << "Coverability info:" << endl;
 
 		if(!stats_info){ bw_stats.rdbuf(0), fw_stats.rdbuf(0); } //OPT_STR_STATS
 
@@ -610,6 +615,7 @@ int main(int argc, char* argv[])
 			{
 				shared_fw_done = 0;
 				ptime start_time = microsec_clock::local_time();
+				print_bw_stats_head(mon_interval);
 				boost::thread bw_mem(print_bw_stats, mon_interval);
 				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder);
 				main_tme << "total time (fw): "<< setprecision(2) << fixed << time_diff_float(start_time) << endl;
@@ -619,6 +625,7 @@ int main(int argc, char* argv[])
 			{
 				shared_fw_done = 0;
 				ptime start_time = microsec_clock::local_time();
+				print_bw_stats_head(mon_interval);
 				boost::thread bw_mem(print_bw_stats, mon_interval);
 #ifdef MINBW
 				main_log << "starting backward search..." << endl;
@@ -648,17 +655,15 @@ int main(int argc, char* argv[])
 
 			//start and join threads
 			ptime start_time = microsec_clock::local_time();
-			
-			boost::thread 
-				fw(do_fw_bfs, &net, ab, &D, &shared_cmb_deque, forward_projections, forder), 
+			print_bw_stats_head(mon_interval);
+			boost::thread bw_mem(print_bw_stats, mon_interval);
+			boost::thread fw(do_fw_bfs, &net, ab, &D, &shared_cmb_deque, forward_projections, forder);
+			boost::this_thread::sleep(boost::posix_time::milliseconds(sleep_bw_msec));
 #ifdef MINBW
-				bw(minbw,&net,k,&U), 
+			boost::thread bw(minbw,&net,k,&U);
 #else
-				bw(Pre2,&net,k,border,&U,work_sequence,print_cover), 
+			boost::thread bw(Pre2,&net,k,border,&U,work_sequence,print_cover);
 #endif
-				bw_mem(print_bw_stats, mon_interval)
-				;
-			
 			main_log << "waiting for fw..." << endl, main_log.flush(), fw.join(), main_log << "fw joined" << endl, main_log.flush();
 			main_log << "waiting for bw..." << endl, main_log.flush(), bw.join(), main_log << "bw joined" << endl, main_log.flush();
 			bw_mem.interrupt(), bw_mem.join();

@@ -488,8 +488,12 @@ void final_stats()
 		bw_stats << "backward width (max)            : " << ctr_cszM << endl;
 		bw_stats << "backward depth (max,final)      : " << ctr_cdpM_f << endl;
 		bw_stats << "backward width (max,final)      : " << ctr_cszM_f << endl;
-		bw_stats << "---------------------------------" << endl;
-
+		bw_stats << "---------------------------------" << endl; 
+		for(auto a : ctr_cszM_f_map) 
+		bw_stats << "num width " << a.first << " (final)             : " << a.second << endl;
+		for(auto a : ctr_cdpM_f_map) 
+		bw_stats << "num depth " << a.first << " (final)             : " << a.second << endl;
+		bw_stats << "---------------------------------" << endl; 
 		bw_stats.flush();
 	}
 }
@@ -570,12 +574,40 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 		else 
 			bw_safe = true;
 
+		////TEST
+		//unsigned min_ctr = 0, non_min_ctr = 0;
+		//for(auto& u : M)
+		//{
+		//	for(auto& q : u.second.M)
+		//	{
+		//		if(!(q->nb == nullptr) && q->nb->status == BState::processed) 
+		//		{
+		//			bool min_state = true;
+		//			for(auto& v : M)
+		//			{
+		//				for(auto& s : v.second.M)
+		//					if(!(s->nb == nullptr) && s->nb->status == BState::processed && s != q && *s <= *q)
+		//					{
+		//						min_state = false;
+		//					}
+		//			}
+		//			if(min_state) ++min_ctr;
+		//			else ++non_min_ctr;
+		//		}
+		//	}
+		//}
+		//cout << "min_ctr: " << min_ctr << endl;
+		//cout << "non_min_ctr: " << non_min_ctr << endl;
+
 		//clean up M and update statistics
 		for(auto& b : M)
 			for(auto& c : b.second.M)
 			{
 				if(c->nb != nullptr && c->nb->status == BState::processed)
+				{
 					ctr_cdpM_f = max(ctr_cdpM_f,c->nb->gdepth),ctr_cszM_f = max(ctr_cszM_f,(unsigned)c->size());
+					++ctr_cdpM_f_map[c->nb->gdepth], ++ctr_cszM_f_map[c->size()];
+				}
 				delete c;
 			}
 

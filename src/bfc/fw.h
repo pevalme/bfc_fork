@@ -634,7 +634,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	}
 	
 	if(shared_fw_finised_first) 
-		finish_time = boost::posix_time::microsec_clock::local_time(), fw_log << "fw first" << "\n", fw_log.flush();
+		/*finish_time = boost::posix_time::microsec_clock::local_time(), */fw_log << "fw first" << "\n", fw_log.flush();
 	else 
 		fw_log << "fw not first" << "\n", fw_log.flush();
 	

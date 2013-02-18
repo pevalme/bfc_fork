@@ -122,8 +122,7 @@ Net net;
 
 boost::posix_time::ptime 
 	last_new_prj_found,
-	fw_start_time,
-	finish_time
+	fw_start_time
 	;
 
 unsigned fw_prj_found = 0,
@@ -228,7 +227,7 @@ void print_bw_stats(unsigned sleep_msec)
 	}
 }
 
-float time_diff_float(boost::posix_time::ptime a, boost::posix_time::ptime b)
+float time_diff_float(boost::posix_time::ptime b, boost::posix_time::ptime a = boost::posix_time::microsec_clock::local_time())
 {
 	return (((float)(a - b).total_microseconds())/1000000);
 }
@@ -239,6 +238,16 @@ using namespace boost::assign;
 
 int main(int argc, char* argv[]) 
 {
+
+	//write stream "headers"
+	bw_stats << "BW stats:" << endl; 
+	fw_stats << "FW stats:" << endl;
+	fw_log << "FW log:" << endl;
+	bw_log << "BW log:" << endl;
+	main_inf << "Additional info:" << endl;
+	main_res << "Result: " << endl;
+	main_tme << "Ressources: " << endl;
+	main_cov << "Coverability info:" << endl;
 
 	int return_value = EXIT_SUCCESS;
 
@@ -430,13 +439,14 @@ int main(int argc, char* argv[])
 		}
 #endif
 
-		//if(target_fn != string()) main_log << "Problem to solve: check target" << endl; 
-		//else main_log << "Problem to solve: compute cover" << endl; 
-
 		//read problem instance
-		Net(filename,target_fn,init_fn,prj_all).swap(net);
+#define stop_time(cmd,p,desc) p = microsec_clock::local_time(), cmd, main_tme << desc << setprecision(2) << fixed << time_diff_float(p) << endl
+		ptime pt;
 
-		if(!prj_all) net.reduce(prj_all);
+		stop_time(Net(filename,target_fn,init_fn,prj_all).swap(net),pt,"parse time: ");
+
+		if(!prj_all) 
+			stop_time(net.reduce(prj_all),pt,"reduce time: ");
 		
 		if(wr)
 		{
@@ -561,17 +571,6 @@ int main(int argc, char* argv[])
 
 	main_log << "Running coverability engine..." << endl;
 
-	//write stream "headers"
-	bw_stats << "BW stats:" << endl, fw_stats << "FW stats:" << endl;
-	fw_log << "FW log:" << endl;
-	bw_log << "BW log:" << endl;
-	main_inf << "Additional info:" << endl;
-	main_res << "Result: " << endl;
-	main_tme << "Ressources: " << endl;
-	main_cov << "Coverability info:" << endl;
-
-	ptime start_time;
-
 	try
 	{
 		
@@ -610,17 +609,16 @@ int main(int argc, char* argv[])
 			if(mode == FW || mode == FWBW) //run fw
 			{
 				shared_fw_done = 0;
-				start_time = microsec_clock::local_time();
+				ptime start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval);
 				do_fw_bfs(&net, ab, &D, &shared_cmb_deque, forward_projections, forder);
-				finish_time = boost::posix_time::microsec_clock::local_time();
-				main_tme << "total time (fw): "<< setprecision(2) << fixed << time_diff_float(finish_time,start_time) << endl;
+				main_tme << "total time (fw): "<< setprecision(2) << fixed << time_diff_float(start_time) << endl;
 			}
 
 			if(mode == BW || mode == FWBW) //run bw
 			{
 				shared_fw_done = 0;
-				start_time = microsec_clock::local_time();
+				ptime start_time = microsec_clock::local_time();
 				boost::thread bw_mem(print_bw_stats, mon_interval);
 #ifdef MINBW
 				main_log << "starting backward search..." << endl;
@@ -628,8 +626,7 @@ int main(int argc, char* argv[])
 #else
 				Pre2(&net,k,border,&U,work_sequence,print_cover);
 #endif
-				finish_time = boost::posix_time::microsec_clock::local_time();
-				main_tme << "total time (bw): "<< setprecision(2) << fixed << time_diff_float(finish_time,start_time) << endl;
+				main_tme << "total time (bw): "<< setprecision(2) << fixed << time_diff_float(start_time) << endl;
 			}
 		}
 
@@ -650,7 +647,7 @@ int main(int argc, char* argv[])
 			}
 
 			//start and join threads
-			start_time = microsec_clock::local_time();
+			ptime start_time = microsec_clock::local_time();
 			
 			boost::thread 
 				fw(do_fw_bfs, &net, ab, &D, &shared_cmb_deque, forward_projections, forder), 
@@ -661,15 +658,12 @@ int main(int argc, char* argv[])
 #endif
 				bw_mem(print_bw_stats, mon_interval)
 				;
-
-			finish_time = boost::posix_time::microsec_clock::local_time();
 			
 			main_log << "waiting for fw..." << endl, main_log.flush(), fw.join(), main_log << "fw joined" << endl, main_log.flush();
 			main_log << "waiting for bw..." << endl, main_log.flush(), bw.join(), main_log << "bw joined" << endl, main_log.flush();
-			bw_mem.interrupt();
-			bw_mem.join();
+			bw_mem.interrupt(), bw_mem.join();
 			
-			main_tme << "total time (conc): "<< setprecision(2) << fixed << time_diff_float(finish_time,start_time) << endl;
+			main_tme << "total time (conc): "<< setprecision(2) << fixed << time_diff_float(start_time) << endl;
 		}
 		
 #ifndef WIN32

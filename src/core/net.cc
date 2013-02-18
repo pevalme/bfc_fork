@@ -171,12 +171,13 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 			local_t l1 = boost::lexical_cast<local_t>(*(i++));
 			if(i == tok.end()) throw logic_error("transition separator missing");
 
-			string sep = *(i++);
-			if(sep == "->") 
+			auto ssep = i++;
+			//string sep = *(i++);
+			if(*ssep == "->") 
 				ty = thread_transition;
-			else if(sep == "~>") 
+			else if(*ssep == "~>") 
 				ty = transfer_transition;
-			else if(sep == "+>") 
+			else if(*ssep == "+>") 
 				ty = spawn_transition;
 			else throw logic_error("invalid transition separator");
 

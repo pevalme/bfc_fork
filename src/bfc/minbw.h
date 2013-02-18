@@ -73,3 +73,8 @@ EXTERN unsigned
 	ctr_csz, ctr_cszM, ctr_cszM_f,
 	ctr_cdp, ctr_cdpM, ctr_cdpM_f
 	;
+
+EXTERN map<unsigned,unsigned>
+	ctr_cszM_f_map,
+	ctr_cdpM_f_map
+	;

@@ -84,7 +84,9 @@ using namespace std;
 //ostream
 ostream_sync
 	fw_log(cerr.rdbuf()), //optional fw info
+	bw_log(cerr.rdbuf()), //optional bw info
 	fw_stats(cerr.rdbuf()), //fw stats
+	bw_stats(cerr.rdbuf()), //bw stats
 	main_livestats(cerr.rdbuf()), 
 	main_log(cerr.rdbuf()), 
 	main_res(cout.rdbuf()), //result: (VERIFICATION SUCCEEDED / VERIFICATION FAILED / ERROR)
@@ -584,10 +586,6 @@ int main(int argc, char* argv[])
 			main_livestats_ofstream.open(o.c_str()), main_log << "csv output file opened" << endl;
 			if(!main_livestats_ofstream.good()) 
 				throw std::runtime_error((string("cannot write to file ") + o).c_str());
-
-			main_livestats_rdbuf_backup = main_livestats.rdbuf(main_livestats_ofstream.rdbuf());
-			bw_stats_backup = bw_stats.rdbuf(main_livestats_ofstream.rdbuf());
-
 		}
 
 #ifndef WIN32

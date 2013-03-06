@@ -58,11 +58,12 @@ struct strange_stack
 
 #ifdef MINBW_CC
 #define EXTERN
-ostream_sync bw_log(cerr.rdbuf()), bw_stats(cerr.rdbuf());
+//ostream_sync bw_log(cerr.rdbuf()), bw_stats(cerr.rdbuf());
 #else
 #define EXTERN extern
-extern ostream_sync bw_log, bw_stats;
 #endif
+
+extern ostream_sync bw_log, bw_stats;
 
 EXTERN unsigned 
 	ctr_pit, ctr_wit,

@@ -171,10 +171,11 @@ struct BState{
 	std::ostream& operator << (std::ostream& out) const;
 	std::string id_str() const;
 	std::string str_latex() const;
-	std::ostream& mindot(std::ostream& out, bool = false) const;
+	std::ostream& mindot(std::ostream& out, bool = false, string = "plaintext") const;
 
 	/* ---- Misc ---- */
 	size_t size() const;
+	size_t prio() const;
 	void swap(BState& other);
 	enum check_t {partial_check, full_check};
 	bool consistent(check_t c = partial_check) const;

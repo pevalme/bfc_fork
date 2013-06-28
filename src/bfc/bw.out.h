@@ -86,7 +86,7 @@ ofstream& dot_state_out(bstate_t q, bstate_t p, const work_pq& P, bool prune, gr
 void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain_t& O, bstate_t p, const work_pq& P, bool prune, unsigned ctr_wit, unsigned ctr_pit, string ext) //p will be highlighted
 {
 
-	bw_log << "writing uncoverability graph..." << "\n";
+	bw_log << "writing uncoverability graph..." << endl;
 
 	string out_fn = net.filename + ".bw-graph.it_" + add_leading_zeros(boost::lexical_cast<string>(ctr_wit),5) + "-" + add_leading_zeros(boost::lexical_cast<string>(ctr_pit),5) + ext + ".dot";
 
@@ -96,7 +96,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 	ofstream out(out_fn.c_str());
 	if(!out.good())
 		throw logic_error(string("cannot write to ") + out_fn);
-	out << "digraph BDD {" << "\n";
+	out << "digraph BDD {" << endl;
 
 	foreachit(u,M.uv){
 		foreach(const bstate_t& q, u->second.M_cref()){
@@ -111,7 +111,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 
 			out << '"' << q->id_str() << '"' << ' ';
 			dot_state_out(q,p,P,prune,graph_type,out);
-			out << "\n";
+			out << endl;
 		}
 	}
 
@@ -125,7 +125,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 
 		out << '"' << q->id_str() << '"' << ' ';
 		dot_state_out(q,p,P,prune,graph_type,out);
-		out << "\n";
+		out << endl;
 	}
 
 	while(!S.empty()){
@@ -151,7 +151,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 
 							if(n->nb->sleeping) to_style += ",sleeping";
 
-							out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=" << '"' << to_style << '"' << "];" << "\n";
+							out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=" << '"' << to_style << '"' << "];" << endl;
 						}
 						break;
 					case GTYPE_DOT:
@@ -159,7 +159,7 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 							if(n->nb->src==s->nb->src) to_style = DOT_local_edge_style;
 							else to_style = DOT_non_local_edge_style;
 
-							out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << to_style << "];" << "\n";
+							out << '"' << s->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << to_style << "];" << endl;
 						}
 						break;
 					}
@@ -194,12 +194,12 @@ void print_dot_search_graph(vec_antichain_t& M, non_minimals_t& N, vec_antichain
 				//	continue;
 
 				switch(graph_type){
-				case GTYPE_TIKZ: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=\"blockedby\"];" << "\n"; break;
-				case GTYPE_DOT: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << DOT_blocks_edge_style << "];" << "\n"; break;}
+				case GTYPE_TIKZ: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [style=\"blockedby\"];" << endl; break;
+				case GTYPE_DOT: out << '"' << c->id_str() << '"' << " -> " << '"' << n->id_str() << '"' << " [" << DOT_blocks_edge_style << "];" << endl; break;}
 			}
 		}
 	}
 
-	out << "}" << "\n";
+	out << "}" << endl;
 	out.close();
 }

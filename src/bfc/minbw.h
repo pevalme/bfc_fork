@@ -45,6 +45,7 @@ struct strange_stack
 	bimap_t m;
 
 	static const unsigned max = 100; 
+	static const unsigned min = 100; 
 
 	bool empty() const;
 	void push(wp_t);

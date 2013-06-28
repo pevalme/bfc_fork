@@ -237,10 +237,10 @@ string BState::str_latex() const
 	return (string)"$" + "\\graphconf" +  '{' + "\\SHAREDSTATE{" + boost::lexical_cast<string>(shared) + '}' + '}' + '{' + l_part + '}' + '$';
 }
 
-ostream& BState::mindot(std::ostream& out, bool mark) const
+ostream& BState::mindot(std::ostream& out, bool mark, string shape) const
 {
 	precondition(!(nb == nullptr));
-	out << '"' << id_str() << '"' << ' ' << "[label=\"" << *this << " (" << this->nb->gdepth << ")" << "\"," << "fontcolor=" << (mark?"orange":(nb->status == BState::pending?"red":"green")) << ",shape=\"plaintext\"]";
+	out << '"' << id_str() << '"' << ' ' << "[label=\"" << *this << " (" << this->nb->gdepth << "/" << this->size() << ")" << "\"," << "fontcolor=" << (mark?"orange":(nb->status == BState::pending?"red":"green")) << ",shape=\"" << shape << "\"]";
 	return out;
 }
 
@@ -250,8 +250,17 @@ size_t BState::size() const
 	return this->bounded_locals.size();
 }
 
+size_t BState::prio() const //0 is max
+{
+	invariant(nb != nullptr);
+	if(nb->ini) return 0;
+	else return bounded_locals.size();
+}
+
 void BState::swap(BState& other)
 {
+	std::swap(fl,other.fl); //not needed
+	std::swap(us,other.us); //not needed
 	std::swap(type,other.type);
 	std::swap(shared, other.shared);
 	bounded_locals.swap(other.bounded_locals);

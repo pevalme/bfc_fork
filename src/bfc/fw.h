@@ -48,7 +48,7 @@ const string accel_edge_style = "style=dotted,arrowhead=tee,arrowsize=\"0.5\"";
 void print_dot_search_graph(const Oreached_t& Q)
 {
 
-	fw_log << "writing coverability tree..." << "\n", fw_log.flush();
+	fw_log << "writing coverability tree..." << endl, fw_log.flush();
 	
 	string out_fn = net.filename + ".fw-tree.dot";
 
@@ -58,7 +58,7 @@ void print_dot_search_graph(const Oreached_t& Q)
 	ofstream out(out_fn.c_str());
 	if(!out.good()) throw logic_error((string)"cannot write to " + out_fn);
 	
-	out << "digraph BDD {" << "\n";
+	out << "digraph BDD {" << endl;
 	foreach(ostate_t s, Q)
 	{
 
@@ -96,30 +96,30 @@ void print_dot_search_graph(const Oreached_t& Q)
 		string thiname = s->str_id();
 
 		if(s->prede == nullptr)
-			out << "{rank=source; " << '"' << thiname << '"' << '}' << "\n";
+			out << "{rank=source; " << '"' << thiname << '"' << '}' << endl;
 
-		out << '"' << thiname << '"' << ' ' << '[' << "lblstyle=" << '"' << "kmnode" << (maximal_state?",maxstate":",nonmaxstate") << '"' << ",texlbl=" << '"' << s->str_latex() << '"' << ']' << ';' << "\n";
+		out << '"' << thiname << '"' << ' ' << '[' << "lblstyle=" << '"' << "kmnode" << (maximal_state?",maxstate":",nonmaxstate") << '"' << ",texlbl=" << '"' << s->str_latex() << '"' << ']' << ';' << endl;
 
 		if(s->prede != nullptr)
 		{
 			string prename = s->prede->str_id();
 			if(s->tsucc)
 				switch(tree_type){
-				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=dashed];" << "\n"; break;
-				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=transfer_trans];" << "\n"; break;}
+				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=dashed];" << endl; break;
+				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=transfer_trans];" << endl; break;}
 			else
 				switch(tree_type){
-				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << ';' << "\n"; break;
-				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=thread_trans];" << "\n"; break;}
+				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << ';' << endl; break;
+				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=thread_trans];" << endl; break;}
 		}
 
 		if(s->accel != nullptr)
 			switch(tree_type){
-				case GTYPE_DOT: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << " [" << accel_edge_style << "];" << "\n"; break;
-				case GTYPE_TIKZ: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << "[style=accel_edge];" << "\n"; break;}
+				case GTYPE_DOT: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << " [" << accel_edge_style << "];" << endl; break;
+				case GTYPE_TIKZ: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << "[style=accel_edge];" << endl; break;}
 	}
 
-	out << "}" << "\n";
+	out << "}" << endl;
 	out.close();
 
 }
@@ -150,7 +150,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 
 	work.push(const_cast<OState*>(ag));
 
-	fw_log << "computing successors" << "\n";
+	fw_log << "computing successors" << endl;
 	while(!work.empty())
 	{
 		OState* g = work.top(); work.pop();
@@ -207,14 +207,14 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 
 				if(!thread_in_u)
 				{
-					fw_log << "Ignore: No/no incomparable successors" << "\n";
+					fw_log << "Ignore: No/no incomparable successors" << endl;
 					continue;
 				}
 
 				OState* succ;
 				if(!g_in_use && ++(ttnex = tt) == tte && ++(tsbnex = tsb) == tse)
 				{
-					fw_log << "Reuse existing state " << *g << "\n";
+					fw_log << "Reuse existing state " << *g << endl;
 					succ = g, g_in_use = true;
 				}
 				else
@@ -323,12 +323,12 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 
 											if(n.core_shared[succp->shared])
 											{
-												fw_log << "Found passive core successor: " << *succp << "\n";
+												fw_log << "Found passive core successor: " << *succp << endl;
 												succs.insert(succp); //add to return set
 											}
 											else
 											{
-												fw_log << "Found passive intermediate successor: " << *succp << "\n";
+												fw_log << "Found passive intermediate successor: " << *succp << endl;
 												work.push(succp); //add to work list
 											}			
 										}
@@ -349,12 +349,12 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				
 				if(n.core_shared[succ->shared])
 				{
-					fw_log << "Found core successor: " << *succ << "\n";
+					fw_log << "Found core successor: " << *succ << endl;
 					succs.insert(succ); //add to return set
 				}
 				else
 				{
-					fw_log << "Found intermediate successor: " << *succ << "\n";
+					fw_log << "Found intermediate successor: " << *succ << endl;
 					work.push(succ); //add to work list
 				}
 				static set<Transition>ACT;
@@ -371,7 +371,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 	invariant_foreach(ostate_t s, succs, implies(resolve_omegas && resolved_once,s->unbounded_locals.empty()));
 	if(resolve_omegas && !resolved_once)
 	{
-		fw_log << "resolving successors" << "\n";
+		fw_log << "resolving successors" << endl;
 
 		Oreached_t succs_resolved;
 		
@@ -383,7 +383,7 @@ Oreached_t Post(ostate_t ag, Net& n, lowerset_vec& D, shared_cmb_deque_t& shared
 				Oreached_t resolved_state(p_c->resolve_omegas(max_fw_width)); //all states with width max_fw_width are blocked anyway
 				succs_resolved.insert(resolved_state.begin(),resolved_state.end());
 
-				fw_log << "resolved " << *p_c << " to "; copy_deref_range(succs_resolved.begin(), succs_resolved.end(), fw_log); fw_log << "\n";
+				fw_log << "resolved " << *p_c << " to "; copy_deref_range(succs_resolved.begin(), succs_resolved.end(), fw_log); fw_log << endl;
 
 				fw_state_blocked = true;
 				delete p_c;
@@ -465,6 +465,9 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	Oreached_t				Q;
 	OState_priority_queue_t W(forder);
 	
+	if(net.target <= n->init)
+		fw_safe = false, fw_log << "Target is covered by the initial state" << endl;
+
 	fw_state_blocked = false;
 	try
 	{
@@ -482,7 +485,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 			++f_its;
 			
-			fw_log << "Exploring: " << *cur << " (depth: " << cur->depth << ")" << "\n";
+			fw_log << "Exploring: " << *cur << " (depth: " << cur->depth << ")" << endl;
 			ctr_fw_maxdepth = max(ctr_fw_maxdepth,cur->depth), ctr_fw_maxwidth = max(ctr_fw_maxwidth,(unsigned)cur->size());
 
 			fw_qsz = Q.size();
@@ -506,19 +509,19 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 				fw_prj_found += c, 
 				fw_last_prj_width = cur->size(),
 				fw_last_prj_states = Q.size(),
-				fw_log << "found " << c << " projections" << "\n"
+				fw_log << "found " << c << " projections" << endl
 				;
 			
 			static bool first = true;
 			if(first && threshold_reached)
-				fw_log << "threshold reached" << "\n", first = false;
+				fw_log << "threshold reached" << endl, first = false;
 
 			foreach(ostate_t p_c, Post(cur, *n, *D, *shared_cmb_deque)) //allocates objects in "successors"
 			{
 				
 				if((threshold_reached) || (max_fw_width != OPT_STR_FW_WIDTH_DEFVAL && p_c->size() > max_fw_width)) //TEST
 				{
-					fw_log << *p_c << " blocked" << "\n";
+					fw_log << *p_c << " blocked" << endl;
 					fw_state_blocked = true;
 					delete p_c;
 					continue;
@@ -526,30 +529,30 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				OState* p = const_cast<OState*>(p_c); invariant(p->accel == nullptr);
 
-				fw_log << "checking successor " << *p << "\n";
+				fw_log << "checking successor " << *p << endl;
 
 				if(net.target.type != BState::invalid && n->target <= *p)
 				{
 					fw_safe = false;
-					fw_log << "Forward trace to target covering state found" << "\n";
+					fw_log << "Forward trace to target covering state found" << endl;
 
 					//print trace
 					ostate_t walker = cur;
 					
 					OState tmp(*p); if(net.S != net.S_input) tmp.unbounded_locals.erase(net.S_input);
-					main_inf << "counterexample" << "\n";
-					main_inf << tmp << "\n";
+					main_inf << "counterexample" << endl;
+					main_inf << tmp << endl;
 
 					if(walker->shared < net.S_input){
 						OState tmp(*walker); if(net.S != net.S_input) tmp.unbounded_locals.erase(net.S_input);
-						main_inf << tmp << "\n";
+						main_inf << tmp << endl;
 					}
 					while(walker->prede != nullptr)
 					{
 						if(walker->prede->shared < net.S_input) 
 						{
 							OState tmp(*walker->prede); if(net.S != net.S_input) tmp.unbounded_locals.erase(net.S_input);
-							main_inf << tmp << "\n";
+							main_inf << tmp << endl;
 						}
 						walker = walker->prede;
 					}
@@ -566,7 +569,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 						if(accel(walker, p)) //returns true if p was accelerated wrt. walker
 						{
 							++accelerations, max_accel_depth = max(max_accel_depth,depth), const_cast<OState*>(p)->accel = walker;
-							//fw_log << "accelerated to " << *p << " based on predecessor " << *walker << "\n";
+							//fw_log << "accelerated to " << *p << " based on predecessor " << *walker << endl;
 							break;
 						}
 
@@ -588,7 +591,7 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 
 				p->prede = cur, p->depth = 1 + cur->depth; 
 				if(Q.insert(p).second)
-					W.push(keyprio_pair(p)); // fw_log << "added" << "\n";
+					W.push(keyprio_pair(p)); // fw_log << "added" << endl;
 				else
 					delete p;
 
@@ -601,14 +604,14 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	}
 	catch(std::bad_alloc)
 	{
-		cerr << fatal("forward exploration reached the memory limit") << "\n"; 
+		cerr << fatal("forward exploration reached the memory limit") << endl; 
 		exe_state = MEMOUT;
 #ifndef WIN32
 		disable_mem_limit(); //to prevent bad allocations while printing statistics
 #endif
 	}
 
-	fw_log << "fw while exit" << "\n", fw_log.flush();
+	fw_log << "fw while exit" << endl, fw_log.flush();
 
 
 	////TODO: remove
@@ -634,43 +637,43 @@ void do_fw_bfs(Net* n, unsigned ab, lowerset_vec* D, shared_cmb_deque_t* shared_
 	}
 	
 	if(shared_fw_finised_first) 
-		/*finish_time = boost::posix_time::microsec_clock::local_time(), */fw_log << "fw first" << "\n", fw_log.flush();
+		/*finish_time = boost::posix_time::microsec_clock::local_time(), */fw_log << "fw first" << endl, fw_log.flush();
 	else 
-		fw_log << "fw not first" << "\n", fw_log.flush();
+		fw_log << "fw not first" << endl, fw_log.flush();
 	
 	if(tree_type != GTYPE_NONE) print_dot_search_graph(Q);
 
 	{
-		fw_stats << "\n";
-		fw_stats << "---------------------------------" << "\n";
-		fw_stats << "Forward statistics:" << "\n";
-		fw_stats << "---------------------------------" << "\n";
-		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << "\n";
+		fw_stats << endl;
+		fw_stats << "---------------------------------" << endl;
+		fw_stats << "Forward statistics:" << endl;
+		fw_stats << "---------------------------------" << endl;
+		fw_stats << "fw finished first               : " << (shared_fw_finised_first?"yes":"no") << endl;
 		fw_stats << "fw execution state              : "; 
 		switch(exe_state){
-		case TIMEOUT: fw_stats << "TIMEOUT" << "\n"; break;
-		case MEMOUT: fw_stats << "MEMOUT" << "\n"; break;
-		case RUNNING: fw_stats << "RUNNING" << "\n"; break;
-		case INTERRUPTED: fw_stats << "INTERRUPTED" << "\n"; break;
+		case TIMEOUT: fw_stats << "TIMEOUT" << endl; break;
+		case MEMOUT: fw_stats << "MEMOUT" << endl; break;
+		case RUNNING: fw_stats << "RUNNING" << endl; break;
+		case INTERRUPTED: fw_stats << "INTERRUPTED" << endl; break;
 		}
-		fw_stats << "\n";
-		fw_stats << "forward-reachable global states : " << Q.size() << "\n";
-		fw_stats << "total forward time              : " << (((float)(boost::posix_time::microsec_clock::local_time() - fw_start_time).total_microseconds())/1000000) << "\n";
-		fw_stats << "\n";
-		fw_stats << "projections found               : " << D->size() << "\n";
-		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << "\n";
-		fw_stats << "width of last projections       : " << fw_last_prj_width << "\n";
-		fw_stats << "states at last projections      : " << fw_last_prj_states << "\n";
-		fw_stats << "\n";
-		fw_stats << "accelerations                   : " << accelerations << "\n";
-		fw_stats << "max acceleration depth checked  : " << max_depth_checked << "\n";
-		fw_stats << "max acceleration depth          : " << max_accel_depth << "\n";
-		fw_stats << "---------------------------------" << "\n";
-		fw_stats << "max. forward depth checked      : " << ctr_fw_maxdepth << "\n";
-		fw_stats << "max. forward width checked      : " << ctr_fw_maxwidth << "\n";
-		fw_stats << "---------------------------------" << "\n";
-		fw_stats << "state blocked                   : " << (fw_state_blocked?"yes":"no") << "\n";
-		fw_stats << "---------------------------------" << "\n";
+		fw_stats << endl;
+		fw_stats << "forward-reachable global states : " << Q.size() << endl;
+		fw_stats << "total forward time              : " << (((float)(boost::posix_time::microsec_clock::local_time() - fw_start_time).total_microseconds())/1000000) << endl;
+		fw_stats << endl;
+		fw_stats << "projections found               : " << D->size() << endl;
+		fw_stats << "time to find projections        : " << (((float)(last_new_prj_found - fw_start_time).total_microseconds())/1000000) << endl;
+		fw_stats << "width of last projections       : " << fw_last_prj_width << endl;
+		fw_stats << "states at last projections      : " << fw_last_prj_states << endl;
+		fw_stats << endl;
+		fw_stats << "accelerations                   : " << accelerations << endl;
+		fw_stats << "max acceleration depth checked  : " << max_depth_checked << endl;
+		fw_stats << "max acceleration depth          : " << max_accel_depth << endl;
+		fw_stats << "---------------------------------" << endl;
+		fw_stats << "max. forward depth checked      : " << ctr_fw_maxdepth << endl;
+		fw_stats << "max. forward width checked      : " << ctr_fw_maxwidth << endl;
+		fw_stats << "---------------------------------" << endl;
+		fw_stats << "state blocked                   : " << (fw_state_blocked?"yes":"no") << endl;
+		fw_stats << "---------------------------------" << endl;
 		fw_stats.flush();
 	}
 

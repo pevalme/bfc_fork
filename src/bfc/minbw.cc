@@ -33,7 +33,8 @@ case neq_nge_nle:	ctr_ismin++, ctr_isnew++; break;}
 	case neq_ge:	bw_log << ">       : delete (try wake-up)" << endl; break;\
 	case neq_le:	bw_log << "<       : use and discard larger" << endl; break;\
 	default:		bw_log << "< or != : use" << endl; break; }
-#define INVARIANT1 invariant(std::all_of(r.ex.begin(),r.ex.end(),[&e,&W](bstate_t e){ return ((e->nb == nullptr) || (e->nb->status == BState::pending && W.contains(make_pair(e,e->size()))) || (e->nb->status == BState::processed && !W.contains(make_pair(e,e->size())))); }))
+#define INVARIANT1 invariant(std::all_of(r.ex.begin(),r.ex.end(),[&e,&W](bstate_t e){ return ((e->nb == nullptr) || (e->nb->status == BState::pending && W.contains(make_pair(e,e->prio()))) || (e->nb->status == BState::processed && !W.contains(make_pair(e,e->prio())))); }))
+//#define INVARIANT2 invariant(1)
 
 unsigned count_vertices(vec_ac_t& M)
 {
@@ -69,8 +70,8 @@ void minprint_dot_search_graph(vec_ac_t& M, unsigned ctr_wit, string ext, string
 						}
 
 				switch(graph_type){
-				case GTYPE_DOT: q->mindot(out,q==mark), out << endl; break;
-				case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << ' ' << '[' << "lblstyle=" << '"' << "bwnode" << (min_state?",minstate":",nonminstate") << '"' << ",texlbl=" << '"' << q->str_latex() << '"' << ']' << ';' << "\n"; }
+				case GTYPE_DOT: q->mindot(out,q==mark,min_state?"plaintext":"ribosite"), out << endl; break;
+				case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << ' ' << '[' << "lblstyle=" << '"' << "bwnode" << (min_state?",minstate":",nonminstate") << '"' << ",texlbl=" << '"' << q->str_latex() << '"' << ']' << ';' << endl; }
 			}
 
 	for(auto& u : M)
@@ -266,7 +267,7 @@ void make_target(bstate_t& t, vec_ac_t& M, work_pq& W, lst_bs_t& L, Net& n)
 	case neq_ge:									t = *M[n.target.shared].case_insert(&n.target).ex.begin(), bw_log << "smaller target exists -> use it" << endl;	break; //take some strictly smaller existing element as target
 	case neq_nge_nle: case neq_le__or__neq_nge_nle:	t = new BState(n.target), M[n.target.shared].insert_incomparable(t), bw_log << "no smaller target exists -> added" << endl; break; } //add a new node for the target
 	
-	invariant(t->nb == nullptr), t->nb = new BState::neighborhood_t, t->nb->status = BState::pending, t->nb->li = L.insert(L.end(),t), W.push(make_pair(t,t->size())), t->nb->gdepth = 0, t->nb->ini = *t <= n.init;
+	invariant(t->nb == nullptr), t->nb = new BState::neighborhood_t, t->nb->status = BState::pending, t->nb->li = L.insert(L.end(),t), W.push(make_pair(t,t->prio())), t->nb->gdepth = 0, t->nb->ini = *t <= n.init;
 	
 	//TODO: use this!!!
 	//invariant(t->nb == nullptr), t->nb = new BState::neighborhood_t, t->nb->ini = *t <= n.init, t->nb->status = BState::pending, t->nb->li = L.insert(L.end(),t), W.push(make_pair(t,t->nb->ini?work_pq::max:t->size())), t->nb->gdepth = 0;
@@ -346,7 +347,7 @@ void adjust(bstate_t pi, unsigned modei, bstate_t& t, vec_ac_t& M, work_pq& W, l
 		w = work.top(), work.pop(), bw_log << "adjust " << *p << endl;
 
 		invariant(iff(M[p->shared].manages(p),(pi != p) || (erase && pi == p)));
-		invariant((p->nb == nullptr) || (!(p->nb == nullptr) && p->nb->status == BState::pending && W.contains(make_pair(p,p->size()))) || (!(p->nb == nullptr) && p->nb->status == BState::processed && !W.contains(make_pair(p,p->size()))));
+		invariant((p->nb == nullptr) || (!(p->nb == nullptr) && p->nb->status == BState::pending && W.contains(make_pair(p,p->prio()))) || (!(p->nb == nullptr) && p->nb->status == BState::processed && !W.contains(make_pair(p,p->prio()))));
 
 		bstate_t u;
 		switch(m)
@@ -391,37 +392,71 @@ void adjust(bstate_t pi, unsigned modei, bstate_t& t, vec_ac_t& M, work_pq& W, l
 					work.push(make_pair(u,discarding)), bw_log << *u << " added as 'discarding'" << endl;
 				}
 			}
-
+			invariant(m == discarding || m == pruning);
 			invariant((p->nb == nullptr) || ((p->nb->pre.empty()) && (p->nb->cpre.empty()) && (p->nb->suc.empty()) && (p->nb->csuc.empty()))); //vertices satisfying p->nb == nullptr may be reported by the forward search
+#if 0
 			if(erase || p != pi) 
 				M[p->shared].erase(p), bw_log << "erase " << *p << endl;
-			if(!(p->nb == nullptr))
+#else
+			if(erase || p != pi) 
+			{
+				invariant((m == pruning || (m == discarding && !(p->size() <= C.K))) == (m == pruning || !(p->size() <= C.K)));
+				if(m == pruning || p->size() >= C.K)
+					M[p->shared].erase(p), bw_log << "erase " << *p << endl; //keep states p that (i) satisfy |p|<=k and (ii) are not yet known to be coverable in M so we detect them if state state x > p is added later on
+				else
+					bw_log << "erase not " << *p << " (a potentially uncoverable candidate)" << endl;
+			}
+#endif
+
+			if(p->nb != nullptr)
 			{
 				L.erase(p->nb->li), bw_log << "de-list " << *p << endl;
 				if(p->nb->status == BState::pending) 
-					W.erase(make_pair(p,p->size())), bw_log << "de-work " << *p << endl;
+					W.erase(make_pair(p,p->prio())), bw_log << "de-work " << *p << endl;
 			}
 
-			if(m == pruning && p->size() <= C.K) //must be done after p was removed from M, but before a new target is inserted and p is deleted
+			if(p->size() <= C.K)
 			{
-				bool added;
-				++ctr_pit;
-				for(const cmb_node_p n_ : C.diff_insert(p->shared,cmb_node(p->bounded_locals.begin(),p->bounded_locals.end(),0,nullptr)).second)
-					invariant(!M[p->shared].manages(p)),u = new BState(p->shared,n_->c.begin(),n_->c.end()), added = M[u->shared].insert(u).second, invariant(added), invariant(u->nb == nullptr), bw_log << *u << " added" << endl;
+				if(m == pruning) //must be done after p was removed from M, but before a new target is inserted and p is deleted
+				{
+					bool added;
+					++ctr_pit;
+					for(const cmb_node_p n_ : C.diff_insert(p->shared,cmb_node(p->bounded_locals.begin(),p->bounded_locals.end(),0,nullptr)).second)
+						invariant(!M[p->shared].manages(p)),u = new BState(p->shared,n_->c.begin(),n_->c.end()), added = M[u->shared].insert(u).second, invariant(added), invariant(u->nb == nullptr), bw_log << *u << " added" << endl;
+				}
+				else if(m == discarding) //if |p|<=k and p is not-yet-know-to-be-coverable it must be readded if a greater state is reached; therefore it must not be removed from M, nor be deleted
+				{
+					bw_log << "reset candidate " << *p << endl; //reset p to an "initial-node", so p is as if it was never considered during the search
+					if(p->nb != nullptr)
+						delete p->nb, p->nb = nullptr, bw_log << "deleted nb-field of " << *p << endl;; //todo: check whether we can really delete it
+					invariant(p->type == BState::def);
+					invariant(p->nb == nullptr);
+					invariant(p->bl == nullptr);
+					invariant(p->us == nullptr);
+					invariant(p->fl == 0);
+				}
 			}
 
 			if(p == t && *t == n.target) t = nullptr, bw_log << "target is coverable, set to null" << endl;
 			else if(p == t) make_target(t,M,W,L,n), new_target = true;
 
-			if(m == pruning) D.insert(p), bw_log << "marked coverable" << endl;
-			else delete p, bw_log << "deleted" << endl;
-
+			invariant((!(m == pruning || !(p->size() <= C.K))) == (m == discarding && p->size() <= C.K));
+			if(m == pruning) 
+			{
+				invariant(!M[p->shared].manages(p));
+				D.insert(p), bw_log << "marked coverable" << endl;
+			}
+			else if(p->size() > C.K) 
+			{
+				invariant(m == discarding);
+				delete p, bw_log << "deleted" << endl; //non-candidate vertices that are discarded can be removed
+			}
 			break;
 
 		case restarting: bw_log << "restarting" << endl;
 			for(auto ui = p->nb->li; ui != L.end() && (u=*ui,1); ++ui)
 				if(u->nb->status == BState::processed) 
-					u->nb->status = BState::pending, W.push(make_pair(u,u->size())), bw_log << "restarting " << *u << endl;
+					u->nb->status = BState::pending, W.push(make_pair(u,u->prio())), bw_log << "restarting " << *u << endl;
 		}
 	}
 
@@ -456,8 +491,8 @@ void final_stats()
 	
 	fwbw_mutex.lock(), (shared_fw_done) || (shared_bw_finised_first = 1), fwbw_mutex.unlock();
 
-	if(shared_bw_finised_first) bw_log << "bw first" << "\n", bw_log.flush();
-	else bw_log << "bw not first" << "\n", bw_log.flush();
+	if(shared_bw_finised_first) bw_log << "bw first" << endl, bw_log.flush();
+	else bw_log << "bw not first" << endl, bw_log.flush();
 
 	{
 		bw_stats << endl;
@@ -531,6 +566,10 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 			
 			w = W.top().first, W.pop(), invariant(!(w->nb == nullptr) && w->nb->status == BState::pending), w->nb->status = BState::processed;
 
+			//todo: this assumes a specific order (same for the min below)
+			//invariant_for(x,W.m.left,implies(!w->nb->ini,!x->nb->ini && w->prio() <= x.first->prio())); //todo: merge into INVARIANT1 macro
+			invariant_for(x,W.m.left,w->prio() <= x.first->prio());
+			
 			invariant(iff(w->nb->ini,(D.find(w) != D.end() || *w <= n->init)));
 			if(M[w->shared].relation(w,true) == neq_ge)
 			{
@@ -559,14 +598,42 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 
 				if(r.case_type == eq || r.case_type == neq_ge) delete p;
 
-				if(r.case_type == eq) p = *r.ex.begin();
-				else if(r.case_type == neq_ge) if(!all_of(r.ex.begin(),r.ex.end(),[&p,&r](bstate_t e){ return (e->nb == nullptr) && (p = e,1); })) continue;
-				else if(r.case_type == neq_le) for(const bstate_t& e : r.ex) adjust(e,discarding,t,M,W,L,*C,false,*n,D);
+				const bool SINGLE_SAT = 0;
+				if(!r.ex.size())
+				{
+					p->nb = new BState::neighborhood_t, p->nb->ini = D.find(p) != D.end() || *p <= n->init, p->nb->status = BState::pending, p->nb->li = L.insert(L.end(),p), W.push(make_pair(p,p->prio())), p->nb->gdepth = w->nb->gdepth + 1, bw_log << "created new vertex" << endl;
+					w->nb->pre.insert(p), p->nb->suc.insert(w), bw_log << "edge " << *p << "---->" << *w  << endl;
+				}
+				else
+				{
+					if(SINGLE_SAT)
+					{
+						if(r.case_type == eq) p = *r.ex.begin();
+						else if(r.case_type == neq_ge) if(!all_of(r.ex.begin(),r.ex.end(),[&p,&r](bstate_t e){ return (e->nb == nullptr) && (p = e,1); })) continue;
+						else if(r.case_type == neq_le) for(const bstate_t& e : r.ex) adjust(e,discarding,t,M,W,L,*C,false,*n,D);
 
-				if(p->nb == nullptr) p->nb = new BState::neighborhood_t, p->nb->ini = D.find(p) != D.end() || *p <= n->init, p->nb->status = BState::pending, p->nb->li = L.insert(L.end(),p), W.push(make_pair(p,p->nb->ini?work_pq::max:p->size())), p->nb->gdepth = w->nb->gdepth + 1, bw_log << "created new vertex" << endl;
-				
-				if(r.case_type == neq_ge) w->nb->cpre.insert(p), p->nb->csuc.insert(w), bw_log << "edge " << *p << "- - >" << *w  << endl;
-				else w->nb->pre.insert(p), p->nb->suc.insert(w), bw_log << "edge " << *p << "---->" << *w  << endl;
+						if(p->nb == nullptr)
+						{
+							p->nb = new BState::neighborhood_t, p->nb->ini = D.find(p) != D.end() || *p <= n->init, p->nb->status = BState::pending, p->nb->li = L.insert(L.end(),p), W.push(make_pair(p,p->prio())), p->nb->gdepth = w->nb->gdepth + 1, bw_log << "created new vertex" << endl;
+						}
+
+						if(r.case_type == neq_ge) w->nb->cpre.insert(p), p->nb->csuc.insert(w), bw_log << "edge " << *p << "- - >" << *w  << endl;
+						else w->nb->pre.insert(p), p->nb->suc.insert(w), bw_log << "edge " << *p << "---->" << *w  << endl;
+					}{
+						for(auto& p : r.ex)
+						{
+							if(r.case_type == eq);
+							else if(r.case_type == neq_ge && p->nb != nullptr) continue;
+							else if(r.case_type == neq_le) adjust(p,discarding,t,M,W,L,*C,false,*n,D);
+
+							if(p->nb == nullptr)
+								p->nb = new BState::neighborhood_t, p->nb->ini = D.find(p) != D.end() || *p <= n->init, p->nb->status = BState::pending, p->nb->li = L.insert(L.end(),p), W.push(make_pair(p,p->prio())), p->nb->gdepth = w->nb->gdepth + 1, bw_log << "created new vertex" << endl;
+
+							if(r.case_type == neq_ge) w->nb->cpre.insert(p), p->nb->csuc.insert(w), bw_log << "edge " << *p << "- - >" << *w  << endl;
+							else w->nb->pre.insert(p), p->nb->suc.insert(w), bw_log << "edge " << *p << "---->" << *w  << endl;
+						}
+					}
+				}
 			}
 		}
 
@@ -622,7 +689,7 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 	}
 	catch(std::bad_alloc)
 	{
-		cerr << fatal("backward exploration reached the memory limit") << "\n"; 
+		cerr << fatal("backward exploration reached the memory limit") << endl; 
 		exe_state = MEMOUT;
 #ifndef WIN32
 		disable_mem_limit(); //to prevent bad allocations while printing statistics

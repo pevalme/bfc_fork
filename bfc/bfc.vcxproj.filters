@@ -20,6 +20,7 @@
     <ClCompile Include="..\src\core\net.cc" />
     <ClCompile Include="..\src\core\antichain_comb.cc" />
     <ClCompile Include="..\src\bfc\minbw.cc" />
+    <ClCompile Include="..\src\bfc\ticketabs.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\bfc\bfc.interrupts.h">
@@ -89,6 +90,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\bfc\minbw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\bfc\ticketabs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -229,12 +229,18 @@ string BState::id_str() const
 
 string BState::str_latex() const 
 {
+	string ret;
 	string l_part, sep;
 	foreach(local_t l, set<local_t>(bounded_locals.begin(),bounded_locals.end()))
 		for(unsigned i=1; i<=bounded_locals.count(l); ++i) //l_part += (sep + boost::lexical_cast<string>(l) + '^' + boost::lexical_cast<string>(bounded_locals.count(l))), sep = ',';
-			l_part += (sep + "\\LOCALSTATE{" + boost::lexical_cast<string>(l) + "}"), sep = ',';
+		{
+			//l_part += (sep + "\\LOCALSTATE{" + boost::lexical_cast<string>(l) + "}"), sep = ',';
+			ret += sep;
+			ret += "$\\LOCALSTATE{" + boost::lexical_cast<string>(l) + "}$", sep = "\\\\";
+		}
 
-	return (string)"$" + "\\graphconf" +  '{' + "\\SHAREDSTATE{" + boost::lexical_cast<string>(shared) + '}' + '}' + '{' + l_part + '}' + '$';
+	//return (string)"$" + "\\graphconf" +  '{' + "\\SHAREDSTATE{" + boost::lexical_cast<string>(shared) + '}' + '}' + '{' + l_part + '}' + '$';
+	return ret;
 }
 
 ostream& BState::mindot(std::ostream& out, bool mark, string shape) const

@@ -13,6 +13,7 @@
   <ItemGroup>
     <ClCompile Include="..\src\bfc\bfc.cc" />
     <ClCompile Include="..\src\bfc\minbw.cc" />
+    <ClCompile Include="..\src\bfc\ticketabs.cc" />
     <ClCompile Include="..\src\core\antichain.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">false</ExcludedFromBuild>
     </ClCompile>
@@ -37,6 +38,7 @@
     <ClInclude Include="..\src\bfc\bw.out.h" />
     <ClInclude Include="..\src\bfc\fw.h" />
     <ClInclude Include="..\src\bfc\minbw.h" />
+    <ClInclude Include="..\src\bfc\ticketabs.h" />
     <ClInclude Include="..\src\core\antichain.h" />
     <ClInclude Include="..\src\core\antichain_comb.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">false</ExcludedFromBuild>

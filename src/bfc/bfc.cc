@@ -450,7 +450,11 @@ int main(int argc, char* argv[])
 #define stop_time(cmd,p,desc) p = microsec_clock::local_time(), cmd, main_tme << desc << setprecision(2) << fixed << time_diff_float(p) << endl
 		ptime pt;
 
+#ifdef TICKETABS
+		ticketabs().initial_net().swap(net);
+#else
 		stop_time(Net(filename,target_fn,init_fn,prj_all).swap(net),pt,"parse time: ");
+#endif
 
 		if(!prj_all) 
 			stop_time(net.reduce(prj_all),pt,"reduce time: ");

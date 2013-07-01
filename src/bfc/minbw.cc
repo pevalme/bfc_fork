@@ -71,7 +71,7 @@ void minprint_dot_search_graph(vec_ac_t& M, unsigned ctr_wit, string ext, string
 
 				switch(graph_type){
 				case GTYPE_DOT: q->mindot(out,q==mark,min_state?"plaintext":"ribosite"), out << endl; break;
-				case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << ' ' << '[' << "lblstyle=" << '"' << "bwnode" << (min_state?",minstate":",nonminstate") << '"' << ",texlbl=" << '"' << q->str_latex() << '"' << ']' << ';' << endl; }
+				case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << ' ' << '[' << "lblstyle=" << '"' << "bwnode" << (min_state?",minstate":",nonminstate") << ",align=center" << '"' << ",texlbl=" << '"' << q->str_latex() << '"' << ']' << ';' << endl; }
 			}
 
 	for(auto& u : M)
@@ -103,7 +103,17 @@ Breached_p_t Pre(const BState& s, Net& n)
 
 	Breached_p_t pres; //set of successors discovered for s so far (a set is used to avoid reprocessing)
 	
+#ifdef TICKETABS
+	static ticketabs ta; 
+	auto ticket_adjs		= ta.get_adjacency_lists(s);
+	n.adjacency_list		= ticket_adjs.first;
+	//n.adjacency_list_inv	= ticket_adjs.second;
+
+	pair<Net::vv_adjs_t,Net::vvl_adjs_t> T = n.get_backward_adj_2();
+#else
 	static pair<Net::vv_adjs_t,Net::vvl_adjs_t> T = n.get_backward_adj_2();
+#endif
+
 	Net::vv_adjs_t& X = T.first;
 	Net::vvl_adjs_t& Y = T.second;
 	
@@ -538,6 +548,11 @@ void final_stats()
 extern void disable_mem_limit();
 void minbw(Net* n, const unsigned k, complement_vec* C)
 {
+
+	//boost::this_thread::sleep(boost::posix_time::milliseconds(5000));
+
+	//TODO: Sync iteration 1 muss vor der ersten Iteration erfolgen!!!
+
 	try
 	{
 		work_pq							W; //working set
@@ -557,8 +572,11 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 		make_target(t,M,W,L,*n);
 
 		bw_log << "Searching..." << endl, bw_log.flush();
-		for(; !W.empty() && (!shared_fw_done || WAIT_NOT_FOR_FW) && exe_state == RUNNING; sync(M,*C,W,t,L,*n,D))
+		//for(; !W.empty() && (!shared_fw_done || WAIT_NOT_FOR_FW) && exe_state == RUNNING; sync(M,*C,W,t,L,*n,D))
+		for(; !W.empty() && (!shared_fw_done || WAIT_NOT_FOR_FW) && exe_state == RUNNING; )
 		{
+			sync(M,*C,W,t,L,*n,D);
+
 			//boost::this_thread::sleep(boost::posix_time::milliseconds(100));
 			ctr_wit++;
 			bw_log << "+++++++++++++++ Work set iteration " << ctr_wit << " +++++++++++++++" << endl;
@@ -598,7 +616,7 @@ void minbw(Net* n, const unsigned k, complement_vec* C)
 
 				if(r.case_type == eq || r.case_type == neq_ge) delete p;
 
-				const bool SINGLE_SAT = 0;
+				const bool SINGLE_SAT = 1;
 				if(!r.ex.size())
 				{
 					p->nb = new BState::neighborhood_t, p->nb->ini = D.find(p) != D.end() || *p <= n->init, p->nb->status = BState::pending, p->nb->li = L.insert(L.end(),p), W.push(make_pair(p,p->prio())), p->nb->gdepth = w->nb->gdepth + 1, bw_log << "created new vertex" << endl;

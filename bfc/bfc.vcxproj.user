@@ -8,8 +8,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>.\ticketabs_N6M3_net_mocinc.tts --init "0/24" --target "1|25,25" --stats -dB -k0 --prj-all --bw-log --force-flush</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--target main.prop --force-flush --bw-log -dB main.tts</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\anomaly\monabs_popl\bw_proof_infthreads\graph</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\tiny_vs</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

@@ -95,22 +95,28 @@ struct Net{
 
 	/* Transition relation */	
 	string filename, targetname, initname;
-	adj_t adjacency_list, adjacency_list_inv;
+	adj_t adjacency_list; //, adjacency_list_inv;
 
-	vector<bool> core_shared;
-
+	/* Misc */
+public: //TODO: remove
+	mutable bool net_changed;
+	
 	/* Output */	
 	ostream_sync reduce_log; //reduction
 
 	/* ---- Constructors ---- */
 	Net(const Net &);
 	Net();
-	Net(shared_t, local_t, OState, BState, adj_t, adj_t, bool);
+	//Net(shared_t, local_t, OState, BState, adj_t, adj_t, bool);
+	Net(shared_t, local_t, OState, BState, adj_t, bool);
 	Net(string, string, string, bool);
 	
 	/* ---- Access ---- */	
 	s_adjs_t get_backward_adj() const;
 	std::pair<vv_adjs_t,vvl_adjs_t> get_backward_adj_2() const;
+
+	adj_t& adjacency_list_inv() const;
+	vector<bool> core_shared;
 
 	stats_t get_stats(bool sccnetstats) const;
 

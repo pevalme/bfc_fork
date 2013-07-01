@@ -5,7 +5,7 @@ CPPFLAGS=-O3 -I./src/core -std=c++11
 LDFLAGS=--static
 LDLIBS=-lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options
 
-SRCS=./src/core/net.cc ./src/core/trans.cc ./src/core/tstate.cc ./src/core/antichain.cc ./src/core/antichain_comb.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/bfc/minbw.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc
+SRCS=./src/core/net.cc ./src/core/trans.cc ./src/core/tstate.cc ./src/core/antichain.cc ./src/core/antichain_comb.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/bfc/minbw.cc ./src/bfc/ticketabs.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc
 OBJS=$(subst .cc,.o,$(SRCS))
 
 all: bfc

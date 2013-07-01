@@ -72,6 +72,7 @@ Net::Net(const Net & other): reduce_log(cerr.rdbuf())
 	assert(0);
 }
 
+/*
 Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, adj_t adjacency_list_inv_, bool prj_all)
 	: S_input(-1), L_input(-1), S(S_), L(L_), init(init_), target(target_), adjacency_list(adjacency_list_), adjacency_list_inv(adjacency_list_inv_), reduce_log(cerr.rdbuf())
 { 
@@ -85,8 +86,86 @@ Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_
 
 	core_shared = get_core_shared(prj_all);
 }
+*/
 
-Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filename(net_fn), targetname(target_fn), initname(init_fn), reduce_log(cerr.rdbuf())
+//TODO: replace upper version with this one
+Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, bool prj_all)
+	: S_input(-1), L_input(-1), S(S_), L(L_), init(init_), target(target_), adjacency_list(adjacency_list_), reduce_log(cerr.rdbuf()), net_changed(true)
+{ 
+	//remove irrelevant transfers in adjacency_list
+	for(auto& a : adjacency_list)
+	{
+		for(auto& b : a.second)
+			for(auto c = b.second.begin(); c != b.second.end(); )
+				if(c->second.size() == 1 && c->second.find(c->first) != c->second.end()) c = b.second.erase(c); //remove 0 ~> 0 since 0 not~> l for all l != 0
+				else ++c; //keep 0 ~> 0, since 0 ~> l for some l != 0
+	}
+
+	core_shared = get_core_shared(prj_all);
+}
+
+Net::adj_t& Net::adjacency_list_inv() const
+{
+
+	static adj_t adjacency_list_inv;
+
+	if(net_changed) 
+	{
+		//create inverse adjacency list
+		transfers_t transfers_inv;
+		for(auto& a : adjacency_list)
+		{
+			for(auto& b : a.second)
+			{
+				transfers_t transfers_inv;
+				for(auto& c : b.second) //b.second has type transfers_t
+				{
+					for(auto& d : c.second)
+						transfers_inv[d].insert(c.first); //trans_from	= c.first, transfer_to	= d
+				}
+				adjacency_list_inv[b.first][a.first] = transfers_inv; //src = a.first, tar = 
+			}
+		}
+		net_changed = false;
+	}	
+	return adjacency_list_inv;
+}
+
+//http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
+std::istream& safeGetline(std::istream& is, std::string& t)
+{
+    t.clear();
+
+    // The characters in the stream are read one-by-one using a std::streambuf.
+    // That is faster than reading them one-by-one using the std::istream.
+    // Code that uses streambuf this way must be guarded by a sentry object.
+    // The sentry object performs various tasks,
+    // such as thread synchronization and updating the stream state.
+
+    std::istream::sentry se(is, true);
+    std::streambuf* sb = is.rdbuf();
+
+    for(;;) {
+        int c = sb->sbumpc();
+        switch (c) {
+        case '\n':
+            return is;
+        case '\r':
+            if(sb->sgetc() == '\n')
+                sb->sbumpc();
+            return is;
+        case EOF:
+            // Also handle the case when the last line has no line ending
+            if(t.empty())
+                is.setstate(std::ios::eofbit);
+            return is;
+        default:
+            t += (char)c;
+        }
+    }
+}
+
+Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filename(net_fn), targetname(target_fn), initname(init_fn), reduce_log(cerr.rdbuf()), net_changed(true)
 {
 	
 	//parse intial state
@@ -134,7 +213,8 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 
 		stringstream in;
 		string line2;
-		while(getline(orig, line2 = "")) 
+		while(!safeGetline(orig, line2 = "").eof()) //should work for windows and linux line endings
+		//while(getline(orig, line2 = "")) 
 		{
 			const size_t comment_start = line2.find("#");
 			in << ( comment_start == string::npos ? line2 : line2.substr(0, comment_start) ) << endl; 
@@ -149,7 +229,9 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 		unsigned int id = 0;
 		while(in)
 		{
-			getline (in,line);
+
+			safeGetline(in,line);
+			//getline (in,line);
 
 			if(target_fn == string()) //read first target from input file
 			{
@@ -191,7 +273,7 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 				target(s2, l2);
 
 			//decode passive transfer (optional)
-			transfers_t transfers, transfers_inv;
+			transfers_t transfers; //, transfers_inv;
 			while(i != tok.end())
 			{
 				local_t l,lp;
@@ -208,7 +290,7 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 				if(l >= L_input || lp >= L_input)
 					throw logic_error("invalid source or target transfer state");
 
-				transfers[l].insert(lp), transfers_inv[lp].insert(l);
+				transfers[l].insert(lp); //, transfers_inv[lp].insert(l);
 			}
 
 			if(s1 == s2 && l1 == l2)
@@ -224,16 +306,16 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 			{
 			case thread_transition:
 				{
-					adjacency_list[source][target]=transfers, adjacency_list_inv[target][source]=transfers_inv;
+					adjacency_list[source][target]=transfers; //, adjacency_list_inv[target][source]=transfers_inv;
 				}
 				break;
 			case transfer_transition:
 				{
-					if(!transfers.empty()) throw logic_error("passive transfers no permitted in transfer transitions");
+					if(!transfers.empty()) throw logic_error("passive transfers not permitted in transfer transitions");
 					//s1   l1 ~> s2  l2 == s1   p  -> s2   p l1 ~> l2
 					if(L == L_input) init.unbounded_locals.insert(L++); //reserve local for thread pool (to rewrite transfer/spawn transitions)
 					Thread_State t1(source.shared,L-1), t2(target.shared,L-1);
-					adjacency_list[t1][t2][source.local].insert(target.local), adjacency_list_inv[t2][t1][target.local].insert(source.local);
+					adjacency_list[t1][t2][source.local].insert(target.local); //, adjacency_list_inv[t2][t1][target.local].insert(source.local);
 				}
 				break;
 			case spawn_transition:
@@ -249,9 +331,9 @@ Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filenam
 						source2(is, L-1), 
 						target2(s2, l2);
 
-					adjacency_list[source1][target1]=transfers_t(), adjacency_list_inv[target1][source1]=transfers_t();
+					adjacency_list[source1][target1]=transfers_t(); //, adjacency_list_inv[target1][source1]=transfers_t();
 					++id;
-					adjacency_list[source2][target2]=transfers_t(), adjacency_list_inv[target2][source2]=transfers_t();
+					adjacency_list[source2][target2]=transfers_t(); //, adjacency_list_inv[target2][source2]=transfers_t();
 				}
 				break;
 			}
@@ -284,7 +366,7 @@ Net::s_adjs_t Net::get_backward_adj() const
 		for(auto& b : a.second)
 		{
 			const Thread_State& source = a.first, &target = b.first;
-			auto f = adjacency_list_inv.find(target);
+			auto f = adjacency_list_inv().find(target);
 			auto g = f->second.find(source);
 			const transfers_t& transfers = b.second;
 			const transfers_t& transfers_inv = g->second;
@@ -307,7 +389,8 @@ pair<Net::vv_adjs_t,Net::vvl_adjs_t> Net::get_backward_adj_2() const
 		{
 			const Thread_State& u = a.first;
 			const Thread_State& v = b.first;
-			const transfers_t&	tb = adjacency_list_inv.at(v).at(u);
+
+			const transfers_t&	tb = adjacency_list_inv().at(v).at(u);
 			const transfers_t&	tf = adjacency_list.at(u).at(v);
 			
 			if(u.shared != v.shared || !tb.empty())
@@ -341,7 +424,7 @@ vector<bool> Net::get_core_shared(bool prj_all, bool ignore_unused_only) const
 			for(auto& b : a.second)
 			{
 				const Thread_State& source = a.first, &target = b.first;
-				auto f = adjacency_list_inv.find(target);
+				auto f = adjacency_list_inv().find(target);
 				auto g = f->second.find(source);
 				const transfers_t& transfers = b.second;
 				const transfers_t& transfers_inv = g->second;
@@ -432,7 +515,7 @@ void Net::reduce(bool prj_all)
 		for(auto& b : a.second)
 		{
 			const Thread_State& source = a.first, &target = b.first;
-			const transfers_t& transfers = b.second, &transfers_inv = adjacency_list_inv[target][source];
+			const transfers_t& transfers = b.second; //, &transfers_inv = adjacency_list_inv[target][source];
 
 			lcur_lnex_to_shared[source.local][target.local].insert(target.shared);
 			l_to_s_inv[target.local][source.local].insert(target.shared);
@@ -522,7 +605,8 @@ void Net::reduce(bool prj_all)
 	reduce_log << endl;
 
 	//reduce net by removing non-core local states 
-	adj_t processed, processed_inv;
+	//adj_t processed, processed_inv;
+	adj_t processed;
 	typedef set<pair<Thread_State,Thread_State> > s_t;
 	s_t seen;
 	stack<s_t::const_iterator> work;
@@ -546,7 +630,8 @@ void Net::reduce(bool prj_all)
 					x(pS[s.first.shared],p[s.first.local]),
 					y(pS[t.first.shared],p[t.first.local]);
 
-				processed[x][y]=n, processed_inv[y][x]=n_inv;
+				//processed[x][y]=n, processed_inv[y][x]=n_inv;
+				processed[x][y]=n;
 			}
 			else
 			{
@@ -577,7 +662,8 @@ void Net::reduce(bool prj_all)
 				continue;
 			}
 
-			processed[x][y] = transfers_t(), processed_inv[y][x] = transfers_t(), reduce_log << "core" << endl;
+			//processed[x][y] = transfers_t(), processed_inv[y][x] = transfers_t(), reduce_log << "core" << endl;
+			processed[x][y] = transfers_t(), reduce_log << "core" << endl;
 		}
 		else if(!core_local[u.local] && !core_local[v.local])
 			reduce_log << "no core" << endl;
@@ -586,8 +672,8 @@ void Net::reduce(bool prj_all)
 			set<Thread_State> pre_u, post_v;
 
 			if(core_local[u.local]) pre_u.insert(u);
-			else if(adjacency_list_inv.find(u) == adjacency_list_inv.end()){ reduce_log << "no pre" << endl; continue; }
-			else for( auto& p : adjacency_list_inv[u] ) pre_u.insert(p.first);
+			else if(adjacency_list_inv().find(u) == adjacency_list_inv().end()){ reduce_log << "no pre" << endl; continue; }
+			else for( auto& p : adjacency_list_inv()[u] ) pre_u.insert(p.first);
 
 			if(core_local[v.local]) post_v.insert(v);
 			else if(adjacency_list.find(v) == adjacency_list.end()){ reduce_log << "no post" << endl; continue; }
@@ -616,7 +702,8 @@ void Net::reduce(bool prj_all)
 	for(local_t l : target.bounded_locals) target_new.bounded_locals.insert(p[l]);
 
 	//return
-	Net(S_new,L_new,init_new,target_new,processed,processed_inv,prj_all).swap(*this);
+	//Net(S_new,L_new,init_new,target_new,processed,processed_inv,prj_all).swap(*this);
+	Net(S_new,L_new,init_new,target_new,processed,prj_all).swap(*this);
 
 }
 
@@ -634,9 +721,10 @@ void Net::swap(Net& other)
 		targetname.swap(other.targetname);
 		initname.swap(other.initname);
 		adjacency_list.swap(other.adjacency_list);
-		adjacency_list_inv.swap(other.adjacency_list_inv);
+		//adjacency_list_inv.swap(other.adjacency_list_inv);
 		reduce_log.swap(other.reduce_log);
 		core_shared.swap(other.core_shared);
+		std::swap(net_changed,other.net_changed);
 	}
 }
 

@@ -7,6 +7,10 @@
 #include "bstate.h"
 #include "complement.h"
 
+#ifdef TICKETABS
+#include "ticketabs.h"
+#endif
+
 #include <boost/bimap.hpp>
 #include <boost/bimap/multiset_of.hpp>
 #include "antichain_comb.h"

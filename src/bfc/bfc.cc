@@ -93,7 +93,7 @@ ostream_sync
 	main_res(cout.rdbuf()), //result: (VERIFICATION SUCCEEDED / VERIFICATION FAILED / ERROR)
 	main_inf(cout.rdbuf()), //trace
 	main_tme(cout.rdbuf()), //time and memory info
-	main_cov(cout.rdbuf()), //state found to be coverable/uncoverable
+	main_cov(cout.rdbuf()) //state found to be coverable/uncoverable
 	;
 
 ofstream main_livestats_ofstream; //must have the same storage duration as main_livestats

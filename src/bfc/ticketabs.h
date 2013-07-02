@@ -9,13 +9,26 @@ class ticketabs{
 		PCE = 3
 	};
 
+	const local_t	l_ini,l_err,l_end,l_nil,L;
+	const shared_t	s_ini,s_err,S;
+
+	unsigned N, M; //N: #threads considered in the abstraction, M: data-range of concrete variables is [0,M]
+
+	bool consistent(unsigned,bool) const;
+	
+	bool PRED(unsigned,unsigned,bool) const;
+
+public:
+	
 	struct rel_t
 	{
 		typedef unsigned long long T;
 
-		static const unsigned D = 5; //output formatting
+		//static const unsigned D = 5; //output formatting
+		static const unsigned D = 4; //output formatting
 		static const unsigned L = 2*2*2; //number of local states per program location
-		
+		static const unsigned truefalse = 3;
+
 		union {
 			T val; //4 byte in VS12 (32bit)
 			struct {
@@ -46,8 +59,10 @@ class ticketabs{
 			};
 		};
 
-		rel_t(T);
+		rel_t(T = 0);
 		rel_t(unsigned, unsigned, unsigned, unsigned);
+		rel_t(unsigned, bool);
+
 		T C ();
 		T N ();
 		T CE(); //"quantify out" passive current-state variable (1: keep only active-current, 2: set passive-current to "F")
@@ -62,20 +77,17 @@ class ticketabs{
 		unsigned C_nump() const;
 		unsigned N_numa() const;
 		unsigned N_nump() const;
+
 		static void test();
+
+		bool operator < (const rel_t& r) const;
+	
 	};
-
-	const local_t	l_ini,l_err,l_end,l_nil,L;
-	const shared_t	s_ini,s_err,S;
-
-	unsigned NN, MMMM; //N: #threads considered in the abstraction, M: data-range of concrete variables is [0,M]
-
-public:
 
 	ticketabs(unsigned N = 4, unsigned M = 3);
 
-	Net initial_net();
-
-	std::pair<Net::adj_t,Net::adj_t> get_adjacency_lists(const BState&);
+	void initial_net(Net&);
+	void update_transitions(Net&);
+	void test(Net&);
 
 };

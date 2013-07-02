@@ -122,6 +122,10 @@ void print_dot_search_graph(const Oreached_t& Q)
 	out << "}" << endl;
 	out.close();
 
+	string cmd = "dot -T pdf " + out_fn + " -o " + out_fn + ".pdf";
+	(void)system(cmd.c_str());
+	fw_log << cmd << endl;
+
 }
 
 typedef vector<Net::adj_t::const_iterator> tt_list_t;

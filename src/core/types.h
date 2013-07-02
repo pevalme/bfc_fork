@@ -152,4 +152,6 @@ struct container_hash {
 
 std::string add_leading_zeros(const std::string& s, unsigned count);
 
+std::istream& safeGetline(std::istream&,std::string&);
+
 #endif

@@ -72,23 +72,6 @@ Net::Net(const Net & other): reduce_log(cerr.rdbuf())
 	assert(0);
 }
 
-/*
-Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, adj_t adjacency_list_inv_, bool prj_all)
-	: S_input(-1), L_input(-1), S(S_), L(L_), init(init_), target(target_), adjacency_list(adjacency_list_), adjacency_list_inv(adjacency_list_inv_), reduce_log(cerr.rdbuf())
-{ 
-
-	//TODO: this does not check whether adjacency_list_inv is the inverse of adjacency_list; better: build adjacency_list_inv here
-	for(auto& a : adjacency_list)
-		for(auto& b : a.second)
-			for(auto c = b.second.begin(); c != b.second.end(); )
-				if(c->second.size() == 1 && c->second.find(c->first) != c->second.end()) c = b.second.erase(c); //remove 0 ~> 0 since 0 not~> l for all l != 0
-				else ++c; //keep 0 ~> 0, since 0 ~> l for some l != 0
-
-	core_shared = get_core_shared(prj_all);
-}
-*/
-
-//TODO: replace upper version with this one
 Net::Net(shared_t S_, local_t L_, OState init_, BState target_, adj_t adjacency_list_, bool prj_all)
 	: S_input(-1), L_input(-1), S(S_), L(L_), init(init_), target(target_), adjacency_list(adjacency_list_), reduce_log(cerr.rdbuf()), net_changed(true)
 { 
@@ -129,40 +112,6 @@ Net::adj_t& Net::adjacency_list_inv() const
 		net_changed = false;
 	}	
 	return adjacency_list_inv;
-}
-
-//http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
-std::istream& safeGetline(std::istream& is, std::string& t)
-{
-    t.clear();
-
-    // The characters in the stream are read one-by-one using a std::streambuf.
-    // That is faster than reading them one-by-one using the std::istream.
-    // Code that uses streambuf this way must be guarded by a sentry object.
-    // The sentry object performs various tasks,
-    // such as thread synchronization and updating the stream state.
-
-    std::istream::sentry se(is, true);
-    std::streambuf* sb = is.rdbuf();
-
-    for(;;) {
-        int c = sb->sbumpc();
-        switch (c) {
-        case '\n':
-            return is;
-        case '\r':
-            if(sb->sgetc() == '\n')
-                sb->sbumpc();
-            return is;
-        case EOF:
-            // Also handle the case when the last line has no line ending
-            if(t.empty())
-                is.setstate(std::ios::eofbit);
-            return is;
-        default:
-            t += (char)c;
-        }
-    }
 }
 
 Net::Net(string net_fn, string target_fn, string init_fn, bool prj_all): filename(net_fn), targetname(target_fn), initname(init_fn), reduce_log(cerr.rdbuf()), net_changed(true)

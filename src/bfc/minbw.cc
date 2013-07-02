@@ -102,17 +102,7 @@ Breached_p_t Pre(const BState& s, Net& n)
 {
 
 	Breached_p_t pres; //set of successors discovered for s so far (a set is used to avoid reprocessing)
-	
-#ifdef TICKETABS
-	static ticketabs ta; 
-	auto ticket_adjs		= ta.get_adjacency_lists(s);
-	n.adjacency_list		= ticket_adjs.first;
-	//n.adjacency_list_inv	= ticket_adjs.second;
-
-	pair<Net::vv_adjs_t,Net::vvl_adjs_t> T = n.get_backward_adj_2();
-#else
 	static pair<Net::vv_adjs_t,Net::vvl_adjs_t> T = n.get_backward_adj_2();
-#endif
 
 	Net::vv_adjs_t& X = T.first;
 	Net::vvl_adjs_t& Y = T.second;
@@ -548,10 +538,6 @@ void final_stats()
 extern void disable_mem_limit();
 void minbw(Net* n, const unsigned k, complement_vec* C)
 {
-
-	//boost::this_thread::sleep(boost::posix_time::milliseconds(5000));
-
-	//TODO: Sync iteration 1 muss vor der ersten Iteration erfolgen!!!
 
 	try
 	{

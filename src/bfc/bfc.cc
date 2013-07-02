@@ -80,6 +80,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using namespace std;
 
 #include "types.h"
+#include "ticketabs.h"
 
 //ostream
 ostream_sync
@@ -92,7 +93,7 @@ ostream_sync
 	main_res(cout.rdbuf()), //result: (VERIFICATION SUCCEEDED / VERIFICATION FAILED / ERROR)
 	main_inf(cout.rdbuf()), //trace
 	main_tme(cout.rdbuf()), //time and memory info
-	main_cov(cout.rdbuf()) //state found to be coverable/uncoverable
+	main_cov(cout.rdbuf()), //state found to be coverable/uncoverable
 	;
 
 ofstream main_livestats_ofstream; //must have the same storage duration as main_livestats
@@ -256,6 +257,7 @@ int main(int argc, char* argv[])
 	vector<BState> work_sequence;
 	bool forward_projections(0), local_sat(0);
 	string o = OPT_STR_OUTPUT_FILE_DEFVAL;
+	bool TICKETABS = 0;
 
 	try {
 		string filename, target_fn, init_fn, border_str = OPT_STR_BW_ORDER_DEFVAL, forder_str = OPT_STR_FW_ORDER_DEFVAL, bweight_str = OPT_STR_WEIGHT_DEFVAL, fweight_str = OPT_STR_WEIGHT_DEFVAL, mode_str, graph_style = OPT_STR_BW_GRAPH_DEFVAL, tree_style = OPT_STR_BW_GRAPH_DEFVAL;
@@ -271,6 +273,7 @@ int main(int argc, char* argv[])
 		misc.add_options()
 			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
+			("ticket",				bool_switch(&TICKETABS), "print version info and exit")
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
 			(OPT_STR_MEMOUT,		value<unsigned>(&mo)->default_value(0), "virtual memory limit in megabyte (\"0\" for no limit)")
@@ -450,14 +453,19 @@ int main(int argc, char* argv[])
 #define stop_time(cmd,p,desc) p = microsec_clock::local_time(), cmd, main_tme << desc << setprecision(2) << fixed << time_diff_float(p) << endl
 		ptime pt;
 
-#ifdef TICKETABS
-		ticketabs().initial_net().swap(net);
-#else
-		stop_time(Net(filename,target_fn,init_fn,prj_all).swap(net),pt,"parse time: ");
-#endif
+		if(TICKETABS)
+		{
+			ticketabs T;
+			T.initial_net(net);
+			T.update_transitions(net);
+		}
+		else
+		{
+			stop_time(Net(filename,target_fn,init_fn,prj_all).swap(net),pt,"parse time: ");
 
-		if(!prj_all) 
-			stop_time(net.reduce(prj_all),pt,"reduce time: ");
+			if(!prj_all) 
+				stop_time(net.reduce(prj_all),pt,"reduce time: ");
+		}
 		
 		if(wr)
 		{

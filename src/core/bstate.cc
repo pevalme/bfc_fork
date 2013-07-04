@@ -229,8 +229,7 @@ string BState::id_str() const
 
 string BState::str_latex() const 
 {
-	string ret;
-	string l_part, sep;
+	string ret, sep;
 	foreach(local_t l, set<local_t>(bounded_locals.begin(),bounded_locals.end()))
 		for(unsigned i=1; i<=bounded_locals.count(l); ++i) //l_part += (sep + boost::lexical_cast<string>(l) + '^' + boost::lexical_cast<string>(bounded_locals.count(l))), sep = ',';
 		{

@@ -84,7 +84,8 @@ public:
 	
 	};
 
-	ticketabs(unsigned N = 4, unsigned M = 3);
+	//ticketabs(unsigned N = 4, unsigned M = 3);
+	ticketabs(unsigned N = 2, unsigned M = 3);
 
 	void initial_net(Net&);
 	void update_transitions(Net&);

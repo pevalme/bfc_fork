@@ -196,7 +196,7 @@ ostream& OState::operator << (ostream& out) const
 	return out;
 }
 
-string OState::str_id() const
+string OState::id_str() const
 {
 	string ret = 's' + boost::lexical_cast<string>(this->shared);
 	foreach(local_t l, this->bounded_locals)
@@ -215,11 +215,31 @@ string OState::str_latex() const
 	set<local_t> locals(bounded_locals.begin(),bounded_locals.end());
 	locals.insert(unbounded_locals.begin(),unbounded_locals.end());
 
-	string l_part, sep;
+	string ret, sep;
 	foreach(local_t l, locals)
-		l_part += (sep + boost::lexical_cast<string>(l) + '^' + (bounded_locals.count(l)?boost::lexical_cast<string>(bounded_locals.count(l)):"\\omega")), sep = ',';
+	{
+		if(bounded_locals.count(l))
+		{
+			for(unsigned i=1; i<=bounded_locals.count(l); ++i) //l_part += (sep + boost::lexical_cast<string>(l) + '^' + boost::lexical_cast<string>(bounded_locals.count(l))), sep = ',';
+			{
+				ret += sep;
+				ret += "$\\LOCALSTATE{" + boost::lexical_cast<string>(l) + "}$", sep = "\\\\";
+			}
+		}
+		else
+		{
+			ret += sep;
+			ret += "$\\LOCALSTATE{" + boost::lexical_cast<string>(l) + "}^{\\omega}$", sep = "\\\\";
+		}
+	}
+		
+	return ret;
+}
 
-	return (string)"$" + "\\graphconf" +  '{' + boost::lexical_cast<string>(shared) + '}' + '{' + l_part + '}' + '$';
+ostream& OState::mindot(std::ostream& out, bool mark, string shape) const
+{
+	out << '"' << id_str() << '"' << ' ' << "[label=\"" << *this << " (" << this->depth << "/" << this->size() << ")" << "\"," << "fontcolor=" << (mark?"orange":"green") << ",shape=\"" << shape << "\"]";
+	return out;
 }
 
 /* ---- Helper for output operator ---- */

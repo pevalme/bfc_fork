@@ -5,8 +5,6 @@
 #include "boost/lexical_cast.hpp"
 
 using namespace std;
-using std::cout;
-using std::endl;
 
 ticketabs::rel_t::rel_t(T v):val(v){assert(sizeof(val)==8);}
 
@@ -102,20 +100,23 @@ unsigned ticketabs::rel_t::N_nump() const{
 }
 
 void ticketabs::rel_t::test(){
-	//rel_t Q(0x5555555555555555),C(Q.C()),N(Q.N()),CE(Q.CE()),NE(Q.NE());
-	//assert(Q.b1 !=0  && Q.b1p != 0 && Q.b11 != 0 && Q.b11p != 0);
+	rel_t Q,C,N,CE,NE;
+	Q.val = 0x5555555555555555;
+	C.val = Q.C(), N.val = Q.N(), CE.val = Q.CE(), NE.val = Q.NE();
+	
+	assert(Q.b1 !=0  && Q.b1p != 0 && Q.b11 != 0 && Q.b11p != 0);
 
-	//assert(C.val == 0x5555555500000000);
-	//assert(C.b1 !=0  && C.b1p == 0 && C.b11 != 0 && C.b11p == 0);
+	assert(C.val == 0x5555555500000000);
+	assert(C.b1 !=0  && C.b1p == 0 && C.b11 != 0 && C.b11p == 0);
 
-	//assert(N.val == 0x0000000055555555);
-	//assert(N.b1 ==0  && N.b1p != 0 && N.b11 == 0 && N.b11p != 0);
+	assert(N.val == 0x0000000055555555);
+	assert(N.b1 ==0  && N.b1p != 0 && N.b11 == 0 && N.b11p != 0);
 
-	//assert(CE.val ==0x5555FFFF00000000);
-	//assert(CE.b1 !=0  && CE.b1p == 0 && CE.b11 == 0xF && CE.b11p == 0);
+	assert(CE.val ==0x5555FFFF00000000);
+	assert(CE.b1 !=0  && CE.b1p == 0 && CE.b11 == 0xF && CE.b11p == 0);
 
-	//assert(NE.val ==0x000000005555FFFF);
-	//assert(NE.b1 ==0  && NE.b1p != 0 && NE.b11 == 0 && NE.b11p == 0xF); 
+	assert(NE.val ==0x000000005555FFFF);
+	assert(NE.b1 ==0  && NE.b1p != 0 && NE.b11 == 0 && NE.b11p == 0xF); 
 }
 
 ticketabs::ticketabs(unsigned N, unsigned M): N(N), M(M), l_ini(rel_t(0,0,0,PCE).C_numa()),s_ini(0),l_err(rel_t(0,0,1,PCE).C_numa()),s_err(s_ini + 1),l_end(rel_t(0,1,0,PCE).C_numa()),l_nil(rel_t(0,1,1,PCE).C_numa()),L(l_nil + 1),S(s_err + 1)
@@ -148,20 +149,27 @@ void ticketabs::initial_net(Net& n)
 
 /********************* THIS IS THE MEAT *********************/
 
+#define PC_PRGS\
+	n.reduce_log << "pcs: ";\
+	for(unsigned P = 0; P <= 1; ++P)\
+	for(unsigned a = 0; a < N; ++a) {\
+	unsigned x = PC_(a,P);\
+	n.reduce_log << x << (a==N-1 && P==0?"-":""); } n.reduce_log << endl\
+
 #define CON_VAL \
 	for(unsigned P = 0; P <= 1; ++P)\
 	for(unsigned b = 0; b < N; ++b) {\
-	if(b == 0) ticket_log << T_(P) << setw(rel_t::D)<< S_(P) << setw(rel_t::D);\
-	ticket_log << PC_(b,P) << setw(rel_t::D) << L_(b,P) << setw(rel_t::D); }
+	if(b == 0) cerr << T_(P) << setw(rel_t::D)<< S_(P) << setw(rel_t::D);\
+	cerr << PC_(b,P) << setw(rel_t::D) << L_(b,P) << setw(rel_t::D); }
 
 #define CON_VAL_H \
 	for(unsigned P = 0; P <= 1; ++P)\
 	for(unsigned b = 0; b < N; ++b) {\
-	if(b == 0) cout << T_str(P) << setw(rel_t::D)<< S_str(P) << setw(rel_t::D);\
-	cout << PC_str(b,P) << setw(rel_t::D) << L_str(b,P) << setw(rel_t::D); }
+	if(b == 0) cerr << T_str(P) << setw(rel_t::D)<< S_str(P) << setw(rel_t::D);\
+	cerr << PC_str(b,P) << setw(rel_t::D) << L_str(b,P) << setw(rel_t::D); }
 
 #define SEP		" // "
-#define PRINTT	cout << T.C_str() << T.N_str() << SEP; CON_VAL;
+#define PRINTT	cerr << T.C_str() << T.N_str() << SEP; CON_VAL;
 
 #define PC(a)  pc[a-2]
 #define PCP(a) pcp[a-2]
@@ -198,17 +206,9 @@ void ticketabs::initial_net(Net& n)
 	LOOP(T.pc,PC1,N<1?PC1:PC3)\
 	LOOP(T.pc1,PC1,N<2?PC1:PC3)\
 	LOOP(PC(2),PC1,N<3?PC1:PCE)\
-	LOOP(PC(3),PC1,N<4?PC1:PCE)
-
-#define LOOP_PCTR_INI \
-	LOOP(T.pc,PC1,PC1)\
-	LOOP(T.pc1,PC1,PC1)\
-	LOOP(PC(2),PC1,PC1)\
-	LOOP(PC(3),PC1,PC1)
-
-#define LOOP_PCTR_ERR \
-	LOOP(T.pc,PC3,PC3)\
-	LOOP(T.pc1,PC3,PC3)
+	LOOP(PC(3),PC1,N<4?PC1:PCE)\
+	LOOP(PC(4),PC1,N<5?PC1:PCE)\
+	LOOP(PC(5),PC1,N<6?PC1:PCE)
 
 #define LOOP_VARS \
 	LOOP(s,0,M)\
@@ -216,15 +216,9 @@ void ticketabs::initial_net(Net& n)
 	LOOP(LC(0),0,N<1?0:M)\
 	LOOP(LC(1),0,N<2?0:M)\
 	LOOP(LC(2),0,N<3?0:M)\
-	LOOP(LC(3),0,N<4?0:M)
-
-#define LOOP_VARS_INI \
-	LOOP(s,1,1)\
-	LOOP(t,1,1)\
-	LOOP(LC(0),0,0)\
-	LOOP(LC(1),0,0)\
-	LOOP(LC(2),0,0)\
-	LOOP(LC(3),0,0)
+	LOOP(LC(3),0,N<4?0:M)\
+	LOOP(LC(4),0,N<5?0:M)\
+	LOOP(LC(5),0,N<6?0:M)
 
 #define LOOP_BOOL \
 	bLOOP(T.b1 )\
@@ -244,8 +238,6 @@ void ticketabs::initial_net(Net& n)
 
 #define LOOP_PCTR_CN\
 	LOOP_PCTR\
-	LOOP(PC(4),PC1,N<5?PC1:PCE)\
-	LOOP(PC(5),PC1,N<6?PC1:PCE)\
 	LOOP(T.pcp,T.pc+1,T.pc+1)\
 	LOOP(T.pc1p,T.pc1,T.pc1)\
 	LOOP(PCP(2),PC(2),PC(2))\
@@ -272,36 +264,46 @@ void ticketabs::initial_net(Net& n)
 	LOOP(LP(5),LC(5),LC(5))
 
 #define PCUP(p)\
-	(T.pc == p) &&\
-	(T.pcp == p+1) &&\
-	(T.pc1p == T.pc1) &&\
-	(N<3||PCP(2) == PC(2)) &&\
-	(N<4||PCP(3) == PC(3)) &&\
-	(N<5||PCP(4) == PC(4)) &&\
-	(N<6||PCP(5) == PC(5))
+	(\
+	(N<1||T.pc   == p && T.pcp  == p+1) && \
+	(N<2||T.pc1p == T.pc1) && \
+	(N<3||PCP(2) == PC(2)) && \
+	(N<4||PCP(3) == PC(3)) && \
+	(N<5||PCP(4) == PC(4)) && \
+	(N<6||PCP(5) == PC(5)) && \
+	1)
 
-#define PASSIVE	(N<2||LP(1)==LC(1)) && (N<3||LP(2)==LC(2)) && (N<4||LP(3)==LC(3)) && (N<5||LP(4)==LC(4)) && (N<6||LP(5)==LC(5))
-#define OP1		PCUP(PC1)	&& PASSIVE	&& (sp==s)				&& (tp==t + 1)	&& (LP(0)==t)		//PC1: l := t++;
-#define OP2		PCUP(PC2)	&& PASSIVE	&& (sp==s && s==LC(0))	&& (tp==t)		&& (LP(0)==LC(0))	//PC2: assume(s==m)
-#define OP3		PCUP(PC3)	&& PASSIVE	&& (sp==s+1)			&& (tp==t)		&& (LP(0)==LC(0))	//PC3: s := s+1;
+#define PASSIVE	((N<2||LP(1)==LC(1)) && (N<3||LP(2)==LC(2)) && (N<4||LP(3)==LC(3)) && (N<5||LP(4)==LC(4)) && (N<6||LP(5)==LC(5)))
+#define OP1		(PCUP(PC1)	&& PASSIVE	&& (sp==s)				&& (tp==t + 1)	&& (LP(0)==t))		//PC1: l := t++;
+#define OP2		(PCUP(PC2)	&& PASSIVE	&& (sp==s && s==LC(0))	&& (tp==t)		&& (LP(0)==LC(0)))	//PC2: assume(s==m)
+#define OP3		(PCUP(PC3)	&& PASSIVE	&& (sp==s+1)			&& (tp==t)		&& (LP(0)==LC(0)))	//PC3: s := s+1;
 
 #define ERR_PC	\
-	(T.pc == PC3) && \
-	(T.pc1 == PC3)
+	(\
+	(T.pc  == PC3) && \
+	(T.pc1 == PC3) && \
+	1)
 
 #define INI_PC \
-	(N < 1 || T.pc  == PC1) && \
-	(N < 2 || T.pc1 == PC1) && \
-	(N < 3 || PC(2) == PC1) && \
-	(N < 4 || PC(3) == PC1)
+	(\
+	(N<1||T.pc  == PC1) && \
+	(N<2||T.pc1 == PC1) && \
+	(N<3||PC(2) == PC1) && \
+	(N<4||PC(3) == PC1) && \
+	(N<5||PC(4) == PC1) && \
+	(N<6||PC(5) == PC1) && \
+	1)
 
 #define INI \
+	(\
 	(s==1) && (t==1) && \
-	(N < 1 || LC(0)==0) && \
-	(N < 2 || LC(1)==0) && \
-	(N < 3 || LC(2)==0) && \
-	(N < 4 || LC(3)==0)
-
+	(N<1||LC(0)==0) && \
+	(N<2||LC(1)==0) && \
+	(N<3||LC(2)==0) && \
+	(N<4||LC(3)==0) && \
+	(N<5||LC(4)==0) && \
+	(N<6||LC(5)==0) && \
+	1)
 
 unsigned s,sp;
 unsigned t,tp;
@@ -360,35 +362,51 @@ void ticketabs::test(Net& n)
 void ticketabs::update_transitions(Net& n)
 {
 
+	n.reduce_log << "M (data-range): 0..." << M << endl;
+	n.reduce_log << "N (abstract threads): " << N << endl;
+
 	n.adjacency_list.clear(), n.net_changed = true;
 	Net::adj_t adjacency_list_ignmon; //ignoring non-monotonicit
 
 	set<rel_t::T> INIs,ERRs,RELs, REL_no1s, REL_no2s,REL_monvios, RSTs;
 
-	cout << "HEA: " << rel_t::CH() << rel_t::NH() << SEP; CON_VAL_H; cout << endl;
+	n.reduce_log << "HEA: " << rel_t::CH() << rel_t::NH() << SEP; CON_VAL_H; n.reduce_log << endl;
 
 	//abstract initial and error states
 
 	//always generate transition to error and initial states
 	T.val = 0; //initialize
 	{
-		LOOP_PCTR_ERR LOOP_VARS LOOP_BOOL
+		LOOP_PCTR 
 		{
-			assert(ERR_PC);
-			if(!consistent(1,false)) continue;
-			if(ERR_PC && ERRs.insert(T.C()).second){
+			//PC_PRGS;
+			LOOP_VARS LOOP_BOOL
+			{
+				if(!ERR_PC) continue;
+				if(!consistent(1,false)) continue;
+				if(!ERRs.insert(T.C()).second) continue;
+
 				n.adjacency_list[Thread_State(s_ini,T.C_numa())][Thread_State(s_err,l_err)][T.C_nump()].insert(l_err); //go (together with all passive threads) to the error state
-				/*cout << "ERR: "; PRINTT; cout << endl;*/ }}
-		cout << "ERR" << ERRs.size() << endl;
+				/*n.reduce_log << "ERR: "; PRINTT; n.reduce_log << endl;*/
+			}
+		}
+		n.reduce_log << "ERR" << ERRs.size() << endl;
 	}
 	{
-		LOOP_PCTR_INI LOOP_VARS_INI LOOP_BOOL
+		LOOP_PCTR 
 		{
-			assert(INI_PC && INI);
-			if(consistent(1,false) && INIs.insert(T.C()).second){
+			PC_PRGS;
+			LOOP_VARS LOOP_BOOL
+			{
+				if(!(INI_PC && INI)) continue;
+				if(!consistent(1,false)) continue;
+				if(!INIs.insert(T.C()).second) continue;
+
 				n.adjacency_list[Thread_State(s_ini,l_ini)][Thread_State(s_ini,T.C_numa())][l_ini].insert(T.C_nump());
-				/*cout << "INI: "; PRINTT; cout << endl;*/ }}
-		cout << "INI" << INIs.size() << endl;
+				/*n.reduce_log << "INI: "; PRINTT; n.reduce_log << endl;*/ 
+			}
+		}
+		n.reduce_log << "INI" << INIs.size() << endl;
 	}
 
 	//of the special values only l_end needs to be treated below
@@ -397,10 +415,7 @@ void ticketabs::update_transitions(Net& n)
 		T.val = 0;
 		LOOP_PCTR_CN
 		{
-			cout << "pcs: ";
-			for(unsigned P = 0; P <= 1; ++P)
-				for(unsigned a = 0; a < N; ++a) cout << PC_(a,P) << (a==N-1 && P==0?"-":""); cout << endl;
-
+			PC_PRGS;
 			LOOP_BOOL LOOP_BOOL_N LOOP_VARS_CN
 			{
 				assert(PCUP(PC1)||PCUP(PC2)||PCUP(PC3) && PASSIVE && (OP1 || OP2 || OP3));
@@ -426,7 +441,7 @@ void ticketabs::update_transitions(Net& n)
 					assert(AN.shared < n.S);
 
 					n.adjacency_list[A][AN][P].insert(PN); //passive transition
-					//cout << "TRA: "; PRINTT; cout << endl;
+					//n.reduce_log << "TRA: "; PRINTT; n.reduce_log << endl;
 				}
 			}
 		}
@@ -452,12 +467,12 @@ void ticketabs::update_transitions(Net& n)
 
 				n.adjacency_list[A][AN][P].insert(l_nil); //passive transition
 				if(RSTs.insert(T. C() | T.NE()).second)
-				{ /*cout << "RST: "; PRINTT; cout << endl;*/ }
+				{ /*n.reduce_log << "RST: "; PRINTT; n.reduce_log << endl;*/ }
 			}
 		}
 
 		//final output
-		cout 
+		n.reduce_log 
 			<< "REL" << RELs.size() << endl
 			<< "RST" << RSTs.size() << endl
 			<< endl;
@@ -513,5 +528,5 @@ void ticketabs::update_transitions(Net& n)
 	ofstream NETf(base + "net_mocinc.tts"); NETf << Nethead.str() << n_move_inconsistent << endl;
 	ofstream NETfnm(base + "net_ignmon.tts"); NETfnm << Nethead.str() << n_ignore_non_mon << endl;
 
-	cout << n << endl;
+	n.reduce_log << n << endl;
 }

@@ -69,54 +69,29 @@ void print_dot_search_graph(const Oreached_t& Q)
 				maximal_state = false, fw_log << "state " << *s << " is not maximal; it's covered by " << *b << endl;
 		}
 
-		//bool use = 
-		//	OState("1/2") == *s || 
-		//	OState("0|7/2") == *s || 
-		//	OState("0|15/2,7") == *s || 
-		//	OState("0/2,11,15") == *s || 
-		//	OState("0/2,6,11,15") == *s || 
-		//	OState("0/2,3,14,15") == *s || 
-		//	OState("0/2,3,6,7,14,15") == *s || 
-		//	OState("0/2,7,14,15") == *s || 
-		//	OState("1|6/14,15") == *s || 
-		//	OState("1|7/14,15") == *s || 
-		//	OState("0/2,11,14,15") == *s || 
-		//	OState("0/2,6,7,14,15") == *s || 
-		//	OState("1|11/14,15") == *s || 
-		//	OState("0/2,6,11,14,15") == *s || 
-		//	OState("2|13/2,6,11,14,15") == *s
-		//	;
-
-		//if(!use)
-		//{
-		//	cout << "IGNORE" << endl;
-		//	continue;
-		//}
-
-		string thiname = s->str_id();
-
-		if(s->prede == nullptr)
-			out << "{rank=source; " << '"' << thiname << '"' << '}' << endl;
-
-		out << '"' << thiname << '"' << ' ' << '[' << "lblstyle=" << '"' << "kmnode" << (maximal_state?",maxstate":",nonmaxstate") << '"' << ",texlbl=" << '"' << s->str_latex() << '"' << ']' << ';' << endl;
+		if(s->prede == nullptr) out << "{rank=source; " << '"' << s->id_str() << '"' << '}' << endl;
+		
+		switch(graph_type){
+		case GTYPE_DOT: s->mindot(out,false,maximal_state?"plaintext":"ribosite"), out << endl; break;
+		case GTYPE_TIKZ: out << '"' << s->id_str() << '"' << ' ' << '[' << "lblstyle=" << '"' << "fwnode" << (maximal_state?",maxstate":",nonmaxstate") << ",align=center" << '"' << ",texlbl=" << '"' << s->str_latex() << '"' << ']' << ';' << endl; }
 
 		if(s->prede != nullptr)
 		{
-			string prename = s->prede->str_id();
+			string prename = s->prede->id_str();
 			if(s->tsucc)
 				switch(tree_type){
-				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=dashed];" << endl; break;
-				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=transfer_trans];" << endl; break;}
+				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << s->id_str() << '"' << "[style=dashed];" << endl; break;
+				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << s->id_str() << '"' << "[style=transfer_trans];" << endl; break;}
 			else
 				switch(tree_type){
-				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << ';' << endl; break;
-				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << thiname << '"' << "[style=thread_trans];" << endl; break;}
+				case GTYPE_DOT: out << '"' << prename << '"' << " -> " << '"' << s->id_str() << '"' << ';' << endl; break;
+				case GTYPE_TIKZ: out << '"' << prename << '"' << " -> " << '"' << s->id_str() << '"' << "[style=thread_trans];" << endl; break;}
 		}
 
 		if(s->accel != nullptr)
 			switch(tree_type){
-				case GTYPE_DOT: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << " [" << accel_edge_style << "];" << endl; break;
-				case GTYPE_TIKZ: out << '"' << thiname << '"' << " -> " << '"' << s->accel->str_id() << '"' << "[style=accel_edge];" << endl; break;}
+				case GTYPE_DOT: out << '"' << s->id_str() << '"' << " -> " << '"' << s->accel->id_str() << '"' << " [" << accel_edge_style << "];" << endl; break;
+				case GTYPE_TIKZ: out << '"' << s->id_str() << '"' << " -> " << '"' << s->accel->id_str() << '"' << "[style=accel_edge];" << endl; break;}
 	}
 
 	out << "}" << endl;

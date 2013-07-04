@@ -201,13 +201,16 @@ struct OState
 	bool operator == (const OState& r) const;
 	bool operator <= (const OState& r) const;
 
+	/* ---- Output operators ---- */
+	std::ostream& operator << (std::ostream& out) const;
+	std::string id_str() const;
+	std::string str_latex() const;	
+	std::ostream& mindot(std::ostream& out, bool = false, string = "plaintext") const;
+
 	/* ---- Misc ---- */
 	void swap(OState& other);
 	size_t size() const;
 	bool consistent() const;
-	std::ostream& operator << (std::ostream& out) const;
-	std::string str_id() const;
-	std::string str_latex() const;	
 };
 
 template<class Iter> OState::OState(shared_t s, Iter first, Iter last)

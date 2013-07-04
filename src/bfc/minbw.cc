@@ -79,12 +79,12 @@ void minprint_dot_search_graph(vec_ac_t& M, unsigned ctr_wit, string ext, string
 		for(auto& q : u.second.M)
 			if(!(q->nb == nullptr)) 
 			{
-				for(bstate_t r : q->nb->suc) //out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=solid,arrowsize=\".75\"" << "];" << endl;
+				for(bstate_t r : q->nb->suc) 
 					switch(graph_type){
 					case GTYPE_DOT: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=solid];" << endl; break;
 					case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=predecessor_edge];" << endl; break;}
 
-				for(bstate_t r : q->nb->csuc) //out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << " [" << "style=dotted,arrowsize=\".75\"" << "];" << endl;
+				for(bstate_t r : q->nb->csuc) 
 					switch(graph_type){
 					case GTYPE_DOT: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=dotted];" << endl; break;
 					case GTYPE_TIKZ: out << '"' << q->id_str() << '"' << " -> " << '"' << r->id_str() << '"' << "[style=coverpredecessor_edge];" << endl; break;}

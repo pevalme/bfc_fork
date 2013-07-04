@@ -273,7 +273,7 @@ int main(int argc, char* argv[])
 		misc.add_options()
 			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
-			("ticket",				bool_switch(&TICKETABS), "print version info and exit")
+			("ticketabs",				bool_switch(&TICKETABS), "print version info and exit")
 #ifndef WIN32
 			(OPT_STR_TIMEOUT,		value<unsigned>(&to)->default_value(0), "CPU time in seconds (\"0\" for no limit)")
 			(OPT_STR_MEMOUT,		value<unsigned>(&mo)->default_value(0), "virtual memory limit in megabyte (\"0\" for no limit)")
@@ -455,9 +455,20 @@ int main(int argc, char* argv[])
 
 		if(TICKETABS)
 		{
-			ticketabs T;
-			T.initial_net(net);
-			T.update_transitions(net);
+			for(unsigned N = 2; N <= 5; N++)
+				for(unsigned M = 2; M <= 3; M++)
+			//for(unsigned N = 4; N <= 4; N++)
+			//	for(unsigned M = 3; M <= 3; M++)
+				{
+
+					cerr << "***************************************" << endl;
+					cerr << "N" << N << "M" << M << endl;
+					cerr << "***************************************" << endl;
+
+					ticketabs T(N,M);
+					T.initial_net(net);
+					T.update_transitions(net);
+				}
 		}
 		else
 		{

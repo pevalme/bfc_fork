@@ -81,10 +81,10 @@ OState::OState(string str)
 	try
 	{
 		vector<string> SL, SU, BU, B, U;
-		split( SL, str, is_any_of("|"));
+		split( SL, str, is_any_of("|B"));
 		if(SL.size() == 1) //"0/0"
 		{
-			split( SU, str, is_any_of("/"));
+			split( SU, str, is_any_of("/U"));
 			this->shared = lexical_cast<shared_t>(SU[0]);
 			if(!SU[1].empty()) 
 				split( U, SU[1], is_any_of(",") ), for_each(U.begin(), U.end(), [this](string u){ unbounded_locals.insert(lexical_cast<local_t>(u)); });
@@ -93,7 +93,7 @@ OState::OState(string str)
 		{
 			if(SL.size() != 2) throw;
 			this->shared = lexical_cast<shared_t>(SL[0]);
-			split( BU, SL[1], is_any_of("/") );
+			split( BU, SL[1], is_any_of("/U") );
 			if(SL.size() != 1 && SL.size() != 2) throw;
 			if(!BU[0].empty()) 
 				split( B, BU[0], is_any_of(",") ), for_each(B.begin(), B.end(), [this](string b){ bounded_locals.insert(lexical_cast<local_t>(b)); });

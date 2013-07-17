@@ -22,29 +22,29 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 		switch(n_ty)
 		{
 		case Net::TTS: 
-			out << BState::S << " " << BState::L << endl;
+			out << net.S << " " << net.L << endl;
 			break;
 		case Net::MIST: 
 			cout << "vars" << endl;
-			for(shared_t s_=0; s_ < BState::S; s_++) cout << "s" << s_ << " ";
-			for(local_t  l_=0; l_ < BState::L; l_++) cout << "l" << l_ << " ";
+			for(shared_t s_=0; s_ < net.S; s_++) cout << "s" << s_ << " ";
+			for(local_t  l_=0; l_ < net.L; l_++) cout << "l" << l_ << " ";
 			cout << endl << endl << "rules" << endl; 
 			break;
 		case Net::TIKZ: 
-			out << "\\draw[step=1,gray,very thin] (0,0) grid (" << BState::L << "," << BState::S << ");" << endl;
-			out << "\\foreach \\l in {0,2,...," << BState::L-1 << "} \\draw (\\l + 0.5," << BState::S << ") node[anchor=south] {$\\scriptscriptstyle \\l$};" << endl;
-			out << "\\foreach \\s in {0,2,...," << BState::S-1 << "} \\draw (0," << BState::S-1 << "- \\s + 0.5) node[anchor=east] {$\\scriptscriptstyle \\s$};" << endl;
-			out << "\\draw[-|] (0," << BState::S << ") -- (" << BState::L << "," << BState::S << ") node[right] {$\\scriptscriptstyle l$};" << endl;
-			out << "\\draw[-|] (0," << BState::S << ") -- (0,0) node[below] {$\\scriptscriptstyle s$};" << endl;
-			for(unsigned int s = 0; s<BState::S; ++s)
-				for(unsigned int l = 1; l<BState::L; ++l)
-					out << "\\draw (" << l << ".5," << BState::S-s-1 << ".5) node{$\\phantom{\\scriptscriptstyle 0}$};" << endl;
+			out << "\\draw[step=1,gray,very thin] (0,0) grid (" << net.L << "," << net.S << ");" << endl;
+			out << "\\foreach \\l in {0,2,...," << net.L-1 << "} \\draw (\\l + 0.5," << net.S << ") node[anchor=south] {$\\scriptscriptstyle \\l$};" << endl;
+			out << "\\foreach \\s in {0,2,...," << net.S-1 << "} \\draw (0," << net.S-1 << "- \\s + 0.5) node[anchor=east] {$\\scriptscriptstyle \\s$};" << endl;
+			out << "\\draw[-|] (0," << net.S << ") -- (" << net.L << "," << net.S << ") node[right] {$\\scriptscriptstyle l$};" << endl;
+			out << "\\draw[-|] (0," << net.S << ") -- (0,0) node[below] {$\\scriptscriptstyle s$};" << endl;
+			for(unsigned int s = 0; s<net.S; ++s)
+				for(unsigned int l = 1; l<net.L; ++l)
+					out << "\\draw (" << l << ".5," << net.S-s-1 << ".5) node{$\\phantom{\\scriptscriptstyle 0}$};" << endl;
 			break;
 		case Net::LOLA: 
 			//PLACE x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24,x25,x26,x27;
 			out << "PLACE ", sep = "";
-			for(shared_t s_=0; s_ < BState::S; s_++) out << sep << "s" << s_, sep = ',';
-			for(local_t  l_=0; l_ < BState::L; l_++) out << sep << "l" << l_, sep = ',';
+			for(shared_t s_=0; s_ < net.S; s_++) out << sep << "s" << s_, sep = ',';
+			for(local_t  l_=0; l_ < net.L; l_++) out << sep << "l" << l_, sep = ',';
 			out << ";" << endl;
 
 			//MARKING x0:1,x27:1;
@@ -116,7 +116,7 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 					case thread_transition: out << "thread_trans"; break;
 					case spawn_transition: out << "spawn_trans"; break;
 					default: assert(0);}
-				out << "] (" << t.local << "+0.5," << BState::S-t.shared-1 << "+0.5) to (" << succ.local << "+0.5," << BState::S-succ.shared-1 << "+0.5);" << endl; 
+				out << "] (" << t.local << "+0.5," << net.S-t.shared-1 << "+0.5) to (" << succ.local << "+0.5," << net.S-succ.shared-1 << "+0.5);" << endl; 
 				break;
 
 			case Net::LOLA: 
@@ -259,8 +259,6 @@ int main(int argc, char* argv[])
 	else
 	{
 		print(net.adjacency_list, thread_transition, true, format, cout, net);
-		print(net.transfer_adjacency_list, transfer_transition, false, format, cout, net);
-		print(net.spawn_adjacency_list, spawn_transition, false, format, cout, net);
 	}
 
 	switch(format)
@@ -277,13 +275,10 @@ int main(int argc, char* argv[])
 				cout << "l" << l << ">=1, ";
 			cout << "s" << net.init.shared << "=1" << endl;
 			cout << endl << "target" << endl;
-			if(net.check_target)
-			{
-				cout << "s" << net.target->shared << ">=1";
-				foreach(local_t l_, set<local_t>(net.target->bounded_locals.begin(),net.target->bounded_locals.end()))
-					cout << "," << "l" << l_ << ">=" << net.target->bounded_locals.count(l_);
-				cout << endl;
-			}
+			cout << "s" << net.target.shared << ">=1";
+			foreach(local_t l_, set<local_t>(net.target.bounded_locals.begin(),net.target.bounded_locals.end()))
+				cout << "," << "l" << l_ << ">=" << net.target.bounded_locals.count(l_);
+			cout << endl;
 			break;
 		}
 

@@ -13,12 +13,19 @@
   <ItemGroup>
     <ClCompile Include="..\src\core\antichain.cc" />
     <ClCompile Include="..\src\core\bstate.cc" />
+    <ClCompile Include="..\src\core\net.cc" />
     <ClCompile Include="..\src\core\ostate.cc" />
     <ClCompile Include="..\src\core\trans.cc" />
     <ClCompile Include="..\src\core\tstate.cc" />
     <ClCompile Include="..\src\core\types.cc" />
     <ClCompile Include="..\src\core\vstate.cc" />
     <ClCompile Include="..\src\ttstrans\ttstrans.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ttstrans.rc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{28450AE9-D106-4B33-A8A2-AF487B77A665}</ProjectGuid>

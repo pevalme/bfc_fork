@@ -122,7 +122,7 @@ BState::BState(string str, bool alloc)
 	try
 	{
 		vector<string> SL, B;
-		split( SL, str, is_any_of("|"));
+		split( SL, str, is_any_of("|B"));
 		if(SL.size() != 2) throw logic_error("separator missing");
 		this->shared = lexical_cast<shared_t>(SL[0]);
 		split(B, SL[1], is_any_of(",") ), for_each(B.begin(), B.end(), [this](string b){ bounded_locals.insert(lexical_cast<local_t>(b)); });

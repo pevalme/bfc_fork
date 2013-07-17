@@ -455,8 +455,10 @@ int main(int argc, char* argv[])
 
 		if(TICKETABS)
 		{
-			for(unsigned N = 2; N <= 5; N++)
-				for(unsigned M = 2; M <= 3; M++)
+			for(unsigned N = 2; N <= 2; N++)
+				for(unsigned M = 5; M <= 10; M++)
+			//for(unsigned N = 2; N <= 5; N++)
+			//	for(unsigned M = 2; M <= 3; M++)
 			//for(unsigned N = 4; N <= 4; N++)
 			//	for(unsigned M = 3; M <= 3; M++)
 				{

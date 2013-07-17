@@ -9,5 +9,12 @@
     <ClCompile Include="..\src\core\types.cc" />
     <ClCompile Include="..\src\core\trans.cc" />
     <ClCompile Include="..\src\core\tstate.cc" />
+    <ClCompile Include="..\src\core\net.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ttstrans.rc" />
   </ItemGroup>
 </Project>

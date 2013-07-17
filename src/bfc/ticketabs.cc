@@ -4,6 +4,8 @@
 #include <fstream>
 #include "boost/lexical_cast.hpp"
 
+//#define ARG //for assignment s:=l with predicates s==l and l==4
+
 using namespace std;
 
 ticketabs::rel_t::rel_t(T v):val(v){assert(sizeof(val)==8);}
@@ -202,6 +204,66 @@ void ticketabs::initial_net(Net& n)
 
 #define bLOOP(e) LOOP(e,0,1)
 
+#ifdef ARG
+#define LOOP_PCTR \
+	LOOP(T.pc,PC1,PC1)\
+	LOOP(T.pc1,PC1,PC1)
+
+#define LOOP_VARS \
+	LOOP(s,0,M)\
+	LOOP(LC(0),0,N<1?0:M)\
+	LOOP(LC(1),0,N<2?0:M)
+
+#define LOOP_BOOL \
+	bLOOP(T.b1 )\
+	bLOOP(T.b2 )\
+	bLOOP(T.b11)\
+	bLOOP(T.b21)
+
+#define LOOP_BOOL_N \
+	bLOOP(T.b1p )\
+	bLOOP(T.b2p )\
+	bLOOP(T.b11p)\
+	bLOOP(T.b21p)
+
+#define LOOP_PCTR_CN\
+	LOOP_PCTR\
+	LOOP(T.pcp,T.pc+1,T.pc+1)\
+	LOOP(T.pc1p,T.pc1,T.pc1)
+
+#define LOOP_VARS_CN\
+	LOOP(s,0,M)\
+	LOOP(sp,0,M)\
+	LOOP(LC(0),0,M)\
+	LOOP(LP(0),0,M)\
+	LOOP(LC(1),0,M)\
+	LOOP(LP(1),LC(1),LC(1))
+
+#define PCUP(p)\
+	(\
+	(N<1||T.pc   == p && T.pcp  == p+1) && \
+	(N<2||T.pc1p == T.pc1) && \
+	1)
+
+#define PASSIVE	((N<2||LP(1)==LC(1)))
+
+//REL,RST
+//#define OP1		(PCUP(PC1)	&& PASSIVE	&& (sp==s+1) && (LP(0)==LC(0))) //s++ -> 26,5
+#define OP1		(PCUP(PC1)	&& PASSIVE	&& (sp==LC(0)) && (LP(0)==LC(0))) //s:=l -> 13,4
+//#define OP1		(PCUP(PC1)	&& PASSIVE	&& (sp==s) && (LP(0)==s)) //l := s -> 13,7
+//#define OP1		(PCUP(PC1)	&& PASSIVE	&& (sp==s) && (LP(0) == LC(0)-1)) //l-- -> 26,10
+//#define OP1		(PCUP(PC1)	&& PASSIVE	&& (sp==s) && (LP(0) == LC(0)/2)) // l/=2 -> 26,10
+//#define OP1		1 //true -> 74,16
+//#define OP1		0 //true -> 0,0
+#define OP2		0
+#define OP3		0
+
+#define ERR_PC	0
+
+#define INI_PC 0
+
+#define INI 0
+#else
 #define LOOP_PCTR \
 	LOOP(T.pc,PC1,N<1?PC1:PC3)\
 	LOOP(T.pc1,PC1,N<2?PC1:PC3)\
@@ -304,6 +366,7 @@ void ticketabs::initial_net(Net& n)
 	(N<5||LC(4)==0) && \
 	(N<6||LC(5)==0) && \
 	1)
+#endif
 
 unsigned s,sp;
 unsigned t,tp;
@@ -313,17 +376,19 @@ unsigned b[4][3],bp[4][3];
 
 ticketabs::rel_t T; 
 
-#define PRED1N2		((LC(0)!=LC(1)))
-#define PRED11N2	((LC(1)!=LC(0)))
-
-#define PRED1N3		(LC(0)!=LC(1) && LC(0)!=LC(2))
-#define PRED11N3	(LC(1)!=LC(0) && LC(1)!=LC(2))
-
-#define PRED2		(t>LC(0))
-#define PRED21		(t>LC(1))
-#define PRED3		(s==LC(0))
-#define PRED31		(s==LC(1))
-
+#ifdef ARG
+const unsigned NUM_PREDS = 2;
+bool ticketabs::PRED(unsigned a, unsigned c, bool P) const
+{
+	switch(c)
+	{
+	case 0: return L_(a,P) == S_(P); 
+	case 1: return L_(a,P) == 4; 
+	default: throw;
+	}
+}
+#else
+const unsigned NUM_PREDS = 3;
 bool ticketabs::PRED(unsigned a, unsigned c, bool P) const
 {
 	switch(c)
@@ -344,10 +409,11 @@ bool ticketabs::PRED(unsigned a, unsigned c, bool P) const
 	default: throw;
 	}
 }
+#endif
 
 bool ticketabs::consistent(unsigned m, bool P) const
 {
-	for(unsigned c = 0; c <= 2; ++c) //3 predicates
+	for(unsigned c = 0; c < NUM_PREDS; ++c) //3 predicates
 		for(unsigned a = 0; a <= m; ++a) //m threads
 			if(BB(a,c,P)!=PRED(a,c,P))
 				return false;
@@ -418,13 +484,20 @@ void ticketabs::update_transitions(Net& n)
 			PC_PRGS;
 			LOOP_BOOL LOOP_BOOL_N LOOP_VARS_CN
 			{
+#ifdef ARG
+				if(!OP1) 
+					continue;
+#else
 				assert(PCUP(PC1)||PCUP(PC2)||PCUP(PC3) && PASSIVE && (OP1 || OP2 || OP3));
+#endif
 
 				if(!consistent(1,false) || !consistent(1,true))
 					continue;
 
+#ifndef ARG
 				assert(T.b2 == T.b21);
 				assert(T.b2p == T.b21p);
+#endif
 
 				if(RELs.insert(T.C() | T.N()).second){
 					REL_no1s.insert(T.CE()	| T.NE());
@@ -441,7 +514,7 @@ void ticketabs::update_transitions(Net& n)
 					assert(AN.shared < n.S);
 
 					n.adjacency_list[A][AN][P].insert(PN); //passive transition
-					//n.reduce_log << "TRA: "; PRINTT; n.reduce_log << endl;
+					n.reduce_log << "TRA: "; PRINTT; n.reduce_log << endl;
 				}
 			}
 		}
@@ -466,8 +539,8 @@ void ticketabs::update_transitions(Net& n)
 				assert(AN.shared < n.S);
 
 				n.adjacency_list[A][AN][P].insert(l_nil); //passive transition
-				if(RSTs.insert(T. C() | T.NE()).second)
-				{ /*n.reduce_log << "RST: "; PRINTT; n.reduce_log << endl;*/ }
+				if(!(RSTs.insert(T. C() | T.NE()).second)) continue;
+				n.reduce_log << "RST: "; PRINTT; n.reduce_log << endl;
 			}
 		}
 

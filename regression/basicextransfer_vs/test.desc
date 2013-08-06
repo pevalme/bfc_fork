@@ -1,0 +1,10 @@
+CORE
+main.tts
+--target main.prop --init 0BU0,4
+^EXIT=0$
+^SIGNAL=0$
+^VERIFICATION SUCCESSFUL$
+--
+^warning: ignoring
+--
+no comments

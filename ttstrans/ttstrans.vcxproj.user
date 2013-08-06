@@ -6,8 +6,8 @@
     <LocalDebuggerWorkingDirectory>$(SolutionDir)\test</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LocalDebuggerCommandArguments>--input-file D:\Lehre\tmp\tts_satabs\regression\cfeatures\Bug61__if1\satabs.1.tts -wTTS</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--input-file D:\Lehre\bfc\regression\self_loop_vs\main.tts -wMIST -a "0|1,1,0" -i "0|0,0,0"</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\tmp\tts_satabs\regression\cfeatures\Bug61__if1</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\tmp\</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

@@ -6,6 +6,7 @@
 
 //cbfs
 #define OPT_STR_HELP				"help,h"
+#define OPT_STR_HELP_HELP			"print help message and exit"
 #define OPT_STR_VERSION				"version,v"
 #define OPT_STR_SAVE_NET			"save-net"
 #define OPT_STR_STATS				"stats"
@@ -23,11 +24,16 @@
 #define OPT_STR_MEMOUT				"mem-limit,m"
 #endif
 #define OPT_STR_INPUT_FILE			"input-file"
+#define OPT_STR_INPUT_FILE_HELP		"input thread transition system"
 #define OPT_STR_TARGET				"target,a"
+#define OPT_STR_TARGET_HELP			"target state: \"0|0\", \"1|0,1,1\" etc."
 
 #define OPT_STR_INIT_VAL_SING		"single"
 #define OPT_STR_INIT_VAL_PARA		"unbounded"
 #define OPT_STR_INIT				"initial,i"
+#define OPT_STR_INIT_HELP			"initial state: \"0|0\" (=bounded), \"0/0\" (=unbounded), \"1|0,1/2\" etc."
+
+
 #define OPT_STR_INIT_DEFVAL			OPT_STR_INIT_VAL_PARA
 
 

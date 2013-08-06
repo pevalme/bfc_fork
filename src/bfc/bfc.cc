@@ -271,7 +271,7 @@ int main(int argc, char* argv[])
 		//Misc
 		options_description misc;
 		misc.add_options()
-			(OPT_STR_HELP,			bool_switch(&h), "produce help message and exit")
+			(OPT_STR_HELP,			bool_switch(&h), OPT_STR_HELP_HELP)
 			(OPT_STR_VERSION,		bool_switch(&v), "print version info and exit")
 			("ticketabs",				bool_switch(&TICKETABS), "print version info and exit")
 #ifndef WIN32
@@ -310,9 +310,9 @@ int main(int argc, char* argv[])
 		//Problem instance
 		options_description problem("Problem instance");
 		problem.add_options()
-			(OPT_STR_INPUT_FILE,	value<string>(&filename), "thread transition system (.tts file)")
-			(OPT_STR_TARGET,		value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
-			(OPT_STR_INIT,			value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), "initial state (e.g. 1|0 or 1|0,1/2)")
+			(OPT_STR_INPUT_FILE,	value<string>(&filename), OPT_STR_INPUT_FILE_HELP)
+			(OPT_STR_TARGET,		value<string>(&target_fn), OPT_STR_TARGET_HELP)
+			(OPT_STR_INIT,			value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), OPT_STR_INIT_HELP)
 			;
 
 		//Exploration mode
@@ -457,16 +457,10 @@ int main(int argc, char* argv[])
 		{
 			for(unsigned N = 2; N <= 2; N++)
 				for(unsigned M = 5; M <= 10; M++)
-			//for(unsigned N = 2; N <= 5; N++)
-			//	for(unsigned M = 2; M <= 3; M++)
-			//for(unsigned N = 4; N <= 4; N++)
-			//	for(unsigned M = 3; M <= 3; M++)
 				{
-
 					cerr << "***************************************" << endl;
 					cerr << "N" << N << "M" << M << endl;
 					cerr << "***************************************" << endl;
-
 					ticketabs T(N,M);
 					T.initial_net(net);
 					T.update_transitions(net);

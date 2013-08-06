@@ -8,8 +8,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>--ticketabs main.tts --force-flush -dF --target main.prop --stats --init "0|2,2" --prj-all --fw-no-omegas --max_fw_width 10 --write-fw-tree dot --write-graph dot --reduce-log</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>main.tts --target main.prop --init 0BU0,4 --save-net --reduce-log --force-flush</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\_ticketabs</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\_basicextransfer_vs</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

@@ -431,18 +431,31 @@ void Net::reduce(bool prj_all)
 	{
 		for(local_t lp = l; lp < L; ++lp)
 		{
-			//reduce_log << l << "==" << lp << "?";
+			reduce_log << l << "==" << lp << "?";
 			EQl[l][lp] = EQl[lp][l] = 
 				l == lp ||
 				all_of(Q.begin(),Q.end(),[&l,&lp](const vt_t& q){ return 
 				all_of(q.begin(),q.end(),[&l,&lp](const transfers_t& t) { return 
 				t.find(l) == t.end() && t.find(lp) == t.end() ||
 				(t.find(l) != t.end() && t.find(lp) != t.end() && t.at(l)-l == t.at(lp)-lp); });});
-			//reduce_log << EQl[l][lp] << endl;
+			reduce_log << EQl[l][lp] << endl;
 		}
 	}
 
 	//compute core local states
+	shared_counter_map_t
+		from_shared_counter
+		;
+	for(auto& a : adjacency_list)
+	{
+		for(auto& b : a.second)
+		{
+			const Thread_State& source = a.first, &target = b.first;
+			const transfers_t& transfers = b.second;
+			from_shared_counter[source.shared] = 1 + transfers.size(); //count transfers as thread transitions
+		}
+	}
+
 	lls_map_t
 		lcur_lnex_to_shared,
 		l_to_s_inv
@@ -456,7 +469,8 @@ void Net::reduce(bool prj_all)
 		non_plain_to_local,
 		non_eq_transitions_to_local,
 		is_transferred_from,
-		is_transferred_to
+		is_transferred_to,
+		single_transfer
 		;
 
 	for(auto& a : adjacency_list)
@@ -464,7 +478,7 @@ void Net::reduce(bool prj_all)
 		for(auto& b : a.second)
 		{
 			const Thread_State& source = a.first, &target = b.first;
-			const transfers_t& transfers = b.second; //, &transfers_inv = adjacency_list_inv[target][source];
+			const transfers_t& transfers = b.second;
 
 			lcur_lnex_to_shared[source.local][target.local].insert(target.shared);
 			l_to_s_inv[target.local][source.local].insert(target.shared);
@@ -474,14 +488,13 @@ void Net::reduce(bool prj_all)
 			non_plain_from_local[source.local] |= !transfers.empty(), non_plain_to_local[target.local] |= !transfers.empty();
 			non_eq_transitions_to_local[target.local] |= !EQl[source.local][target.local];
 
-			for(auto& pa : b.second)
+			for(auto& pa : transfers)
 			{
 				is_transferred_from[pa.first] = true;
-				for(auto& pb : pa.second)
-				{
-					is_transferred_to[pb] = true;
-				}
-			}			
+				for(auto& pb : pa.second) is_transferred_to[pb] = true;
+				single_transfer[pa.first] |= from_shared_counter[source.shared] <= 2;
+			}
+			single_transfer[source.local] |= from_shared_counter[source.shared] <= 2;
 		}
 	}
 
@@ -518,8 +531,12 @@ void Net::reduce(bool prj_all)
 			COUNT_IF(V,"6NONPI",b && (non_plain_to_local[l]))|| //one or more ingoing edges are no plain thread transitions
 			COUNT_IF(V,"7SINDE",b && (any_of(l_to_s_inv[l].begin(),l_to_s_inv[l].end(),[&matr,this](ls_m_t::value_type& x){ reduce_log << x.second.size() << "/" << matr << endl; return x.second.size() < matr; })))|| //transition is independent of the shared state
 			COUNT_IF(V,"8PASSE",b && (non_eq_transitions_to_local[l])) || //relative passive effects are the same on all predecessors as on l
-			COUNT_IF(V,"9SINKK",!b && (!is_transferred_from[l] && is_transferred_to[l])) //can only be reached passively (TODO: all sink states could be merged to further reduce the net)
+			COUNT_IF(V,"9SINKK",!b && (!is_transferred_from[l] && is_transferred_to[l])) || //can only be reached passively (TODO: all sink states could be merged to further reduce the net)
+			COUNT_IF(V,"10TRAN",!b && (is_transferred_from[l] && single_transfer[l])) //remove spurious paths for some nets where "s l ~> s' l'" was rewritten in to "* * -> * * l ~> l'" (removing this constraint introduces a spurious path in regression test basicextransfer_vs)
 			;
+
+		adjacency_list;
+
 	}
 	reduce_log << endl;
 

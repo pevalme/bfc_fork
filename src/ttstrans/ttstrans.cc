@@ -178,10 +178,10 @@ int main(int argc, char* argv[])
 
 		options_description desc;
 		desc.add_options()			
-			(OPT_STR_HELP, bool_switch(&(bool&)h), "produce help message")
-			(OPT_STR_INPUT_FILE, value<string>(&i), "input file")
-			(OPT_STR_INIT, value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), "initial state (e.g. 1|0 or 1|0,1/2)")
-			(OPT_STR_TARGET, value<string>(&target_fn), "target state file (e.g. 1|0,1,1)")
+			(OPT_STR_HELP, bool_switch(&(bool&)h), OPT_STR_HELP_HELP)
+			(OPT_STR_INPUT_FILE, value<string>(&i), OPT_STR_INPUT_FILE_HELP)
+			(OPT_STR_INIT, value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), OPT_STR_INIT_HELP)
+			(OPT_STR_TARGET, value<string>(&target_fn), OPT_STR_TARGET_HELP)
 			(OPT_STR_OUTPUT_FILE, value<string>(&o)->default_value(OPT_STR_OUTPUT_FILE_DEFVAL), "output file (\"stdout\" for console)")
 			(OPT_STR_FORMAT, value<string>(&f), (string("output format: ")
 			+ '"' + OPT_STR_FORMAT_CLASSIFY + '"' + ", "
@@ -209,6 +209,12 @@ int main(int argc, char* argv[])
 		//read input net
 		if(i == string()) throw logic_error("no input file");
 		Net(i,target_fn,init_fn,false).swap(net);
+		BState::S = net.S, BState::L = net.L;
+
+		if(!net.target.consistent())
+			throw std::runtime_error("invalid target state");
+		if(!net.init.consistent())
+			throw std::runtime_error("invalid initial state");
 
 		//check output file
 		if(o != "stdout")
@@ -269,8 +275,9 @@ int main(int argc, char* argv[])
 	case Net::MIST: 
 		{
 			cout << endl << "init" << endl;
-			foreach(local_t l, net.init.bounded_locals)
-				cout << "l" << l << "=1, ";
+			foreach(local_t l, set<local_t>(net.init.bounded_locals.begin(),net.init.bounded_locals.end()))
+				cout << "l" << l << "=" << net.init.bounded_locals.count(l) << ", ";
+			
 			foreach(local_t l, net.init.unbounded_locals)
 				cout << "l" << l << ">=1, ";
 			cout << "s" << net.init.shared << "=1" << endl;

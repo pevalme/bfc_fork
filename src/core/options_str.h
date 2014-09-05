@@ -41,6 +41,7 @@
 #define OPT_STR_IGN_TARGET			"ignore-target"
 
 #define OPT_STR_NO_POR				"prj-all"
+#define OPT_STR_SATABS_POR			"satabs-por"
 #define OPT_STR_MODE				"mode,d"
 #define CON_OPTION_STR				"C"
 #define CON2_OPTION_STR				"CND"

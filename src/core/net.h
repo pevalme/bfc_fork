@@ -121,12 +121,11 @@ public: //TODO: remove
 	stats_t get_stats(bool sccnetstats) const;
 
 	/* ---- Reduction ---- */	
-	void reduce(bool);
+	void reduce(bool,bool);
 	std::vector<bool> get_core_shared(bool = false, bool = false) const;
 
 	/* ---- Misc ---- */	
 	void swap(Net&);
-
 };
 
 ostream& operator << (ostream&, const Net&);

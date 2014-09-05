@@ -8,8 +8,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">
-    <LocalDebuggerCommandArguments>main.tts --target main.prop --init 0BU0,4 --save-net --reduce-log --force-flush</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>main.tts --target main.prop --init "0|0,1" --save-net --reduce-log --force-flush</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\_basicextransfer_vs</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>D:\Lehre\bfc\regression\unsafe_send__sending_to_non-pid__depth_0_vf_minimized</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
 </Project>

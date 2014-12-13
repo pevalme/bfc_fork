@@ -1,20 +1,10 @@
-//#define PUBLIC_RELEASE
-//#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
-//#define TIMING
-//#define EAGER_ALLOC
-#define MINBW
-
-#define VERSION "2.0"
-
-//$(SolutionDir)\regression\abp_vs_sm
-
 /******************************************************************************
   Synopsis		[Bfc - Greedy Analysis of Multi-Threaded Programs with 
 				Non-Blocking Communication.]
 
   Author		[Alexander Kaiser]
 
-(C) 2011 Alexander Kaiser, University of Oxford, United Kingdom
+(C) 2011 - 2014 Alexander Kaiser, University of Oxford, United Kingdom
 
 All rights reserved. Redistribution and use in source and binary forms, with
 or without modification, are permitted provided that the following
@@ -48,6 +38,14 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
+
+//#define PUBLIC_RELEASE
+//#define IMMEDIATE_STOP_ON_INTERRUPT //deactive to allow stopping the oracle with CTRG-C
+//#define TIMING
+//#define EAGER_ALLOC
+#define MINBW
+
+#define VERSION "2.0"
 
 #define EXIT_VERIFICATION_SUCCESSFUL		0
 #define EXIT_VERIFICATION_SUCCESSFUL_STR	"VERIFICATION SUCCESSFUL"

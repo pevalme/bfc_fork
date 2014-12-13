@@ -37,4 +37,4 @@ Pre-compiled 32-bit library binaries are also available here: http://www.boostpr
 
 3. Build the solution.
 -----------------------------------------------
-For furhter questions contact Alexander Kaiser (alexander.kaiser@cs.ox.ac.uk).
+For furhter questions contact Alexander Kaiser (alexander.kaiser@cs.ox.ac.uk or alex@akaiser.net).

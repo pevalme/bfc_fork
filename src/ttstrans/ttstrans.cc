@@ -1,5 +1,5 @@
 /******************************************************************************
-  Synopsis		[Bfc - Greedy Analysis of Multi-Threaded Programs with 
+  Synopsis		[Bfc - Greedy Analysis of Multi-Threaded Programs with
 				Non-Blocking Communication.]
 
   Author		[Alexander Kaiser]
@@ -20,7 +20,7 @@ conditions are met:
   3. All advertising materials mentioning features or use of this software
      must display the following acknowledgement:
 
-     This product includes software developed by Alexander Kaiser, 
+     This product includes software developed by Alexander Kaiser,
      University of Oxford, United Kingdom and its contributors.
 
   4. Neither the name of the University nor the names of its contributors
@@ -47,13 +47,15 @@ using namespace boost::program_options;
 
 #include "user_assert.h"
 #include "types.h"
+#include <tgmath.h>
+#include <bitset>
 
 using namespace std;
 
 #include "net.h"
 Net net;
 
-void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n_ty, ostream& out, Net& net)
+void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n_ty, ostream& out, Net& net, bool mist0, bool mistS, bool mistL)
 {
 	unsigned ctr = 0;
 	string sep;
@@ -61,16 +63,22 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 	{
 		switch(n_ty)
 		{
-		case Net::TTS: 
+		case Net::TTS:
 			out << net.S << " " << net.L << endl;
 			break;
-		case Net::MIST: 
+		case Net::MIST:
 			cout << "vars" << endl;
-			for(shared_t s_=0; s_ < net.S; s_++) cout << "s" << s_ << " ";
+			if (mistS)
+				cout << "s0 s1 ";
+			else if (mistL)
+				for(shared_t s_=0; s_ < 2*(floor(log2(net.S)) + 1); s_++) cout << "s" << s_ << " ";
+			else
+				for(shared_t s_=0; s_ < net.S; s_++) cout << "s" << s_ << " ";
+
 			for(local_t  l_=0; l_ < net.L; l_++) cout << "l" << l_ << " ";
-			cout << endl << endl << "rules" << endl; 
+			cout << endl << endl << "rules" << endl;
 			break;
-		case Net::TIKZ: 
+		case Net::TIKZ:
 			out << "\\draw[step=1,gray,very thin] (0,0) grid (" << net.L << "," << net.S << ");" << endl;
 			out << "\\foreach \\l in {0,2,...," << net.L-1 << "} \\draw (\\l + 0.5," << net.S << ") node[anchor=south] {$\\scriptscriptstyle \\l$};" << endl;
 			out << "\\foreach \\s in {0,2,...," << net.S-1 << "} \\draw (0," << net.S-1 << "- \\s + 0.5) node[anchor=east] {$\\scriptscriptstyle \\s$};" << endl;
@@ -80,7 +88,7 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 				for(unsigned int l = 1; l<net.L; ++l)
 					out << "\\draw (" << l << ".5," << net.S-s-1 << ".5) node{$\\phantom{\\scriptscriptstyle 0}$};" << endl;
 			break;
-		case Net::LOLA: 
+		case Net::LOLA:
 			//PLACE x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24,x25,x26,x27;
 			out << "PLACE ", sep = "";
 			for(shared_t s_=0; s_ < net.S; s_++) out << sep << "s" << s_, sep = ',';
@@ -106,12 +114,12 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 				out << endl;
 			}
 			break;
-		case Net::TINA: 
+		case Net::TINA:
 			assert(0);
 			break;
 		}
 	}
-	
+
 	for(auto& pair : adj)
 	{
 		const Thread_State& t = pair.first;
@@ -132,10 +140,78 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 				case spawn_transition: out << t << " +> " << (succ) << endl; break;
 				default: assert(0);}
 				break;
-			
+
 			case Net::MIST:
-				out << "l" << t.local << ">=1, " << "s" << t.shared << ">=1 -> " << endl;
-				if(t.shared != succ.shared) out << "\ts" << t.shared << "'=s" << t.shared << "-1," << endl << "\ts" << succ.shared << "'=s" << succ.shared << "+1";
+				if (mistS) {
+					out  << "l" << t.local << ">=1, " << "s0>=" << t.shared << ", s1>=" << net.S-t.shared -1<< " -> " << endl;
+					if(t.shared != succ.shared) {
+						if (succ.shared >= t.shared) {
+							out << "\ts0'=s0+" << succ.shared - t.shared << ",\n\ts1'=s1-" << succ.shared - t.shared;
+						} else {
+							out << "\ts0'=s0-" << t.shared - succ.shared  << ",\n\ts1'=s1+" << t.shared - succ.shared;
+						}
+					}
+				} else if (mistL){
+					bitset<32> new_state = succ.shared, old_state = t.shared;
+					int i;
+
+					out  << "l" << t.local << ">=1";
+
+					for(i=0; i < floor(log2(net.S)) + 1; i++){
+						if(old_state[i] == 1) {
+							out << ", s" << 2*i << ">=1";
+							out << ", s" << 2*i+1 << ">=0";
+						} else {
+							out << ", s" << 2*i << ">=0";
+							out << ", s" << 2*i+1 << ">=1";
+						}
+					}
+					out << "->" << endl;
+					//out << ", s" << floor(log2(net.S))+1 << ">=" << count1s << ", s" << floor(log2(net.S)) +2 << ">=" << floor(log2(net.S)) +1 - count1s << " -> " << endl;
+
+					for(i=0; i <= floor(log2(net.S)) + 1; i++){
+						if(new_state[i] != old_state[i]){ // If the bit has change
+							if(new_state[i] == 1) {
+								out << "\ts" << 2*i << "'=s" << 2*i << "+1," << endl;
+								out << "\ts" << 2*i+1 << "'=s" << 2*i+1 << "-1";
+							} else {
+								out << "\ts" << 2*i << "'=s" << 2*i << "-1,"<< endl;
+								out << "\ts" << 2*i+1 << "'=s" << 2*i+1 << "+1";
+							}
+							break;
+						}
+					}
+
+					i++;
+
+					for(; i <= floor(log2(net.S)) + 1; i++){
+						if(new_state[i] != old_state[i]){ // If the bit has change
+							if(new_state[i] == 1) {
+								out << ",\n\ts" << 2*i << "'=s" << 2*i << "+1";
+								out << ",\n\ts" << 2*i+1 << "'=s" << 2*i+1 << "-1";
+							} else {
+								out << ",\n\ts" << 2*i << "'=s" << 2*i << "-1";
+								out << ",\n\ts" << 2*i+1 << "'=s" << 2*i+1 << "+1";
+							}
+						}
+					}
+
+					/*if (new1s > 0) {
+						out << ",\n\ts" << floor(log2(net.S))+1 << "'=s" << floor(log2(net.S))+1 << "+" << new1s << ",\n";
+						out << "\ts" << floor(log2(net.S))+2 << "'=s" << floor(log2(net.S))+2 << "-" << new1s;
+					} else if (new1s < 0){
+						out << ",\n\ts" << floor(log2(net.S))+1 << "'=s" << floor(log2(net.S))+1 << "-" << -new1s << ",\n";
+						out << "\ts" << floor(log2(net.S))+2 << "'=s" << floor(log2(net.S))+2 << "+" << -new1s;
+					}*/
+
+
+				} else {
+					out << "l" << t.local << ">=1, " << "s" << t.shared << ">=1 -> "
+
+					<< endl;
+					if(t.shared != succ.shared) out << "\ts" << t.shared << "'=s" << t.shared << "-1," << endl << "\ts" << succ.shared << "'=s" << succ.shared << "+1";
+				}
+
 				if(t.local != succ.local)
 				{
 					if(t.shared != succ.shared) out << "," << endl;
@@ -149,17 +225,17 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 				out << endl << endl;
 				break;
 
-			case Net::TIKZ: 
+			case Net::TIKZ:
 				out << "\\draw[";
 				switch(t_ty){
 					case transfer_transition: out << "transfer_trans"; break;
 					case thread_transition: out << "thread_trans"; break;
 					case spawn_transition: out << "spawn_trans"; break;
 					default: assert(0);}
-				out << "] (" << t.local << "+0.5," << net.S-t.shared-1 << "+0.5) to (" << succ.local << "+0.5," << net.S-succ.shared-1 << "+0.5);" << endl; 
+				out << "] (" << t.local << "+0.5," << net.S-t.shared-1 << "+0.5) to (" << succ.local << "+0.5," << net.S-succ.shared-1 << "+0.5);" << endl;
 				break;
 
-			case Net::LOLA: 
+			case Net::LOLA:
 				//s l -> s' l'
 				//TRANSITION t8
 				//CONSUME {s}:1,{l}:1;
@@ -184,12 +260,12 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 				//PRODUCE x0:1,x27:1;
 				out << "PRODUCE ";
 				switch(t_ty){
-				case thread_transition: out << "s" << succ.shared << ":1," << "l" << succ.local << ":1;" << endl; break; 
-				case spawn_transition: out << "s" << succ.shared << ":1," << "l" << succ.local << ":1," << "l" << t.local << ":1;" << endl; break; 
+				case thread_transition: out << "s" << succ.shared << ":1," << "l" << succ.local << ":1;" << endl; break;
+				case spawn_transition: out << "s" << succ.shared << ":1," << "l" << succ.local << ":1," << "l" << t.local << ":1;" << endl; break;
 				default: assert(0);}
 				break;
 
-			case Net::TINA: 
+			case Net::TINA:
 				assert(0);
 				break;
 			}
@@ -201,10 +277,11 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 #include <fstream>
 void test_g();
 
-int main(int argc, char* argv[]) 
+int main(int argc, char* argv[])
 {
 
 	string i,o;
+	bool mist0=false, mistS=false, mistL=false;
 	ofstream fout;
 
 	Net::net_format_t format;
@@ -217,7 +294,7 @@ int main(int argc, char* argv[])
 		string f,target_fn,init_fn;
 
 		options_description desc;
-		desc.add_options()			
+		desc.add_options()
 			(OPT_STR_HELP, bool_switch(&(bool&)h), OPT_STR_HELP_HELP)
 			(OPT_STR_INPUT_FILE, value<string>(&i), OPT_STR_INPUT_FILE_HELP)
 			(OPT_STR_INIT, value<string>(&init_fn)->default_value(OPT_STR_INIT_VAL_PARA), OPT_STR_INIT_HELP)
@@ -230,10 +307,13 @@ int main(int argc, char* argv[])
 			+ '"' + OPT_STR_FORMAT_LOLA + '"' + ", "
 			+ '"' + OPT_STR_FORMAT_TINA + '"' + ", "
 			+ '"' + OPT_STR_FORMAT_TTS + '"').c_str())
+			(OPT_STR_MIST_OP_0, bool_switch(&(bool&)mist0), OPT_STR_MIST_OP_0_HELP)
+			(OPT_STR_MIST_LOG_MIN, bool_switch(&(bool&)mistL), OPT_STR_MIST_LOG_MIN_HELP)
+			(OPT_STR_MIST_MINIMIZE, bool_switch(&(bool&)mistS), OPT_STR_MIST_MINIMIZE_HELP)
 			;
 		variables_map vm;
-		store(parse_command_line(argc, argv, desc), vm), notify(vm); 
-		
+		store(parse_command_line(argc, argv, desc), vm), notify(vm);
+
 		//print help
 		if(h){ std::cout << desc; return EXIT_FAILURE; }
 
@@ -304,45 +384,114 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		print(net.adjacency_list, thread_transition, true, format, cout, net);
+		print(net.adjacency_list, thread_transition, true, format, cout, net, mist0, mistS, mistL);
 	}
 
 	switch(format)
 	{
-	case Net::TTS: 
+	case Net::TTS:
 		break;
-	
-	case Net::MIST: 
+
+	case Net::MIST:
 		{
 			cout << endl << "init" << endl;
 			foreach(local_t l, set<local_t>(net.init.bounded_locals.begin(),net.init.bounded_locals.end()))
 				cout << "l" << l << "=" << net.init.bounded_locals.count(l) << ", ";
-			
+
 			foreach(local_t l, net.init.unbounded_locals)
 				cout << "l" << l << ">=1, ";
-			cout << "s" << net.init.shared << "=1" << endl;
+			if (mistS) {
+				cout << "s0=" << net.init.shared << ", s1=" << net.S-net.init.shared-1 << endl;
+			} else if (mistL){
+				bitset<32> new_state = net.init.shared;
+
+				cout << "s0=" << new_state[0];
+				if (new_state[0] == 1) cout << ", s1=" << "0";
+				else cout << ", s1=" << "1";
+
+				for(int i=1; i < floor(log2(net.S)) + 1; i++) {
+					cout << ", s" << 2*i << "=" << new_state[i];
+					if (new_state[i] == 1) cout << ", s" << 2*i+1 << "=0";
+					else cout << ", s" << 2*i+1 << "=1";
+				}
+
+				//cout << ", s" << floor(log2(net.S)) + 1 << "=" << count1s  << ", s" << floor(log2(net.S)) + 2 << "=" << floor(log2(net.S)) + 1 - count1s << endl;
+			} else {
+				if (mist0){
+					for(shared_t s_=0; s_ < net.S; s_++) {
+						if (s_ != net.init.shared)
+							cout << "s" << s_ << "=0, ";
+					}
+				}
+				cout << "s" << net.init.shared << "=1" << endl;
+			}
+
 			cout << endl << "target" << endl;
-			cout << "s" << net.target.shared << ">=1";
+			if (mistS) {
+				cout << "s0>=" << net.target.shared << ", s1>=" << net.S-net.target.shared-1;
+			} else if (mistL){
+				bitset<32> new_state = net.target.shared;
+
+				cout << "s0" << ">=" << new_state[0];
+				if (new_state[0] == 1) cout << ", s1=" << "0";
+				else cout << ", s1=" << "1";
+
+				for(int i=1; i < floor(log2(net.S)) + 1; i++) {
+					cout << ",s" << 2*i << ">=" << new_state[i];
+					if (new_state[i] == 1) cout << ",s" << 2*i << ">=0";
+					else cout << ",s" << 2*i+1 << ">=1";
+				}
+
+				//cout << ",s" << floor(log2(net.S)) + 1 << ">=" << count1s << ",s" << floor(log2(net.S)) + 2 << ">=" << floor(log2(net.S)) + 1 - count1s;
+			} else {
+				if(mist0){
+					for(shared_t s_=0; s_ < net.S; s_++) {
+						if (s_ != net.target.shared)
+							cout << "s" << s_ << ">=0, ";
+					}
+				}
+				cout << "s" << net.target.shared << ">=1";
+
+			}
+
 			foreach(local_t l_, set<local_t>(net.target.bounded_locals.begin(),net.target.bounded_locals.end()))
 				cout << "," << "l" << l_ << ">=" << net.target.bounded_locals.count(l_);
 			cout << endl;
+
+			cout << endl << "invariants" << endl;
+
+			if(mistL){
+				int i;
+				cout << "s0=1";
+
+				for(i=1; i < 2*(floor(log2(net.S)) + 1); i++) {
+					cout << ", s" << i << "=1";
+				}
+
+			} else if(mistS){
+				cout << "s0=1, s1=1" << endl;
+			} else{
+				for(shared_t s_=0; s_ < net.S - 1; s_++) cout << "s" << s_ << "=1, ";
+				cout << "s" << net.S-1 << "=1" << endl;
+			}
+
 			break;
 		}
 
 	case Net::TIKZ:
 		break;
 
-	case Net::LOLA: 
+	case Net::LOLA:
 		break;
 
-	case Net::TINA: 
+	case Net::TINA:
 		assert(0);
 		break;
 	}
 
 	//restore output stream
 	if(o != OPT_STR_OUTPUT_FILE_STDOUT)
-		std::cout.rdbuf(cout_sbuf), // restore the original stream buffer 
+		std::cout.rdbuf(cout_sbuf), // restore the original stream buffer
 		cout << "output written to " << o << endl;
 
 }

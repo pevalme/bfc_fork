@@ -167,7 +167,6 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 						}
 					}
 					out << "->" << endl;
-					//out << ", s" << floor(log2(net.S))+1 << ">=" << count1s << ", s" << floor(log2(net.S)) +2 << ">=" << floor(log2(net.S)) +1 - count1s << " -> " << endl;
 
 					for(i=0; i <= floor(log2(net.S)) + 1; i++){
 						if(new_state[i] != old_state[i]){ // If the bit has change
@@ -195,14 +194,6 @@ void print(const Net::adj_t& adj, trans_type t_ty, bool hdr, Net::net_format_t n
 							}
 						}
 					}
-
-					/*if (new1s > 0) {
-						out << ",\n\ts" << floor(log2(net.S))+1 << "'=s" << floor(log2(net.S))+1 << "+" << new1s << ",\n";
-						out << "\ts" << floor(log2(net.S))+2 << "'=s" << floor(log2(net.S))+2 << "-" << new1s;
-					} else if (new1s < 0){
-						out << ",\n\ts" << floor(log2(net.S))+1 << "'=s" << floor(log2(net.S))+1 << "-" << -new1s << ",\n";
-						out << "\ts" << floor(log2(net.S))+2 << "'=s" << floor(log2(net.S))+2 << "+" << -new1s;
-					}*/
 
 
 				} else {
@@ -415,7 +406,6 @@ int main(int argc, char* argv[])
 					else cout << ", s" << 2*i+1 << "=1";
 				}
 
-				//cout << ", s" << floor(log2(net.S)) + 1 << "=" << count1s  << ", s" << floor(log2(net.S)) + 2 << "=" << floor(log2(net.S)) + 1 - count1s << endl;
 			} else {
 				if (mist0){
 					for(shared_t s_=0; s_ < net.S; s_++) {
@@ -442,7 +432,6 @@ int main(int argc, char* argv[])
 					else cout << ",s" << 2*i+1 << ">=1";
 				}
 
-				//cout << ",s" << floor(log2(net.S)) + 1 << ">=" << count1s << ",s" << floor(log2(net.S)) + 2 << ">=" << floor(log2(net.S)) + 1 - count1s;
 			} else {
 				if(mist0){
 					for(shared_t s_=0; s_ < net.S; s_++) {

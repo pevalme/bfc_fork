@@ -19,6 +19,14 @@
 #define OPT_STR_PRINT_KCOVER		"print-cover"
 #define OPT_STR_FORCE_FLUSH			"force-flush"
 
+//Options for MIST
+#define OPT_STR_MIST_OP_0			"complete,z"
+#define OPT_STR_MIST_OP_0_HELP 		"initialize with 0 unkwnown variables"
+#define OPT_STR_MIST_MINIMIZE		"minimize,s"
+#define OPT_STR_MIST_MINIMIZE_HELP 	"use only two S varaibles"
+#define OPT_STR_MIST_LOG_MIN		"logmin,l"
+#define OPT_STR_MIST_LOG_MIN_HELP 	"use log(n) S variables "
+
 #ifndef WIN32
 #define OPT_STR_TIMEOUT				"time-limit,t"
 #define OPT_STR_MEMOUT				"mem-limit,m"

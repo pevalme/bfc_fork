@@ -2,8 +2,8 @@
 Compilation instructions for g++
 -----------------------------------------------
 1. Required:
-* g++ >= 4.7 only (available in Ubuntu 12.10; older version compile but are too buggy)
-* boost libraries (tested with version 1.46--1.49; 1.49 is available in Ubuntu 12.10)
+* g++ >= 4.8 only (available in Ubuntu 14.10; older version compile but are too buggy)
+* boost libraries (tested with version 1.46--1.49; 1.49 is available in Ubuntu 14.10)
   * boost_filesystem
   * boost_system
   * boost_thread
@@ -14,11 +14,11 @@ sudo apt-get install libboost-filesystem-dev
 sudo apt-get install libboost-thread-dev
 sudo apt-get install libboost-program-options-dev
 
-2. Create the target directory: 
+2. Create the target directory:
 mkdir ./bin/bfc/release
 
 3. Compile with
-g++-4.7 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options --static
+g++-4.8 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options --static
 
 -----------------------------------------------
 Compilation instructions for Visual Studio 2010

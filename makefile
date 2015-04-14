@@ -14,8 +14,8 @@ bfc: $(OBJS)
 	$(CXX) $(LDFLAGS) -o ./bin/bfc/release/bfc $(OBJS) $(LDLIBS)
 	tar -cvzf ./bin/bfc/release/bfc-2.0-linux-x86-64.tar.gz -C ./bin/bfc/release/ bfc
 
-ttstrans:
-	 g++-4.8 -I./src/core/ --static -o ./src/ttstrans/ttstrans ./src/core/net.cc ./src/core/trans.cc ./src/core/tstate.cc ./src/core/antichain.cc ./src/core/bstate.cc ./src/ttstrans/ttstrans.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options
+trans:
+	g++-4.8 -I./src/core/ --static -o ./src/ttstrans/ttstrans ./src/core/net.cc ./src/core/trans.cc ./src/core/tstate.cc ./src/core/antichain.cc ./src/core/bstate.cc ./src/ttstrans/ttstrans.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options
 
 depend: .depend
 

@@ -428,7 +428,7 @@ int main(int argc, char* argv[])
 
 				for(int i=1; i < floor(log2(net.S)) + 1; i++) {
 					cout << ",s" << 2*i << ">=" << new_state[i];
-					if (new_state[i] == 1) cout << ",s" << 2*i << ">=0";
+					if (new_state[i] == 1) cout << ",s" << 2*i+1 << ">=0";
 					else cout << ",s" << 2*i+1 << ">=1";
 				}
 

@@ -40,7 +40,7 @@ $ mkdir ./bin/bfc/release
 3. On Ubuntu 14.10, compile `ttstrans` with:
 
 ```bash
-$ g++-4.8 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options --static
+$ g++-4.8 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options
 ```
 
 3. On OS X 10.9.5, compile with 

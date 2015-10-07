@@ -1,14 +1,23 @@
-## Description
+This project is a fork of the original [bfc][bfc] safety model-checker (a.k.a.
+breach) hosted at: [original][original].  The fork happened at **revision 58**
+and the two repositories have not been synced ever since.
 
-This project is a fork of the original one hosted at: [original][original]. [Here][description] there is a description of the original tool and its usage.
+The focus of this fork is to implement additional functionalities to
+`ttstrans`. Therefore, code not related to `ttstrans` was left untouched.
 
-The main functionalities of the original project are retained but there are different options added to the ttstrans in order to achieve a better compatibility between it and the tool [mist][mist]
+The goal of `ttstrans` is to translate from and to various formalisms to
+describe Petri-net like models. Our effort focused on the translation to the
+[input language][spec] used by the [mist][mist] tool.
+
+We implemented additional translations into the input language of mist. The
+goal was to obtain problem encodings using less variables that the original
+translation. 
 
 
 ## Compilation instructions for g++
 
 1. Required:
-	* g++ >= 4.8 only (available in Ubuntu 14.10; older version compile but are too buggy)
+	* g++ >= 4.8 only (available in Ubuntu 14.10)
 	* boost libraries (tested with version 1.46--1.49; 1.49 is available in Ubuntu 14.10)
 	* boost_filesystem
 	* boost_system
@@ -16,18 +25,30 @@ The main functionalities of the original project are retained but there are diff
 	* boost_program_options
 
 	To install these libraries:
-
-	 	 $ sudo apt-get install libboost-dev
-	 	 $ sudo apt-get install libboost-filesystem-dev
-	 	 $ sudo apt-get install libboost-thread-dev
-	 	 $ sudo apt-get install libboost-program-options-dev
+```bash
+$ sudo apt-get install libboost-dev
+$ sudo apt-get install libboost-filesystem-dev
+$ sudo apt-get install libboost-thread-dev
+$ sudo apt-get install libboost-program-options-dev
+```
 
 2. Create the target directory:
-	 $ mkdir ./bin/bfc/release
+```bash
+$ mkdir ./bin/bfc/release
+```
 
-3. Compile with:
+3. On Ubuntu 14.10, compile `ttstrans` with:
 
-	$ g++-4.8 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options --static
+```bash
+$ g++-4.8 -O3 -I./src/core ./src/core/trans.cc ./src/core/tstate.cc  ./src/core/antichain.cc ./src/core/bstate.cc ./src/core/cmb_node.cc ./src/bfc/bfc.cc ./src/core/complement.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc ./src/core/net.cc -o./bfc -lboost_filesystem -lboost_system -std=c++11 -pthread -lboost_thread -lboost_program_options --static
+```
+
+3. On OS X 10.9.5, compile with 
+
+```bash
+$ clang++ -I./src/core/ -o ./ttstrans/ttstrans ./src/core/net.cc ./src/core/trans.cc ./src/core/tstate.cc ./src/core/antichain.cc ./src/core/bstate.cc ./ttstrans/ttstrans.cc ./src/core/ostate.cc ./src/core/vstate.cc ./src/core/types.cc -lboost_filesystem -lboost_system -std=c++11 -stdlib=libc++  -pthread -lboost_thread-mt -lboost_program_options
+```
+
 
 ## Compilation instructions for Visual Studio 2010
 
@@ -45,37 +66,34 @@ Pre-compiled 32-bit library binaries are also available here: http://www.boostpr
 
 3. Build the solution.
 
-
-For furhter questions contact Alexander Kaiser (alexander.kaiser@cs.ox.ac.uk or alex@akaiser.net).
-
-
-## ttstrans
-
-This tool has been updated by adding several options to obtain an optimize translation. This options only aplies to the translation from bfc format to MIST.
-
 ### Usage
 
-	 $ ttstrans --input-file <filename> -w MIST -a <target_state> -i <initial_state> -[z|s|l]
+```bash
+$ ttstrans --input-file <filename> -w MIST -a <target_state> -i <initial_state> -[z|s|l]
+```
 
 ### Options
-| Option      | Effect of the option                                                                             |
-|-------------|-----------------------------------------------------------------------------------------------------------|
-| z | Initializes sX variables to 0.|
-| s | Uses just two s-variables: s0, s1. It here are 0 to N states, the state i will be represented as s0≥i s1≥N-i |
-| l | Uses just 2xlog(N) variables, being N the number of states. Each state will be represented in binary form using this variables. For each number of the binary form we need two variables: si≥0 s(i+1)≥1 represents '0'; si≥1 s(i+1)≥0, '1'
+| Option | Effect of the option                                                                           |
+|--------|------------------------------------------------------------------------------------------------|
+| z      | Produces `N` counters where `N` is the total number of shared states (originally implemented). |
+| s      | Produces `2` counters regardless of the number of shared states.                               |
+| l      | Produces `2*log(N)` counters where `N` is the total number of shared states.                   | 
+
+* `-z` implements the original translation. It produces one counter per shared state.  
+* `-s` implements the most aggressive translation. It produces two counters,
+  `c0` and `c1`, to represent all the shared states. Say we have `N` shared
+  states.  To represent the state `N-5` we use the valuation `c0 = 5` and `c1 =
+  N-5`.  Note that we use two counters because we want the output to
+  corresponds to a Petri net (or vector addition system) and thus are limited
+  to guard given by inequalities. In this case the conjunction of inequalities
+  `c0 >= 5` and `c1 >= N-5` suffices to identify the shared state `5`.
+* `-l` implements a less aggressive encoding that uses the binary encoding of
+  `N` and then uses two counters to represent each bit of the encoding. Overall
+  the produces `2*log(N)` counters where `N` is the total number of shared states.
 
 
-## Relation with mist
 
-The added options optimize the way [mist][mist] works with the generated .spec file.
-
-* The *-z* option gives us an intuitive output. If a variable is not initialized, [mist][mist] will interpret it as unbounded so won't now anything about its value. This property was modified at [pull request][PR1].
-* The *-s* option avoids the use of a big number of sX variables to represent a number N of states. When N is big enough it forces [mist][mist] to work with a great number of variables which make it really slow. By reducing the number of variables to two we avoid this problem.
-* The *-l* option solves the overflow problem that can appear when using the -s option with big N. This option let us work with 2xlog(N) variables which implies a great reduction of the execution time of mist and avoid the possible overflow because of there won't be any s variable with a lower bound greater than 1
-
-
-
-[description]:http://www.cprover.org/bfc/
 [original]: http://www.cprover.org/svn/software/bfc/
-[mist]:https://github.com/pierreganty/mist
-[PR1]:https://github.com/pierreganty/mist/pull/1
+[mist]: https://github.com/pierreganty/mist
+[bfc]: http://www.cprover.org/bfc/
+[spec]:https://github.com/pierreganty/mist/wiki#input-format-of-mist
